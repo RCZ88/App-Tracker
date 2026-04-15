@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "DeskFlow Browser Tracker",
+  "version": "1.0.0",
+  "description": "Tracks active tab browsing activity and sends data to DeskFlow Electron app",
+  "permissions": [
+    "tabs",
+    "webNavigation",
+    "activeTab",
+    "alarms",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "http://localhost:54321/*"
+  ]
+}

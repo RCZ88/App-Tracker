@@ -1,0 +1,166 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: DeskFlow
+        - generic [ref=e11]: AI TRACKER
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13]:
+        - img [ref=e14]
+        - text: Dashboard
+      - button "Applications" [ref=e17]:
+        - img [ref=e18]
+        - text: Applications
+      - button "Productivity" [ref=e21]:
+        - img [ref=e22]
+        - text: Productivity
+      - button "Browser Activity" [ref=e26]:
+        - img [ref=e27]
+        - text: Browser Activity
+      - button "IDE Projects" [ref=e30]:
+        - img [ref=e31]
+        - text: IDE Projects
+      - button "Insights" [ref=e35]:
+        - img [ref=e36]
+        - text: Insights
+      - button "Database" [ref=e38]:
+        - img [ref=e39]
+        - text: Database
+      - button "Pricing" [ref=e43]:
+        - img [ref=e44]
+        - text: Pricing
+      - button "Settings" [ref=e46]:
+        - img [ref=e47]
+        - text: Settings
+    - generic [ref=e51]:
+      - text: Local SQLite • Zero Cloud •
+      - text: Privacy-First
+  - generic [ref=e52]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]: Productivity
+        - generic [ref=e56]: LIVE
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - button "Focus" [ref=e60]:
+            - img [ref=e61]
+            - text: Focus
+          - button "Total" [ref=e63]:
+            - img [ref=e64]
+            - text: Total
+        - 'generic "Apps: 0s | Websites: 0s" [ref=e67]':
+          - img [ref=e68]
+          - text: 0s
+          - generic [ref=e71]: (productive only)
+        - generic [ref=e72]:
+          - button "Today" [ref=e73]
+          - button "This Week" [ref=e74]
+          - button "Month" [ref=e75]
+          - button "All Time" [ref=e76]
+        - generic [ref=e78]:
+          - img [ref=e79]
+          - text: 17:14
+        - button "Pause Tracking" [ref=e82]:
+          - img [ref=e83]
+          - text: Pause Tracking
+    - generic [ref=e87]:
+      - generic [ref=e88]:
+        - generic [ref=e89]:
+          - heading "Productivity" [level=1] [ref=e90]:
+            - img [ref=e91]
+            - text: Productivity
+          - paragraph [ref=e95]: Combined analysis of apps and websites
+        - generic [ref=e96]:
+          - button "Today" [ref=e97]
+          - button "Week" [ref=e98]
+          - button "Month" [ref=e99]
+          - button "All" [ref=e100]
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - generic [ref=e105]: "0"
+            - generic [ref=e106]:
+              - generic [ref=e107]: Productivity Score
+              - generic [ref=e108]: Based on 0s of tracked activity
+          - generic [ref=e109]:
+            - img [ref=e110]
+            - generic [ref=e111]: 0.0%
+            - generic [ref=e112]: vs avg
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e116]: Productive
+            - generic [ref=e117]: 0m
+            - generic [ref=e118]: 0% of time
+          - generic [ref=e119]:
+            - generic [ref=e121]: Neutral
+            - generic [ref=e122]: 0m
+            - generic [ref=e123]: 0% of time
+          - generic [ref=e124]:
+            - generic [ref=e126]: Distracting
+            - generic [ref=e127]: 0m
+            - generic [ref=e128]: 0% of time
+          - generic [ref=e129]:
+            - generic [ref=e132]: Total Time
+            - generic [ref=e133]: 0s
+            - generic [ref=e134]: 0 items
+      - generic [ref=e135]:
+        - generic [ref=e136]:
+          - heading "Productivity Trend" [level=2] [ref=e138]:
+            - img [ref=e139]
+            - text: Productivity Trend
+          - img [ref=e143]
+        - generic [ref=e144]:
+          - heading "Time Distribution" [level=2] [ref=e146]:
+            - img [ref=e147]
+            - text: Time Distribution
+          - img [ref=e151]
+      - generic [ref=e152]:
+        - generic [ref=e153]:
+          - generic [ref=e154]:
+            - heading "Desktop Apps" [level=2] [ref=e155]:
+              - img [ref=e156]
+              - text: Desktop Apps
+            - generic [ref=e158]: 0s (0%)
+          - generic [ref=e160]:
+            - img [ref=e161]
+            - paragraph [ref=e163]: No app data available
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - heading "Websites" [level=2] [ref=e166]:
+              - img [ref=e167]
+              - text: Websites
+            - generic [ref=e170]: 0s (0%)
+          - generic [ref=e172]:
+            - img [ref=e173]
+            - paragraph [ref=e176]: No website data available
+      - generic [ref=e177]:
+        - heading "Daily Activity Breakdown" [level=2] [ref=e179]:
+          - img [ref=e180]
+          - text: Daily Activity Breakdown
+        - img [ref=e183]
+      - generic [ref=e184]:
+        - heading "Insights" [level=2] [ref=e186]:
+          - img [ref=e187]
+          - text: Insights
+        - generic [ref=e189]:
+          - generic [ref=e190]:
+            - generic [ref=e191]:
+              - img [ref=e192]
+              - generic [ref=e194]: Focus Time
+            - generic [ref=e195]: 0s
+            - generic [ref=e196]: Time spent on productive activities
+          - generic [ref=e197]:
+            - generic [ref=e198]:
+              - img [ref=e199]
+              - generic [ref=e202]: Weighted Score
+            - generic [ref=e203]: 0%
+            - generic [ref=e204]: Productive + 50% Neutral
+          - generic [ref=e205]:
+            - generic [ref=e206]:
+              - img [ref=e207]
+              - generic [ref=e210]: Total Tracked
+            - generic [ref=e211]: 0s
+            - generic [ref=e212]: Apps + Websites combined
+      - group [ref=e213]:
+        - generic "How is productivity calculated?" [ref=e214] [cursor=pointer]

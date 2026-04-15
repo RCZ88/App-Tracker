@@ -1,0 +1,109 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: DeskFlow
+        - generic [ref=e11]: AI TRACKER
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13]:
+        - img [ref=e14]
+        - text: Dashboard
+      - button "Applications" [ref=e17]:
+        - img [ref=e18]
+        - text: Applications
+      - button "Browser Activity" [ref=e21]:
+        - img [ref=e22]
+        - text: Browser Activity
+      - button "IDE Projects" [ref=e25]:
+        - img [ref=e26]
+        - text: IDE Projects
+      - button "Insights" [ref=e30]:
+        - img [ref=e31]
+        - text: Insights
+      - button "Database" [ref=e33]:
+        - img [ref=e34]
+        - text: Database
+      - button "Pricing" [ref=e38]:
+        - img [ref=e39]
+        - text: Pricing
+      - button "Settings" [ref=e41]:
+        - img [ref=e42]
+        - text: Settings
+    - generic [ref=e46]:
+      - text: Local SQLite • Zero Cloud •
+      - text: Privacy-First
+  - generic [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]: Settings
+        - generic [ref=e51]: LIVE
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - button "Focus" [ref=e55]:
+            - img [ref=e56]
+            - text: Focus
+          - button "Total" [ref=e58]:
+            - img [ref=e59]
+            - text: Total
+        - generic [ref=e62]:
+          - img [ref=e63]
+          - text: 0s
+          - generic [ref=e66]: (productive only)
+        - generic [ref=e67]:
+          - button "Today" [ref=e68]
+          - button "This Week" [ref=e69]
+          - button "Month" [ref=e70]
+          - button "All Time" [ref=e71]
+        - generic [ref=e73]:
+          - img [ref=e74]
+          - text: 20:32
+        - button "Pause Tracking" [ref=e77]:
+          - img [ref=e78]
+          - text: Pause Tracking
+    - generic [ref=e482]:
+      - generic [ref=e483]:
+        - heading "Settings" [level=1] [ref=e484]:
+          - img [ref=e485]
+          - text: Settings
+        - paragraph [ref=e488]: Customize your tracking preferences and categories
+      - generic [ref=e489]:
+        - button "Categories" [ref=e490]
+        - button "Apps" [active] [ref=e491]
+        - button "Colors" [ref=e492]
+        - button "General" [ref=e493]
+      - generic [ref=e677]:
+        - generic [ref=e678]:
+          - heading "Category Order" [level=2] [ref=e679]
+          - paragraph [ref=e680]: Drag categories to reorder them. This affects the order they appear in the galaxy view.
+          - list [ref=e681]:
+            - listitem [ref=e682]:
+              - img [ref=e683]
+              - generic [ref=e691]: IDE
+            - listitem [ref=e692]:
+              - img [ref=e693]
+              - generic [ref=e701]: AI Tools
+            - listitem [ref=e702]:
+              - img [ref=e703]
+              - generic [ref=e711]: Browser
+            - listitem [ref=e712]:
+              - img [ref=e713]
+              - generic [ref=e721]: Entertainment
+            - listitem [ref=e722]:
+              - img [ref=e723]
+              - generic [ref=e731]: Communication
+            - listitem [ref=e732]:
+              - img [ref=e733]
+              - generic [ref=e741]: Design
+            - listitem [ref=e742]:
+              - img [ref=e743]
+              - generic [ref=e751]: Productivity
+            - listitem [ref=e752]:
+              - img [ref=e753]
+              - generic [ref=e761]: Tools
+            - listitem [ref=e762]:
+              - img [ref=e763]
+              - generic [ref=e771]: Other
+        - generic [ref=e772]:
+          - heading "Application Categories" [level=2] [ref=e773]
+          - paragraph [ref=e774]: View and customize app categories. Click any app to change its category.

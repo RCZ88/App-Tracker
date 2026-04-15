@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a1a1aa;
+  --accent-indigo: #4f46e5;
+  --accent-emerald: #10b981;
+  --border: #27272a;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.glass {
+  background: rgba(17, 17, 17, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+}
+
+.chart-container {
+  position: relative;
+  height: 320px;
+}
+
+.heatmap-cell {
+  transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.1);
+  z-index: 10;
+  box-shadow: 0 0 0 2px #4f46e5;
+}

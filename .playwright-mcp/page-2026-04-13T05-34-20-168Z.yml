@@ -1,0 +1,119 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: DeskFlow
+        - generic [ref=e11]: AI TRACKER
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13]:
+        - img [ref=e14]
+        - text: Dashboard
+      - button "Applications" [ref=e17]:
+        - img [ref=e18]
+        - text: Applications
+      - button "Browser Activity" [ref=e21]:
+        - img [ref=e22]
+        - text: Browser Activity
+      - button "IDE Projects" [ref=e25]:
+        - img [ref=e26]
+        - text: IDE Projects
+      - button "Insights" [ref=e30]:
+        - img [ref=e31]
+        - text: Insights
+      - button "Database" [ref=e33]:
+        - img [ref=e34]
+        - text: Database
+      - button "Pricing" [ref=e38]:
+        - img [ref=e39]
+        - text: Pricing
+      - button "Settings" [ref=e41]:
+        - img [ref=e42]
+        - text: Settings
+    - generic [ref=e46]:
+      - text: Local SQLite • Zero Cloud •
+      - text: Privacy-First
+  - generic [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]: Settings
+        - generic [ref=e51]: LIVE
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - button "Focus" [ref=e55]:
+            - img [ref=e56]
+            - text: Focus
+          - button "Total" [ref=e58]:
+            - img [ref=e59]
+            - text: Total
+        - 'generic "Apps: 0s | Websites: 0s" [ref=e62]':
+          - img [ref=e63]
+          - text: 0s
+          - generic [ref=e66]: (productive only)
+        - generic [ref=e67]:
+          - button "Today" [ref=e68]
+          - button "This Week" [ref=e69]
+          - button "Month" [ref=e70]
+          - button "All Time" [ref=e71]
+        - generic [ref=e73]:
+          - img [ref=e74]
+          - text: 12:34
+        - button "Pause Tracking" [ref=e77]:
+          - img [ref=e78]
+          - text: Pause Tracking
+    - generic [ref=e413]:
+      - generic [ref=e414]:
+        - heading "Settings" [level=1] [ref=e415]:
+          - img [ref=e416]
+          - text: Settings
+        - paragraph [ref=e419]: Customize your tracking preferences and categories
+      - generic [ref=e420]:
+        - button "Categories" [ref=e421]
+        - button "Apps" [ref=e422]
+        - button "Colors" [active] [ref=e423]
+        - button "General" [ref=e424]
+      - generic [ref=e682]:
+        - generic [ref=e683]:
+          - generic [ref=e684]:
+            - img [ref=e686]
+            - generic [ref=e692]:
+              - heading "Category Colors" [level=2] [ref=e693]
+              - paragraph [ref=e694]: Customize the color of each solar system in the galaxy.
+          - generic [ref=e695]:
+            - generic [ref=e696]:
+              - button [ref=e698] [cursor=pointer]
+              - generic [ref=e699]: IDE
+            - generic [ref=e700]:
+              - button [ref=e702] [cursor=pointer]
+              - generic [ref=e703]: AI Tools
+            - generic [ref=e704]:
+              - button [ref=e706] [cursor=pointer]
+              - generic [ref=e707]: Browser
+            - generic [ref=e708]:
+              - button [ref=e710] [cursor=pointer]
+              - generic [ref=e711]: Entertainment
+            - generic [ref=e712]:
+              - button [ref=e714] [cursor=pointer]
+              - generic [ref=e715]: Communication
+            - generic [ref=e716]:
+              - button [ref=e718] [cursor=pointer]
+              - generic [ref=e719]: Design
+            - generic [ref=e720]:
+              - button [ref=e722] [cursor=pointer]
+              - generic [ref=e723]: Productivity
+            - generic [ref=e724]:
+              - button [ref=e726] [cursor=pointer]
+              - generic [ref=e727]: Tools
+            - generic [ref=e728]:
+              - button [ref=e730] [cursor=pointer]
+              - generic [ref=e731]: Other
+        - generic [ref=e732]:
+          - generic [ref=e733]:
+            - img [ref=e735]
+            - generic [ref=e741]:
+              - heading "Application Colors" [level=2] [ref=e742]
+              - paragraph [ref=e743]: Customize the color of each planet in the solar system view.
+          - generic [ref=e745]:
+            - img [ref=e746]
+            - paragraph [ref=e749]: No apps tracked yet.
+            - paragraph [ref=e750]: Start using apps to see them here.

@@ -1,0 +1,181 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: DeskFlow
+        - generic [ref=e11]: AI TRACKER
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13]:
+        - img [ref=e14]
+        - text: Dashboard
+      - button "Applications" [ref=e17]:
+        - img [ref=e18]
+        - text: Applications
+      - button "Browser Activity" [ref=e21]:
+        - img [ref=e22]
+        - text: Browser Activity
+      - button "IDE Projects" [ref=e25]:
+        - img [ref=e26]
+        - text: IDE Projects
+      - button "Insights" [ref=e30]:
+        - img [ref=e31]
+        - text: Insights
+      - button "Database" [ref=e33]:
+        - img [ref=e34]
+        - text: Database
+      - button "Pricing" [ref=e38]:
+        - img [ref=e39]
+        - text: Pricing
+      - button "Settings" [ref=e41]:
+        - img [ref=e42]
+        - text: Settings
+    - generic [ref=e46]:
+      - text: Local SQLite • Zero Cloud •
+      - text: Privacy-First
+  - generic [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]: Settings
+        - generic [ref=e51]: LIVE
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - button "Focus" [ref=e55]:
+            - img [ref=e56]
+            - text: Focus
+          - button "Total" [ref=e58]:
+            - img [ref=e59]
+            - text: Total
+        - 'generic "Apps: 0s | Websites: 0s" [ref=e62]':
+          - img [ref=e63]
+          - text: 0s
+          - generic [ref=e66]: (productive only)
+        - generic [ref=e67]:
+          - button "Today" [ref=e68]
+          - button "This Week" [ref=e69]
+          - button "Month" [ref=e70]
+          - button "All Time" [ref=e71]
+        - generic [ref=e73]:
+          - img [ref=e74]
+          - text: 12:35
+        - button "Pause Tracking" [ref=e77]:
+          - img [ref=e78]
+          - text: Pause Tracking
+    - generic [ref=e413]:
+      - generic [ref=e414]:
+        - heading "Settings" [level=1] [ref=e415]:
+          - img [ref=e416]
+          - text: Settings
+        - paragraph [ref=e419]: Customize your tracking preferences and categories
+      - generic [ref=e420]:
+        - button "Categories" [active] [ref=e421]
+        - button "Apps" [ref=e422]
+        - button "Colors" [ref=e423]
+        - button "General" [ref=e424]
+      - generic [ref=e752]:
+        - generic [ref=e754]:
+          - heading "Productivity Classifications" [level=2] [ref=e755]
+          - paragraph [ref=e756]: Drag categories between tiers to classify apps as productive, neutral, or distracting.
+        - generic [ref=e757]:
+          - generic [ref=e758]:
+            - generic [ref=e761]:
+              - heading "Productive" [level=3] [ref=e762]
+              - text: 100% credit
+            - paragraph [ref=e763]: Categories that count fully toward productivity.
+            - generic [ref=e764]:
+              - generic [ref=e766]:
+                - img [ref=e767]
+                - generic [ref=e774]: IDE
+                - button [ref=e775]:
+                  - img [ref=e776]
+              - generic [ref=e780]:
+                - img [ref=e781]
+                - generic [ref=e788]: AI Tools
+                - button [ref=e789]:
+                  - img [ref=e790]
+              - generic [ref=e794]:
+                - img [ref=e795]
+                - generic [ref=e802]: Developer Tools
+                - button [ref=e803]:
+                  - img [ref=e804]
+              - generic [ref=e808]:
+                - img [ref=e809]
+                - generic [ref=e816]: Education
+                - button [ref=e817]:
+                  - img [ref=e818]
+              - generic [ref=e822]:
+                - img [ref=e823]
+                - generic [ref=e830]: Productivity
+                - button [ref=e831]:
+                  - img [ref=e832]
+              - generic [ref=e836]:
+                - img [ref=e837]
+                - generic [ref=e844]: Tools
+                - button [ref=e845]:
+                  - img [ref=e846]
+          - generic [ref=e849]:
+            - generic [ref=e852]:
+              - heading "Neutral" [level=3] [ref=e853]
+              - text: 50% credit
+            - paragraph [ref=e854]: Categories that count partially toward productivity.
+            - generic [ref=e855]:
+              - generic [ref=e857]:
+                - img [ref=e858]
+                - generic [ref=e865]: Communication
+                - button [ref=e866]:
+                  - img [ref=e867]
+              - generic [ref=e871]:
+                - img [ref=e872]
+                - generic [ref=e879]: Design
+                - button [ref=e880]:
+                  - img [ref=e881]
+              - generic [ref=e885]:
+                - img [ref=e886]
+                - generic [ref=e893]: Search Engine
+                - button [ref=e894]:
+                  - img [ref=e895]
+              - generic [ref=e899]:
+                - img [ref=e900]
+                - generic [ref=e907]: News
+                - button [ref=e908]:
+                  - img [ref=e909]
+              - generic [ref=e913]:
+                - img [ref=e914]
+                - generic [ref=e921]: Uncategorized
+                - button [ref=e922]:
+                  - img [ref=e923]
+              - generic [ref=e927]:
+                - img [ref=e928]
+                - generic [ref=e935]: Other
+                - button [ref=e936]:
+                  - img [ref=e937]
+          - generic [ref=e940]:
+            - generic [ref=e943]:
+              - heading "Distracting" [level=3] [ref=e944]
+              - text: 0% credit
+            - paragraph [ref=e945]: Categories that don't count toward productivity.
+            - generic [ref=e946]:
+              - generic [ref=e948]:
+                - img [ref=e949]
+                - generic [ref=e956]: Entertainment
+                - button [ref=e957]:
+                  - img [ref=e958]
+              - generic [ref=e962]:
+                - img [ref=e963]
+                - generic [ref=e970]: Social Media
+                - button [ref=e971]:
+                  - img [ref=e972]
+              - generic [ref=e976]:
+                - img [ref=e977]
+                - generic [ref=e984]: Shopping
+                - button [ref=e985]:
+                  - img [ref=e986]
+        - generic [ref=e989]:
+          - generic [ref=e990]:
+            - generic [ref=e992]: Unassigned Categories
+            - generic [ref=e993]: Click to add
+          - generic [ref=e996]:
+            - img [ref=e997]
+            - generic [ref=e1004]: Browser
+            - button [ref=e1005]:
+              - img [ref=e1006]

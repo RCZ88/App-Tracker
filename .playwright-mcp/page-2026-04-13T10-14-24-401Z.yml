@@ -1,0 +1,132 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: DeskFlow
+        - generic [ref=e11]: AI TRACKER
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13]:
+        - img [ref=e14]
+        - text: Dashboard
+      - button "Applications" [ref=e17]:
+        - img [ref=e18]
+        - text: Applications
+      - button "Productivity" [ref=e21]:
+        - img [ref=e22]
+        - text: Productivity
+      - button "Browser Activity" [ref=e26]:
+        - img [ref=e27]
+        - text: Browser Activity
+      - button "IDE Projects" [ref=e30]:
+        - img [ref=e31]
+        - text: IDE Projects
+      - button "Insights" [ref=e35]:
+        - img [ref=e36]
+        - text: Insights
+      - button "Database" [ref=e38]:
+        - img [ref=e39]
+        - text: Database
+      - button "Pricing" [ref=e43]:
+        - img [ref=e44]
+        - text: Pricing
+      - button "Settings" [ref=e46]:
+        - img [ref=e47]
+        - text: Settings
+    - generic [ref=e51]:
+      - text: Local SQLite • Zero Cloud •
+      - text: Privacy-First
+  - generic [ref=e52]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]: Applications
+        - generic [ref=e56]: LIVE
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - button "Focus" [ref=e60]:
+            - img [ref=e61]
+            - text: Focus
+          - button "Total" [ref=e63]:
+            - img [ref=e64]
+            - text: Total
+        - 'generic "Apps: 0s | Websites: 0s" [ref=e67]':
+          - img [ref=e68]
+          - text: 0s
+          - generic [ref=e71]: (productive only)
+        - generic [ref=e72]:
+          - button "Today" [ref=e73]
+          - button "This Week" [ref=e74]
+          - button "Month" [ref=e75]
+          - button "All Time" [ref=e76]
+        - generic [ref=e78]:
+          - img [ref=e79]
+          - text: 17:14
+        - button "Pause Tracking" [ref=e82]:
+          - img [ref=e83]
+          - text: Pause Tracking
+    - generic [ref=e215]:
+      - generic [ref=e217]:
+        - heading "Applications" [level=1] [ref=e218]
+        - paragraph [ref=e219]: "Track your application usage • Showing: Today"
+      - generic [ref=e220]:
+        - generic [ref=e221]:
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - generic [ref=e224]: App Time Distribution
+              - generic [ref=e225]: This today
+            - generic [ref=e226]:
+              - generic [ref=e227]: 0h 0m
+              - generic [ref=e228]: Total Time
+          - generic [ref=e229]: No data available yet
+        - generic [ref=e231]:
+          - generic [ref=e232]: Top Applications
+          - generic [ref=e233]: No applications tracked yet
+      - generic [ref=e234]:
+        - generic [ref=e235]:
+          - generic [ref=e236]:
+            - img [ref=e237]
+            - generic [ref=e240]: LIVE
+          - generic [ref=e241]: 0h 0m
+          - generic [ref=e242]: Total Time
+        - generic [ref=e243]:
+          - generic [ref=e244]:
+            - img [ref=e245]
+            - generic [ref=e247]: LIVE
+          - generic [ref=e248]: "0"
+          - generic [ref=e249]: Total Sessions
+        - generic [ref=e250]:
+          - generic [ref=e251]:
+            - img [ref=e252]
+            - generic [ref=e255]: LIVE
+          - generic [ref=e256]: 0s
+          - generic [ref=e257]: Avg Session
+        - generic [ref=e258]:
+          - generic [ref=e259]:
+            - img [ref=e260]
+            - generic [ref=e262]: LIVE
+          - generic [ref=e263]: "0"
+          - generic [ref=e264]: Active Apps
+      - generic [ref=e265]:
+        - generic [ref=e266]:
+          - img [ref=e267]
+          - generic [ref=e269]:
+            - generic [ref=e270]: Hourly Activity
+            - generic [ref=e271]: Total minutes per hour
+        - img [ref=e273]
+      - generic [ref=e274]:
+        - generic [ref=e275]:
+          - img [ref=e276]
+          - generic [ref=e278]:
+            - generic [ref=e279]: Hourly Distribution
+            - generic [ref=e280]: Activity by hour of day
+        - img [ref=e282]
+      - heading "Category Breakdown" [level=2] [ref=e284]
+      - generic [ref=e285]:
+        - generic [ref=e286]:
+          - generic [ref=e287]:
+            - heading "Application Statistics" [level=2] [ref=e288]
+            - paragraph [ref=e289]: Click an app to view detailed stats
+          - generic [ref=e290]: 0 apps
+        - generic [ref=e291]:
+          - img [ref=e292]
+          - paragraph [ref=e294]: No statistics available yet. Start using your computer to collect data.

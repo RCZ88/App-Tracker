@@ -1,0 +1,2719 @@
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Stars, Html, Line, PerformanceMonitor } from '@react-three/drei';
+import { EffectComposer, Bloom, ToneMapping, Vignette, ChromaticAberration } from '@react-three/postprocessing';
+import { ToneMappingMode, BlendFunction } from 'postprocessing';
+import * as THREE from 'three';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Play, RotateCcw, X, RefreshCw, Globe, ChevronDown, ChevronUp, Clock, Settings, Activity } from 'lucide-react';
+
+// Galaxy dust cloud component - creates a realistic 3D spiral galaxy with multiple arms
+// Using Deep-Navy Spiral Galaxy color scheme with optimized rendering
+function GalaxyDustCloud() {
+  const pointsRef = useRef<THREE.Points>(null!);
+  const particleCount = 8000;
+  
+  const maxRadius = 280;
+  
+  // Generate particle positions with spiral arm structure
+  const positions = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3);
+    const armCount = 3 + Math.floor(Math.random() * 2);
+    const armSeparation = (Math.PI * 2) / armCount;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const baseAngle = Math.random() * Math.PI * 2;
+      const onArm = Math.random() < 0.45;
+      
+      let finalAngle: number;
+      let radius: number;
+      
+      if (onArm) {
+        const armIndex = Math.floor(Math.random() * armCount);
+        const armOffset = armIndex * armSeparation + (Math.random() - 0.5) * 0.3;
+        const logRadius = Math.pow(Math.random(), 0.4) * maxRadius;
+        const spiralAngle = logRadius * 0.022 + armOffset;
+        const armWidth = 0.2 + logRadius * 0.003;
+        finalAngle = spiralAngle + (Math.random() - 0.5) * armWidth;
+        radius = logRadius;
+      } else {
+        const r = Math.pow(Math.random(), 0.55) * maxRadius;
+        const armPhase = Math.sin(r * 0.02 + baseAngle * 0.5) * 0.3;
+        finalAngle = baseAngle + armPhase + (Math.random() - 0.5) * 0.5;
+        radius = r;
+      }
+      
+      const normalizedR = radius / maxRadius;
+      const ySpread = 2.5 + normalizedR * 10;
+      const y = (Math.random() - 0.5) * ySpread;
+      const scatter = Math.random() * 3 * (1 - normalizedR * 0.4);
+      
+      pos[i * 3] = (radius + scatter) * Math.cos(finalAngle);
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = (radius + scatter) * Math.sin(finalAngle);
+    }
+    return pos;
+  }, []);
+  
+  // Generate colors based on radius position
+  const colors = useMemo(() => {
+    const col = new Float32Array(particleCount * 3);
+    const colorPalette = [
+      '#fff5d4', '#ffefb8', '#f7d36a', '#f0c84a', '#e8b82a', '#d9a31a', '#c89010',
+      '#e84a9a', '#d63a8a', '#c73a8a', '#b52d7d', '#a32070', '#911363', '#7a0d56',
+      '#6b2a96', '#5b2a86', '#4f2477', '#431e68', '#371859', '#2b124a',
+      '#1a2a6c', '#152460', '#101e54', '#0b1848', '#0b1026',
+    ];
+    
+    for (let i = 0; i < particleCount; i++) {
+      const x = positions[i * 3];
+      const z = positions[i * 3 + 2];
+      const r = Math.sqrt(x * x + z * z);
+      const normalizedR = Math.min(r / maxRadius, 1);
+      
+      let colorIndex = normalizedR * (colorPalette.length - 1);
+      if (normalizedR < 0.15) {
+        colorIndex = Math.random() * 3;
+      } else if (normalizedR < 0.3) {
+        colorIndex = 2 + Math.random() * 4;
+      } else if (normalizedR < 0.5) {
+        colorIndex = 6 + Math.random() * 6;
+      } else if (normalizedR < 0.75) {
+        colorIndex = 12 + Math.random() * 5;
+      } else {
+        colorIndex = 17 + Math.random() * 3;
+      }
+      
+      const finalIndex = Math.floor(Math.min(colorIndex, colorPalette.length - 1));
+      const color = new THREE.Color(colorPalette[finalIndex]);
+      const brightness = 1 - normalizedR * 0.35;
+      col[i * 3] = color.r * brightness;
+      col[i * 3 + 1] = color.g * brightness;
+      col[i * 3 + 2] = color.b * brightness;
+    }
+    return col;
+  }, [positions]);
+  
+  // Subtle particle animation
+  useFrame((state) => {
+    if (pointsRef.current) {
+      const t = state.clock.elapsedTime;
+      pointsRef.current.rotation.y += 0.000012;
+      pointsRef.current.position.y = Math.sin(t * 0.1) * 0.3;
+    }
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={particleCount}
+          array={positions}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          count={particleCount}
+          array={colors}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={2}
+        vertexColors
+        transparent
+        opacity={0.85}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// Animation speed settings
+type AnimationSpeed = 'slow' | 'normal' | 'instant';
+const ANIMATION_DURATIONS: Record<AnimationSpeed, number> = {
+  slow: 2500,
+  normal: 1200,
+  instant: 0,
+};
+
+// LocalStorage helpers
+const getStoredCategory = (): string => {
+  if (typeof window === 'undefined') return 'Other';
+  return localStorage.getItem('deskflow-last-category') || 'Other';
+};
+const setStoredCategory = (cat: string) => {
+  if (typeof window !== 'undefined') localStorage.setItem('deskflow-last-category', cat);
+};
+const getStoredAnimationSpeed = (): AnimationSpeed => {
+  if (typeof window === 'undefined') return 'normal';
+  return (localStorage.getItem('deskflow-animation-speed') as AnimationSpeed) || 'normal';
+};
+const setStoredAnimationSpeed = (speed: AnimationSpeed) => {
+  if (typeof window !== 'undefined') localStorage.setItem('deskflow-animation-speed', speed);
+};
+
+interface ActivityLog {
+  id: number;
+  timestamp: Date;
+  app: string;
+  category: string;
+  duration: number;
+  title?: string;
+  project?: string;
+}
+
+interface PlanetData {
+  name: string;
+  category: string;
+  color: string;
+  time: number; // minutes
+  sessions: number;
+  radius: number;
+  orbitRadius: number; // semi-major axis
+  speed: number; // orbit speed
+  rotationSpeed?: number; // self-rotation speed
+  eccentricity?: number; // orbital eccentricity (0 = circle, 0.9 = very elliptical)
+  inclination?: number; // orbital tilt in radians
+  longitudeOfPerihelion?: number; // where closest approach occurs
+  moons: MoonData[];
+  rings?: RingData[];
+}
+
+interface RingData {
+  innerRadius: number;
+  outerRadius: number;
+  opacity: number;
+  color: string;
+  tilt: number;
+}
+
+interface MoonData {
+  name: string;
+  radius: number;
+  orbitRadius: number;
+  speed: number;
+  color: string;
+}
+
+interface OrbitSystemProps {
+  logs: ActivityLog[];
+  appColors?: Record<string, string>;
+  categoryOverrides?: Record<string, string>;
+  websiteLogs?: ActivityLog[];
+  websiteColors?: Record<string, string>;
+  websiteCategoryOverrides?: Record<string, string>;
+}
+
+// FPS Counter component for performance monitoring
+function FPSCounter({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) {
+  const frameCount = useRef(0);
+  const lastTime = useRef(performance.now());
+  
+  useFrame(() => {
+    frameCount.current++;
+    const now = performance.now();
+    const delta = now - lastTime.current;
+    
+    if (delta >= 1000) {
+      const fps = Math.round((frameCount.current * 1000) / delta);
+      onFpsUpdate(fps);
+      frameCount.current = 0;
+      lastTime.current = now;
+    }
+  });
+  
+  return null;
+}
+
+const APP_CATEGORIES: Record<string, { cat: string; color: string }> = {
+  'VS Code': { cat: 'IDE', color: '#4f46e5' },
+  'PyCharm': { cat: 'IDE', color: '#10b981' },
+  'IntelliJ IDEA': { cat: 'IDE', color: '#10b981' },
+  'Obsidian': { cat: 'IDE', color: '#7c3aed' },
+  'Claude': { cat: 'AI Tools', color: '#8b5cf6' },
+  'ChatGPT': { cat: 'AI Tools', color: '#8b5cf6' },
+  'Chrome': { cat: 'Browser', color: '#3b82f6' },
+  'Firefox': { cat: 'Browser', color: '#f97316' },
+  'YouTube': { cat: 'Entertainment', color: '#ef4444' },
+  'Slack': { cat: 'Communication', color: '#14b8a6' },
+  'Figma': { cat: 'Design', color: '#a855f7' },
+  'Terminal': { cat: 'Productivity', color: '#64748b' },
+  'Wispr Flow': { cat: 'Tools', color: '#f59e0b' },
+  'Google Chrome': { cat: 'Browser', color: '#3b82f6' },
+  'Windows Explorer': { cat: 'Productivity', color: '#64748b' },
+  'Microsoft Edge': { cat: 'Browser', color: '#3b82f6' },
+  'Notion': { cat: 'Productivity', color: '#10b981' },
+  'Discord': { cat: 'Communication', color: '#14b8a6' },
+  'Spotify': { cat: 'Entertainment', color: '#ec4899' },
+  'Netflix': { cat: 'Entertainment', color: '#ef4444' },
+};
+
+// Predefined vivid palette — guaranteed distinct, no red dominance
+const VIVID_PALETTE = [
+  '#6366f1', // Indigo
+  '#06b6d4', // Cyan
+  '#f59e0b', // Amber
+  '#10b981', // Emerald
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#14b8a6', // Teal
+  '#f97316', // Orange
+  '#3b82f6', // Blue
+  '#84cc16', // Lime
+  '#e879f9', // Fuchsia
+  '#22d3ee', // Sky cyan
+];
+
+// Category color map — each category has a primary hue family
+const CATEGORY_COLOR_FAMILIES: Record<string, string[]> = {
+  'IDE': ['#6366f1', '#8b5cf6', '#7c3aed'], // Indigo/Violet family
+  'AI Tools': ['#8b5cf6', '#a78bfa', '#c084fc'], // Purple family
+  'Browser': ['#3b82f6', '#06b6d4', '#22d3ee'], // Blue/Cyan family
+  'Entertainment': ['#ec4899', '#f43f5e', '#f97316'], // Pink/Orange family
+  'Communication': ['#14b8a6', '#06b6d4', '#10b981'], // Teal/Green family
+  'Design': ['#a855f7', '#e879f9', '#ec4899'], // Purple/Pink family
+  'Productivity': ['#10b981', '#84cc16', '#22c55e'], // Green family
+  'Tools': ['#f59e0b', '#f97316', '#fb923c'], // Amber/Orange family
+  'Other': ['#64748b', '#94a3b8', '#78716c'], // Slate family
+};
+
+// Generate a distinct vivid color for each app index
+function getDistinctColor(index: number): string {
+  return VIVID_PALETTE[index % VIVID_PALETTE.length];
+}
+
+// Get a color from the category family, varied by index within category
+function getCategoryColor(category: string, indexInCategory: number): string {
+  const family = CATEGORY_COLOR_FAMILIES[category] || CATEGORY_COLOR_FAMILIES['Other'];
+  return family[indexInCategory % family.length];
+}
+
+// Compute planet data from logs with optional custom colors and category overrides
+// Includes all desktop apps including browsers, only excludes browser-tracked websites
+
+function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>, categoryOverrides?: Record<string, string>): PlanetData[] {
+  // Filter: include all apps including browsers, only exclude browser-tracked websites
+  const validLogs = (logs || []).filter((log: any) =>
+    log && log.app && typeof log.app === 'string' && log.app.trim().length > 0 &&
+    !log.is_browser_tracking // Exclude websites but include all desktop apps including browsers
+  );
+
+  if (validLogs.length === 0) {
+    // Return demo data so UI doesn't break
+    return [
+      { name: 'VS Code', category: 'IDE', color: '#4f46e5', time: 120, sessions: 5, radius: 1.5, orbitRadius: 5, speed: 0.12, eccentricity: 0.1, inclination: 0.05, longitudeOfPerihelion: 0, moons: [], rings: [{ innerRadius: 2.2, outerRadius: 3.8, opacity: 0.45, color: '#6366f1', tilt: 0.2 }] },
+      { name: 'Chrome', category: 'Browser', color: '#3b82f6', time: 45, sessions: 3, radius: 1.2, orbitRadius: 7.2, speed: 0.09, eccentricity: 0.15, inclination: 0.1, longitudeOfPerihelion: 1.2, moons: [], rings: [] },
+      { name: 'Claude', category: 'AI Tools', color: '#8b5cf6', time: 60, sessions: 4, radius: 1.3, orbitRadius: 9.4, speed: 0.1, eccentricity: 0.2, inclination: 0.15, longitudeOfPerihelion: 2.1, moons: [], rings: [{ innerRadius: 1.8, outerRadius: 2.1, opacity: 0.08, color: '#a78bfa', tilt: -0.3 }] },
+    ];
+  }
+
+  // Calculate stats for meaningful planet properties
+  const totalTime = validLogs.reduce((sum, l) => sum + (l.duration || 0), 0);
+  const maxTime = Math.max(...Object.values(
+    validLogs.reduce((acc: Record<string, number>, log) => {
+      acc[log.app] = (acc[log.app] || 0) + (log.duration || 0);
+      return acc;
+    }, {})
+  ));
+
+  
+
+  const grouped: Record<string, any[]> = {};
+
+  for (const log of validLogs) {
+    const appName = log.app.trim();
+    if (!grouped[appName]) grouped[appName] = [];
+    grouped[appName].push(log);
+  }
+
+  const planets: PlanetData[] = [];
+  
+  // Sort by time ASCENDING: least used = closest to sun, most used = furthest
+  // This matches real solar systems AND user's request: most focus = biggest + furthest
+  const sortedApps = Object.entries(grouped)
+    .sort(([, a], [, b]) => {
+      const timeA = a.reduce((sum, l) => sum + (l.duration || 0), 0);
+      const timeB = b.reduce((sum, l) => sum + (l.duration || 0), 0);
+      return timeA - timeB; // ascending: smallest first (closest to sun)
+    });
+
+  // Count apps per category for color assignment
+  const categoryCount: Record<string, number> = {};
+
+  // Generate unique orbit radii with collision avoidance
+  const baseRadius = 5;
+  const minSpacing = 2.0; // Minimum distance between orbits
+
+  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+    const [appName, appLogs] = sortedApps[idx];
+
+    const catInfo = APP_CATEGORIES[appName] || { cat: 'Other', color: '#64748b' };
+    // Use user-defined category override from settings, otherwise use default category
+    const category = categoryOverrides?.[appName] || catInfo.cat || 'Other';
+
+    // Check for user override colors first
+    const customColor = appColors?.[appName];
+
+    // Assign color: custom override > category family color > fallback palette
+    const idxInCategory = categoryCount[category] || 0;
+    categoryCount[category] = idxInCategory + 1;
+    const color = customColor || getCategoryColor(category, idxInCategory);
+
+    const appTime = appLogs.reduce((sum: number, l: any) => sum + (l.duration || 0), 0);
+    const sessions = appLogs.length;
+    const avgSessionLength = appTime / sessions;
+
+    // Dramatic size scaling based on focus time (sqrt ratio to maxTime)
+    const timeRatio = maxTime > 0 ? appTime / maxTime : 0.5;
+    const baseSize = 0.8 + Math.sqrt(timeRatio) * 2.0;
+    const radius = Math.max(1.0, Math.min(3.5, baseSize));
+
+    // Titius-Bode-inspired orbit spacing with unique perturbation per orbit
+    // First planet starts at minimum distance from sun (sun radius = 3.5)
+    const baseDist = 8; // Reduced from 15
+    const growthFactor = 1.35 + (idx * 0.03); // reduced growth from 1.55
+    const perturbation = Math.sin(idx * 2.7 + 0.5) * 1.5; // reduced perturbation from 2
+    const orbitRadius = baseDist * Math.pow(growthFactor, idx) + perturbation;
+    // Results: ~8, ~11, ~14, ~19, ~26, ~35, ~47, ~64, ~86...
+
+    // Orbital eccentricity (0.05 to 0.3) - unique per planet
+    const eccentricity = 0.05 + (Math.random() * 0.25);
+
+    // Orbital inclination (tilt) - unique per planet (-0.2 to 0.2 radians)
+    const inclination = (Math.random() * 0.4) - 0.2;
+
+    // Longitude of perihelion - where closest approach occurs (0 to 2π)
+    const longitudeOfPerihelion = Math.random() * Math.PI * 2;
+
+    // Orbit speed based on session frequency (more sessions = faster orbit)
+    const orbitSpeed = 0.05 + (sessions / 10) * 0.08;
+
+    // Rotation speed based on avg session length (longer sessions = slower, stable rotation)
+    // Values are now in seconds: > 1h → slow, > 30m → medium, < 30m → fast
+    const rotationSpeed = avgSessionLength > 3600 ? 0.8 : (avgSessionLength > 1800 ? 1.2 : 1.8);
+
+    // Safe project extraction
+    const projects = [...new Set(appLogs.map((l: any) => l.project).filter((p: any) => p && typeof p === 'string'))] as string[];
+
+    const moons = projects.slice(0, 3).map((proj: string, mIdx: number) => ({
+      name: proj,
+      radius: 0.25,
+      orbitRadius: 1.5 + mIdx * 0.3,
+      speed: 1.2 + mIdx * 0.3,
+      color: color + '88'
+    }));
+
+    // Generate rings: ~40% chance, with varied thickness and opacity
+    const rings: RingData[] = [];
+    const hasRings = Math.random() < 0.4;
+    if (hasRings) {
+      const ringCount = 1 + Math.floor(Math.random() * 3); // 1-3 ring bands
+      const rgb = hexToRgb(color);
+      // Slightly desaturate ring color for realism
+      const ringColor = `#${((1 << 24) + (Math.min(255, Math.floor(rgb.r * 0.85) + 30) << 16) + (Math.min(255, Math.floor(rgb.g * 0.85) + 30) << 8) + Math.min(255, Math.floor(rgb.b * 0.85) + 30)).toString(16).slice(1)}`;
+      // Opacity: some barely visible (0.05-0.15), some thick (0.3-0.6)
+      const isThick = Math.random() < 0.3; // 30% chance of Saturn-like thick rings
+      const baseOpacity = isThick ? (0.3 + Math.random() * 0.3) : (0.05 + Math.random() * 0.1);
+      const innerRadius = radius * (1.4 + Math.random() * 0.4);
+      const outerRadius = isThick
+        ? innerRadius + radius * (0.8 + Math.random() * 0.6)  // thick: Saturn-like
+        : innerRadius + radius * (0.15 + Math.random() * 0.2); // thin: Uranus-like
+      const tilt = (Math.random() * 0.8) - 0.4; // -0.4 to 0.4 radians
+
+      for (let r = 0; r < ringCount; r++) {
+        const spread = (outerRadius - innerRadius) / ringCount;
+        rings.push({
+          innerRadius: innerRadius + r * spread,
+          outerRadius: innerRadius + (r + 1) * spread,
+          opacity: baseOpacity * (0.7 + Math.random() * 0.3),
+          color: ringColor,
+          tilt: tilt + (Math.random() * 0.1 - 0.05),
+        });
+      }
+    }
+
+    planets.push({
+      name: appName,
+      category: category,
+      color: color,
+      time: appTime,
+      sessions: sessions,
+      radius: radius,
+      orbitRadius: orbitRadius,
+      speed: orbitSpeed,
+      rotationSpeed: rotationSpeed,
+      eccentricity: eccentricity,
+      inclination: inclination,
+      longitudeOfPerihelion: longitudeOfPerihelion,
+      moons: moons,
+      rings: rings,
+    });
+  }
+
+  return planets.length > 0 ? planets : [
+    { name: 'VS Code', category: 'IDE', color: '#4f46e5', time: 120, sessions: 5, radius: 1.5, orbitRadius: 5, speed: 0.12, eccentricity: 0.1, inclination: 0.05, longitudeOfPerihelion: 0, moons: [], rings: [] }
+  ];
+}
+
+// Helper: parse hex color to RGB
+function hexToRgb(hex: string) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 128, g: 128, b: 128 };
+}
+
+// Helper: lighten/darken hex color
+function adjustColor(hex: string, percent: number): string {
+  const rgb = hexToRgb(hex);
+  const factor = 1 + percent / 100;
+  const r = Math.min(255, Math.max(0, Math.floor(rgb.r * factor)));
+  const g = Math.min(255, Math.max(0, Math.floor(rgb.g * factor)));
+  const b = Math.min(255, Math.max(0, Math.floor(rgb.b * factor)));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+// Hash function to generate consistent seed from string with better distribution
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+    hash = Math.imul(hash, 0x85ebca6b); // Mix bits for better distribution
+  }
+  return Math.abs(hash) % 1000000; // Keep it in reasonable range
+}
+
+// Pseudo-random number generator using seed
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = Math.sin(s) * 10000;
+    return s - Math.floor(s);
+  };
+}
+// Sun Configuration for each category - smaller sizes for better layout
+const SUN_CONFIGS: Record<string, { color: string; emissive: string; sizeRange: [number, number] }> = {
+  'IDE': { color: '#ffaa33', emissive: '#ff8800', sizeRange: [1.5, 2] },
+  'AI Tools': { color: '#aa66ff', emissive: '#8833ff', sizeRange: [1.5, 2] },
+  'Browser': { color: '#44aaff', emissive: '#2299ff', sizeRange: [1.5, 2] },
+  'Entertainment': { color: '#ff44aa', emissive: '#ff3399', sizeRange: [1.5, 2] },
+  'Communication': { color: '#33ccaa', emissive: '#22aa88', sizeRange: [1.5, 2] },
+  'Design': { color: '#ff66aa', emissive: '#ff4499', sizeRange: [1.5, 2] },
+  'Productivity': { color: '#ffeecc', emissive: '#ffdd99', sizeRange: [1.5, 2] },
+  'Tools': { color: '#ff8833', emissive: '#ff6622', sizeRange: [1.5, 2] },
+  'Other': { color: '#aaaaaa', emissive: '#888888', sizeRange: [1.5, 2] },
+};
+
+// Default sun config
+const DEFAULT_SUN_CONFIG = { color: '#ffcc44', emissive: '#ffaa22', sizeRange: [1.5, 2] as [number, number] };
+
+// Sun Component — multi-layer realistic star with corona, animated surface, lens flare
+function Sun({ category = 'Other', size = 3.5 }: { category?: string; size?: number }) {
+  const innerGlowRef = useRef<THREE.Sprite>(null!);
+  const outerCoronaRef = useRef<THREE.Sprite>(null!);
+  const lensFlare1Ref = useRef<THREE.Sprite>(null!);
+  const lensFlare2Ref = useRef<THREE.Sprite>(null!);
+  const surfaceMatRef = useRef<THREE.MeshStandardMaterial>(null!);
+
+  // Animated solar surface texture (granulation / convection cells)
+  const { surfaceTexture, glowTexture, coronaTexture } = useMemo(() => {
+    // Surface texture — granulation pattern like real sun photosphere
+    const surfCanvas = document.createElement('canvas');
+    surfCanvas.width = 512;
+    surfCanvas.height = 256;
+    const surfCtx = surfCanvas.getContext('2d')!;
+
+    const drawSurface = () => {
+      // Base yellow-white
+      surfCtx.fillStyle = '#fff8e1';
+      surfCtx.fillRect(0, 0, 512, 256);
+
+      // Granulation cells — darker patches simulating convection
+      const rng = seededRandom(42);
+      for (let i = 0; i < 600; i++) {
+        const x = rng() * 512;
+        const y = rng() * 256;
+        const r = 3 + rng() * 12;
+        const brightness = 200 + Math.floor(rng() * 55);
+        const warmth = Math.floor(rng() * 40);
+        surfCtx.fillStyle = `rgba(${brightness + warmth}, ${brightness + Math.floor(warmth * 0.6)}, ${brightness - warmth}, ${0.08 + rng() * 0.15})`;
+        surfCtx.beginPath();
+        surfCtx.arc(x, y, r, 0, Math.PI * 2);
+        surfCtx.fill();
+      }
+
+      // Bright spots (faculae)
+      for (let i = 0; i < 80; i++) {
+        const x = rng() * 512;
+        const y = rng() * 256;
+        const r = 2 + rng() * 6;
+        surfCtx.fillStyle = `rgba(255, 255, 240, ${0.1 + rng() * 0.2})`;
+        surfCtx.beginPath();
+        surfCtx.arc(x, y, r, 0, Math.PI * 2);
+        surfCtx.fill();
+      }
+    };
+    drawSurface();
+
+    const surfTex = new THREE.CanvasTexture(surfCanvas);
+    surfTex.wrapS = THREE.RepeatWrapping;
+    surfTex.wrapT = THREE.RepeatWrapping;
+    surfTex.needsUpdate = true;
+
+    // Middle glow — rich solar gradient
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 512;
+    glowCanvas.height = 512;
+    const glowCtx = glowCanvas.getContext('2d')!;
+    const grad = glowCtx.createRadialGradient(256, 256, 20, 256, 256, 256);
+    grad.addColorStop(0, 'rgba(255, 255, 230, 1.0)');
+    grad.addColorStop(0.08, 'rgba(255, 240, 120, 0.85)');
+    grad.addColorStop(0.2, 'rgba(255, 200, 50, 0.55)');
+    grad.addColorStop(0.4, 'rgba(255, 160, 20, 0.25)');
+    grad.addColorStop(0.6, 'rgba(255, 120, 10, 0.08)');
+    grad.addColorStop(1, 'rgba(255, 80, 0, 0)');
+    glowCtx.fillStyle = grad;
+    glowCtx.fillRect(0, 0, 512, 512);
+    const glowTex = new THREE.CanvasTexture(glowCanvas);
+    glowTex.needsUpdate = true;
+
+    // Outer corona — large faint heat radiation halo
+    const coronaCanvas = document.createElement('canvas');
+    coronaCanvas.width = 512;
+    coronaCanvas.height = 512;
+    const coronaCtx = coronaCanvas.getContext('2d')!;
+    const cGrad = coronaCtx.createRadialGradient(256, 256, 30, 256, 256, 256);
+    cGrad.addColorStop(0, 'rgba(255, 200, 80, 0.18)');
+    cGrad.addColorStop(0.25, 'rgba(255, 160, 40, 0.08)');
+    cGrad.addColorStop(0.5, 'rgba(255, 120, 20, 0.03)');
+    cGrad.addColorStop(1, 'rgba(255, 80, 0, 0)');
+    coronaCtx.fillStyle = cGrad;
+    coronaCtx.fillRect(0, 0, 512, 512);
+    const coronaTex = new THREE.CanvasTexture(coronaCanvas);
+    coronaTex.needsUpdate = true;
+
+    return { surfaceTexture: surfTex, glowTexture: glowTex, coronaTexture: coronaTex };
+  }, []);
+
+  // Lens flare textures
+  const { flareTex1, flareTex2 } = useMemo(() => {
+    const makeFlare = (color: string, size: number) => {
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d')!;
+      const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      const t = new THREE.CanvasTexture(c);
+      t.needsUpdate = true;
+      return t;
+    };
+    return {
+      flareTex1: makeFlare('rgba(255, 255, 200, 0.4)', 64),
+      flareTex2: makeFlare('rgba(255, 180, 80, 0.15)', 128),
+    };
+  }, []);
+
+  useFrame(() => {
+    const t = Date.now() * 0.001;
+
+    // Animate surface texture offset for shifting granulation
+    if (surfaceMatRef.current && surfaceMatRef.current.map) {
+      surfaceMatRef.current.map.offset.x = Math.sin(t * 0.05) * 0.02;
+      surfaceMatRef.current.map.offset.y = Math.cos(t * 0.07) * 0.01;
+    }
+
+    // Inner glow pulsation
+    if (innerGlowRef.current) {
+      const pulse = 1 + Math.sin(t * 1.5) * 0.04 + Math.sin(t * 3.7) * 0.02;
+      innerGlowRef.current.scale.set(12 * pulse, 12 * pulse, 1);
+    }
+
+    // Outer corona slow breathing
+    if (outerCoronaRef.current) {
+      const breathe = 1 + Math.sin(t * 0.8) * 0.06;
+      outerCoronaRef.current.scale.set(25 * breathe, 25 * breathe, 1);
+    }
+
+    // Lens flares
+    if (lensFlare1Ref.current) {
+      const p1 = 1 + Math.sin(t * 2.1) * 0.15;
+      lensFlare1Ref.current.scale.set(8 * p1, 8 * p1, 1);
+      lensFlare1Ref.current.material.opacity = 0.3 + Math.sin(t * 1.8) * 0.1;
+    }
+    if (lensFlare2Ref.current) {
+      const p2 = 1 + Math.sin(t * 1.3 + 1) * 0.2;
+      lensFlare2Ref.current.scale.set(16 * p2, 16 * p2, 1);
+      lensFlare2Ref.current.material.opacity = 0.15 + Math.sin(t * 0.9) * 0.05;
+    }
+  });
+
+  const sunConfig = SUN_CONFIGS[category] || DEFAULT_SUN_CONFIG;
+  const sunRadius = size || 3.5;
+
+  // Update sprite scales to match sun radius
+  useEffect(() => {
+    if (innerGlowRef.current) innerGlowRef.current.scale.set(sunRadius * 4, sunRadius * 4, 1);
+    if (outerCoronaRef.current) outerCoronaRef.current.scale.set(sunRadius * 7, sunRadius * 7, 1);
+  }, [sunRadius]);
+
+  return (
+    <group>
+      {/* Core sphere — size based on category config */}
+      <mesh>
+        <sphereGeometry args={[sunRadius, 64, 64]} />
+        <meshStandardMaterial
+          map={surfaceTexture}
+          ref={surfaceMatRef}
+          emissive={new THREE.Color(sunConfig.emissive)}
+          emissiveIntensity={2.5}
+          roughness={1}
+          metalness={0}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {/* Inner glow / corona — bright halo */}
+      <sprite ref={innerGlowRef} scale={[sunRadius * 4, sunRadius * 4, 1]}>
+        <spriteMaterial
+          map={glowTexture}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.95}
+          toneMapped={false}
+        />
+      </sprite>
+
+      {/* Middle corona layer */}
+      <sprite scale={[sunRadius * 5.5, sunRadius * 5.5, 1]}>
+        <spriteMaterial
+          map={coronaTexture}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.6}
+          toneMapped={false}
+        />
+      </sprite>
+
+      {/* Outer corona — large heat radiation halo */}
+      <sprite ref={outerCoronaRef} scale={[sunRadius * 7, sunRadius * 7, 1]}>
+        <spriteMaterial
+          map={coronaTexture}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.4}
+          toneMapped={false}
+        />
+      </sprite>
+
+      {/* Lens flare artifacts — simulate bright light scattering */}
+      <sprite ref={lensFlare1Ref} position={[8, 5, 10]}>
+        <spriteMaterial
+          map={flareTex1}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.4}
+          toneMapped={false}
+        />
+      </sprite>
+      <sprite ref={lensFlare2Ref} position={[-6, -4, 8]}>
+        <spriteMaterial
+          map={flareTex2}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.2}
+          toneMapped={false}
+        />
+      </sprite>
+
+      {/* Primary point light — tinted by category color */}
+      <pointLight
+        position={[0, 0, 0]}
+        color={sunConfig.color}
+        intensity={8.0}
+        distance={500}
+        decay={2}
+      />
+
+      {/* Secondary softer light — ambient warmth */}
+      <pointLight
+        position={[0, 0, 0]}
+        color={sunConfig.color}
+        intensity={3.0}
+        distance={300}
+        decay={2}
+      />
+    </group>
+  );
+}
+
+// Make a canvas texture tile seamlessly left-to-right on a sphere.
+// Blends a strip from the right edge into the left edge (and vice versa)
+// so the horizontal boundary has no visible color jump.
+function makeSeamlessHorizontal(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const blendWidth = 60; // px to blend
+
+  // Step 1: Draw right-edge strip onto left edge with decreasing opacity
+  const stripCanvas = document.createElement('canvas');
+  stripCanvas.width = blendWidth;
+  stripCanvas.height = h;
+  const stripCtx = stripCanvas.getContext('2d')!;
+  stripCtx.drawImage(ctx.canvas, w - blendWidth, 0, blendWidth, h, 0, 0, blendWidth, h);
+
+  // Fade out the strip
+  const fadeGrad = stripCtx.createLinearGradient(0, 0, blendWidth, 0);
+  fadeGrad.addColorStop(0, 'rgba(0,0,0,1)');
+  fadeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  stripCtx.globalCompositeOperation = 'destination-in';
+  stripCtx.fillStyle = fadeGrad;
+  stripCtx.fillRect(0, 0, blendWidth, h);
+  stripCtx.globalCompositeOperation = 'source-over';
+
+  // Paint faded right strip onto left edge
+  ctx.drawImage(stripCanvas, 0, 0);
+
+  // Step 2: Same thing in reverse — left strip onto right edge
+  const leftStrip = document.createElement('canvas');
+  leftStrip.width = blendWidth;
+  leftStrip.height = h;
+  const leftCtx = leftStrip.getContext('2d')!;
+  leftCtx.drawImage(ctx.canvas, 0, 0, blendWidth, h, 0, 0, blendWidth, h);
+
+  const fadeGrad2 = leftCtx.createLinearGradient(0, 0, blendWidth, 0);
+  fadeGrad2.addColorStop(0, 'rgba(0,0,0,0)');
+  fadeGrad2.addColorStop(1, 'rgba(0,0,0,1)');
+  leftCtx.globalCompositeOperation = 'destination-in';
+  leftCtx.fillStyle = fadeGrad2;
+  leftCtx.fillRect(0, 0, blendWidth, h);
+  leftCtx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(leftStrip, w - blendWidth, 0);
+}
+
+// Create bold procedural texture based on category with unique seed-based variation
+// Phase 2 Batch 2: Proper planet patterns (bands, spirals, spots, networks)
+// Reference: ORBITAL_IMPROVEMENTS.md → Issue #3 + Texture Variety
+function createProceduralTexture(color: string, category: string, seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    const fallback = document.createElement('canvas');
+    fallback.width = 64;
+    fallback.height = 64;
+    const fCtx = fallback.getContext('2d')!;
+    fCtx.fillStyle = color;
+    fCtx.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(fallback);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  const rand = seededRandom(seed);
+
+  // Brighter space base for visibility against black space
+  ctx.fillStyle = '#1e1e40';
+  ctx.fillRect(0, 0, 1024, 512);
+
+  const baseColor = color;
+  const darkColor = adjustColor(color, -15);  // Less darkening
+  const lightColor = adjustColor(color, 70);   // Brighter highlights
+  const lighterColor = adjustColor(color, 130); // More vivid highlights
+
+  if (category === 'IDE' || category === 'Productivity') {
+    // Gas giant bands like Jupiter
+    const baseGrad = ctx.createLinearGradient(0, 0, 0, 512);
+    baseGrad.addColorStop(0, darkColor);
+    baseGrad.addColorStop(0.5, baseColor);
+    baseGrad.addColorStop(1, darkColor);
+    ctx.fillStyle = baseGrad;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // Multiple colored bands
+    const bandCount = 8 + Math.floor(rand() * 5);
+    for (let i = 0; i < bandCount; i++) {
+      const y = rand() * 480;
+      const h = 30 + rand() * 50;
+      const c = rand() > 0.5 ? lightColor : lighterColor;
+      ctx.fillStyle = c;
+      ctx.globalAlpha = 0.7 + rand() * 0.3;
+      ctx.fillRect(0, y, 1024, h);
+    }
+    ctx.globalAlpha = 1;
+
+    // Turbulence lines
+    for (let i = 0; i < 25; i++) {
+      const y = rand() * 512;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 + rand() * 4;
+      ctx.globalAlpha = 0.3 + rand() * 0.3;
+      ctx.beginPath();
+      const phase = rand() * Math.PI * 2;
+      for (let x = 0; x < 1024; x += 8) {
+        const offset = Math.sin(x * 0.015 + phase) * (8 + rand() * 8);
+        if (x === 0) ctx.moveTo(x, y + offset);
+        else ctx.lineTo(x, y + offset);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+  } else if (category === 'AI Tools') {
+    // Spiral galaxy pattern
+    const centerX = 200 + rand() * 624;
+    const centerY = 100 + rand() * 312;
+    
+    const bgGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 400);
+    bgGrad.addColorStop(0, lighterColor);
+    bgGrad.addColorStop(0.5, baseColor);
+    bgGrad.addColorStop(1, '#1e1e40');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // Spiral arms
+    const armCount = 3 + Math.floor(rand() * 3);
+    const rotationOffset = rand() * Math.PI * 2;
+    for (let arm = 0; arm < armCount; arm++) {
+      const offset = (arm / armCount) * Math.PI * 2 + rotationOffset;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 6 + rand() * 6;
+      ctx.globalAlpha = 0.6 + rand() * 0.4;
+      ctx.beginPath();
+      for (let angle = 0; angle < Math.PI * 4; angle += 0.08) {
+        const radius = angle * (15 + rand() * 8);
+        const x = centerX + Math.cos(angle + offset) * radius;
+        const y = centerY + Math.sin(angle + offset) * radius * 0.6;
+        if (angle === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Glowing nodes
+    const nodeCount = 20 + Math.floor(rand() * 25);
+    for (let i = 0; i < nodeCount; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      const r = 8 + rand() * 15;
+      const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+      glowGrad.addColorStop(0, '#ffffff');
+      glowGrad.addColorStop(0.3, lightColor);
+      glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+  } else if (category === 'Browser' || category === 'Entertainment') {
+    // Spotted/swirled pattern
+    const grad = ctx.createLinearGradient(0, 0, 1024, 512);
+    grad.addColorStop(0, baseColor);
+    grad.addColorStop(1, '#1a1a40');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // Colorful spots
+    const spotCount = 25 + Math.floor(rand() * 30);
+    for (let i = 0; i < spotCount; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      const r = 40 + rand() * 80;
+      const spotColor = rand() > 0.5 ? lighterColor : lightColor;
+      const spotGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      spotGrad.addColorStop(0, spotColor);
+      spotGrad.addColorStop(0.6, spotColor + '88');
+      spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = spotGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Flow lines
+    for (let i = 0; i < 10; i++) {
+      const startY = rand() * 512;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4 + rand() * 5;
+      ctx.globalAlpha = 0.3 + rand() * 0.3;
+      ctx.beginPath();
+      for (let x = 0; x < 1024; x += 8) {
+        const y = startY + Math.sin(x * 0.01 + rand() * Math.PI * 2) * 30;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+  } else if (category === 'Communication') {
+    // Network nodes pattern
+    ctx.fillStyle = '#1a1a40';
+    ctx.fillRect(0, 0, 1024, 512);
+
+    const nodes: {x: number, y: number, r: number}[] = [];
+    const nodeCount = 30 + Math.floor(rand() * 30);
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push({ x: rand() * 1024, y: rand() * 512, r: 8 + rand() * 15 });
+    }
+
+    // Connections
+    ctx.strokeStyle = lightColor;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.5;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Bright nodes
+    for (const node of nodes) {
+      const nodeGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.r * 2.5);
+      nodeGrad.addColorStop(0, '#ffffff');
+      nodeGrad.addColorStop(0.4, lightColor);
+      nodeGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = nodeGrad;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+  } else {
+    // Other: Noise pattern
+    const grad = ctx.createLinearGradient(0, 0, 1024, 512);
+    grad.addColorStop(0, baseColor);
+    grad.addColorStop(1, '#222248');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    for (let i = 0; i < 1000; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      ctx.fillStyle = `rgba(255,255,255,${rand() * 0.4})`;
+      ctx.fillRect(x, y, 4 + rand() * 4, 4 + rand() * 4);
+    }
+  }
+
+  // ── Seamless horizontal wrap ──
+  // Blend left and right edges so there's no visible seam when wrapped on a sphere.
+  // The leftmost column (x=0) and rightmost column (x=1024) become the same color.
+  makeSeamlessHorizontal(ctx, 1024, 512);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  // RepeatWrapping for both S and T to properly tile around sphere
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+
+  return texture;
+}
+
+// Procedural normal map generator for surface depth
+// Reference: ORBITAL_IMPROVEMENTS.md → Normal Maps
+function createProceduralNormalMap(color: string, category: string, seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  const rand = seededRandom(seed);
+  // Neutral normal map base (RGB = 0.5, 0.5, 1.0)
+  ctx.fillStyle = '#8080ff';
+  ctx.fillRect(0, 0, 1024, 512);
+
+  if (category === 'IDE' || category === 'Productivity') {
+    // Horizontal grooves for bands
+    for (let i = 0; i < 18; i++) {
+      const y = rand() * 512;
+      ctx.fillStyle = '#4040c0'; // darker = depression
+      ctx.fillRect(0, y, 1024, 20 + rand() * 25);
+    }
+  } else if (category === 'AI Tools') {
+    // Node bumps
+    for (let i = 0; i < 50; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      const r = 15 + rand() * 30;
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, '#c0c0ff');
+      grad.addColorStop(1, '#8080ff');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (category === 'Browser' || category === 'Entertainment') {
+    // Craters/spots
+    for (let i = 0; i < 60; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      const r = 20 + rand() * 40;
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, '#a0a0e0');
+      grad.addColorStop(1, '#8080ff');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (category === 'Communication') {
+    // Grid bumps
+    for (let i = 0; i < 40; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      const r = 10 + rand() * 20;
+      ctx.fillStyle = '#9090ee';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    // Noise for Other
+    for (let i = 0; i < 600; i++) {
+      const x = rand() * 1024;
+      const y = rand() * 512;
+      ctx.fillStyle = `rgba(${128 + rand() * 40 - 20}, ${128 + rand() * 40 - 20}, 255, 0.3)`;
+      ctx.fillRect(x, y, 4, 4);
+    }
+  }
+
+  const normalTexture = new THREE.CanvasTexture(canvas);
+  normalTexture.colorSpace = THREE.NoColorSpace; // Normal maps must stay linear
+  normalTexture.needsUpdate = true;
+  return normalTexture;
+}
+
+// Elliptical Orbit Path Component
+// Uses the exact same Keplerian formula as the planet's useFrame calculation
+// Reference: ORBITAL_IMPROVEMENTS.md → Issue #2 → Visible elliptical orbit paths
+function OrbitPath({ planet }: { planet: PlanetData }) {
+  const points = useMemo(() => {
+    const curvePoints: THREE.Vector3[] = [];
+    const segments = 256;
+    const eccentricity = planet.eccentricity || 0.1;
+    const semiMajorAxis = planet.orbitRadius;
+    const inclination = planet.inclination || 0;
+    const longitudeOfPerihelion = planet.longitudeOfPerihelion || 0;
+    const semiLatusRectum = semiMajorAxis * (1 - eccentricity * eccentricity);
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const distance = semiLatusRectum / (1 + eccentricity * Math.cos(angle + longitudeOfPerihelion));
+      const x = Math.cos(angle + longitudeOfPerihelion) * distance;
+      const z = Math.sin(angle + longitudeOfPerihelion) * distance * Math.cos(inclination);
+      const y = Math.sin(angle + longitudeOfPerihelion) * distance * Math.sin(inclination) * 0.3;
+      curvePoints.push(new THREE.Vector3(x, y, z));
+    }
+    return curvePoints;
+  }, [planet.orbitRadius, planet.eccentricity, planet.inclination, planet.longitudeOfPerihelion]);
+
+  return (
+    <Line
+      points={points}
+      color={planet.color}
+      lineWidth={1.5}
+      transparent
+      opacity={0.17}
+      renderOrder={-1}
+    />
+  );
+}
+
+// Textured Planet Component
+function TexturedPlanet({
+  data,
+  isPaused,
+  speedMultiplier,
+  onClick,
+  onPositionUpdate,
+}: {
+  data: PlanetData;
+  isPaused: boolean;
+  speedMultiplier: number;
+  onClick: (data: PlanetData) => void;
+  onPositionUpdate?: (name: string, position: THREE.Vector3) => void;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const hologramRef = useRef<THREE.Mesh>(null!);
+  const labelRef = useRef<THREE.Group>(null!);
+  const glowRef = useRef<THREE.Sprite>(null!);
+  const angleRef = useRef(Math.random() * Math.PI * 2);
+  const [isHovered, setIsHovered] = useState(false);
+  const labelPosRef = useRef(new THREE.Vector3());
+
+  const { texture, normalMap, glowTexture } = useMemo(() => {
+    const seed = hashString(data.name);
+    const tex = createProceduralTexture(data.color, data.category, seed);
+    const nrm = createProceduralNormalMap(data.color, data.category, seed);
+
+    // Create glow texture (radial gradient sprite)
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 128;
+    glowCanvas.height = 128;
+    const glowCtx = glowCanvas.getContext('2d')!;
+    const rgb = hexToRgb(data.color);
+    const grad = glowCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`);
+    grad.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`);
+    grad.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+    glowCtx.fillStyle = grad;
+    glowCtx.fillRect(0, 0, 128, 128);
+    const glowTex = new THREE.CanvasTexture(glowCanvas);
+    glowTex.needsUpdate = true;
+
+    return { texture: tex, normalMap: nrm, glowTexture: glowTex };
+  }, [data.name, data.color, data.category]);
+
+  // Hologram wireframe geometry
+  const hologramGeo = useMemo(
+    () => new THREE.IcosahedronGeometry(data.radius * 1.6, 1),
+    [data.radius]
+  );
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+
+    // Self-rotation
+    const rotSpeed = data.rotationSpeed || 1.5;
+    meshRef.current.rotation.y += (isPaused ? 0 : delta * rotSpeed * 0.3);
+
+    // Orbital motion
+    const dt = isPaused ? 0 : delta * speedMultiplier;
+    angleRef.current += dt * data.speed * 0.15;
+    const angle = angleRef.current;
+
+    const eccentricity = data.eccentricity || 0.1;
+    const semiMajorAxis = data.orbitRadius;
+    const inclination = data.inclination || 0;
+    const longitudeOfPerihelion = data.longitudeOfPerihelion || 0;
+    const semiLatusRectum = semiMajorAxis * (1 - eccentricity * eccentricity);
+
+    const distance = semiLatusRectum / (1 + eccentricity * Math.cos(angle + longitudeOfPerihelion));
+    const x = Math.cos(angle + longitudeOfPerihelion) * distance;
+    const z = Math.sin(angle + longitudeOfPerihelion) * distance * Math.cos(inclination);
+    const y = Math.sin(angle + longitudeOfPerihelion) * distance * Math.sin(inclination) * 0.3;
+
+    meshRef.current.position.set(x, y, z);
+
+    // Report current position to parent for camera tracking
+    if (onPositionUpdate) {
+      onPositionUpdate(data.name, new THREE.Vector3(x, y, z));
+    }
+
+    // Position glow sprite at planet location
+    if (glowRef.current) {
+      glowRef.current.position.set(x, y, z);
+      const t = Date.now() * 0.002;
+      const pulse = 1 + Math.sin(t) * 0.1;
+      const glowSize = data.radius * 4 * pulse;
+      glowRef.current.scale.set(glowSize, glowSize, 1);
+    }
+
+    // Update label world position
+    labelPosRef.current.set(x, y - data.radius - 1.0, z);
+    if (labelRef.current) {
+      labelRef.current.position.copy(labelPosRef.current);
+    }
+
+    // Position hologram shell at planet location
+    if (hologramRef.current) {
+      hologramRef.current.position.set(x, y, z);
+    }
+
+    // Hologram shell animation
+    if (hologramRef.current) {
+      const targetOpacity = isHovered ? 0.45 : 0;
+      const mat = hologramRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity += (targetOpacity - mat.opacity) * Math.min(delta * 6, 1);
+      hologramRef.current.rotation.y += delta * 0.5;
+      hologramRef.current.rotation.x += delta * 0.2;
+      const targetScale = isHovered ? 1.0 : 0.95;
+      const cs = hologramRef.current.scale.x;
+      const ns = cs + (targetScale - cs) * Math.min(delta * 5, 1);
+      hologramRef.current.scale.setScalar(ns);
+    }
+  });
+
+  return (
+    <>
+      {/* Glow sprite — always visible, helps see planet from far away */}
+      <sprite ref={glowRef}>
+        <spriteMaterial
+          map={glowTexture}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={0.7}
+        />
+      </sprite>
+
+      {/* Moons */}
+      {data.moons.map((moon) => (
+        <Moon key={moon.name} moon={moon} parentRef={meshRef} isPaused={isPaused} speedMultiplier={speedMultiplier} />
+      ))}
+
+      {/* Rings */}
+      {data.rings && data.rings.length > 0 && (
+        <PlanetRings rings={data.rings} parentRef={meshRef} />
+      )}
+
+      {/* Hex-grid hologram shell on hover */}
+      <mesh
+        ref={hologramRef}
+        geometry={hologramGeo}
+        renderOrder={10}
+      >
+        <meshBasicMaterial
+          color={data.color}
+          wireframe
+          transparent
+          opacity={0}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Planet mesh */}
+      <mesh
+        ref={meshRef}
+        onClick={() => onClick(data)}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setIsHovered(true);
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          setIsHovered(false);
+          document.body.style.cursor = 'auto';
+        }}
+      >
+        <sphereGeometry args={[data.radius, 64, 64]} />
+        <meshStandardMaterial
+          map={texture}
+          normalMap={normalMap}
+          normalScale={new THREE.Vector2(0.6, 0.6)}
+          roughness={0.4}
+          metalness={0.15}
+          emissive={new THREE.Color(data.color)}
+          emissiveIntensity={0.25}
+          emissiveMap={texture}
+        />
+      </mesh>
+
+      {/* Name label — positioned at absolute world coords, stays visible on zoom */}
+      <group ref={labelRef}>
+        <Html center distanceFactor={15}>
+          <div
+            style={{
+              pointerEvents: 'none',
+              opacity: isHovered ? 1 : 0.85,
+              transition: 'opacity 0.2s ease',
+              background: 'rgba(8, 8, 24, 0.95)',
+              backdropFilter: 'blur(8px)',
+              border: `1.5px solid ${isHovered ? data.color : 'rgba(255,255,255,0.18)'}`,
+              borderRadius: '10px',
+              padding: '5px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: isHovered ? data.color : '#ececec',
+              whiteSpace: 'nowrap',
+              letterSpacing: '0.03em',
+              fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
+              boxShadow: isHovered ? `0 0 16px ${data.color}44` : '0 2px 8px rgba(0,0,0,0.4)',
+            }}
+          >
+            {data.name}
+          </div>
+        </Html>
+      </group>
+    </>
+  );
+}
+
+// Moon component orbiting around its parent planet
+function Moon({
+  moon,
+  parentRef,
+  isPaused,
+  speedMultiplier,
+}: {
+  moon: MoonData;
+  parentRef: React.MutableRefObject<THREE.Mesh>;
+  isPaused: boolean;
+  speedMultiplier: number;
+}) {
+  const moonRef = useRef<THREE.Mesh>(null!);
+  const moonAngleRef = useRef(Math.random() * Math.PI * 2);
+
+  useFrame((_, delta) => {
+    if (!moonRef.current || !parentRef.current) return;
+    const dt = isPaused ? 0 : delta * speedMultiplier;
+    moonAngleRef.current += dt * moon.speed * 0.5;
+
+    const x = Math.cos(moonAngleRef.current) * moon.orbitRadius;
+    const z = Math.sin(moonAngleRef.current) * moon.orbitRadius;
+    const y = Math.sin(moonAngleRef.current * 0.7) * moon.orbitRadius * 0.3;
+
+    moonRef.current.position.set(
+      parentRef.current.position.x + x,
+      parentRef.current.position.y + y,
+      parentRef.current.position.z + z
+    );
+  });
+
+  return (
+    <mesh ref={moonRef}>
+      <sphereGeometry args={[moon.radius, 16, 16]} />
+      <meshStandardMaterial color={moon.color} roughness={0.8} metalness={0.2} />
+    </mesh>
+  );
+}
+
+// Planet Rings Component
+function PlanetRings({
+  rings,
+  parentRef,
+}: {
+  rings: RingData[];
+  parentRef: React.MutableRefObject<THREE.Mesh>;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+
+  useFrame(() => {
+    if (!groupRef.current || !parentRef.current) return;
+    // Follow parent planet position
+    groupRef.current.position.copy(parentRef.current.position);
+  });
+
+  return (
+    <group ref={groupRef}>
+      {rings.map((ring, i) => {
+        // Create ring geometry as a flat disc with inner/outer radius
+        const shape = new THREE.Shape();
+        const outerSegments = 128;
+        const innerSegments = 128;
+
+        // Outer circle (clockwise)
+        for (let j = 0; j <= outerSegments; j++) {
+          const angle = (j / outerSegments) * Math.PI * 2;
+          const x = Math.cos(angle) * ring.outerRadius;
+          const y = Math.sin(angle) * ring.outerRadius;
+          if (j === 0) shape.moveTo(x, y);
+          else shape.lineTo(x, y);
+        }
+
+        // Inner circle (counter-clockwise hole)
+        const holePath = new THREE.Path();
+        for (let j = 0; j <= innerSegments; j++) {
+          const angle = (j / innerSegments) * Math.PI * 2;
+          const x = Math.cos(angle) * ring.innerRadius;
+          const y = Math.sin(angle) * ring.innerRadius;
+          if (j === 0) holePath.moveTo(x, y);
+          else holePath.lineTo(x, y);
+        }
+        shape.holes.push(holePath);
+
+        const geometry = new THREE.ShapeGeometry(shape, 1);
+        // Rotate to lie flat on XZ plane
+        geometry.rotateX(-Math.PI / 2);
+
+        return (
+          <mesh
+            key={i}
+            geometry={geometry}
+            rotation={[ring.tilt, 0, 0.1]}
+          >
+            <meshStandardMaterial
+              color={ring.color}
+              transparent
+              opacity={ring.opacity}
+              side={THREE.DoubleSide}
+              roughness={0.8}
+              metalness={0.1}
+              depthWrite={false}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// Asteroid belt
+function AsteroidBelt({
+  radius,
+  count,
+  isPaused,
+}: {
+  radius: number;
+  count: number;
+  isPaused: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+
+  useFrame((_, delta) => {
+    if (groupRef.current && !isPaused) {
+      groupRef.current.rotation.y += delta * 0.02;
+    }
+  });
+
+  const asteroids = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      const r = radius + (Math.random() - 0.5) * 3;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const y = (Math.random() - 0.5) * 1.5;
+      const scale = 0.1 + Math.random() * 0.15;
+      return { position: [x, y, z] as [number, number, number], scale };
+    });
+  }, [radius, count]);
+
+  return (
+    <group ref={groupRef}>
+      {asteroids.map((a, i) => (
+        <mesh key={i} position={a.position} scale={a.scale}>
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color="#666666" roughness={0.9} metalness={0.1} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Planet Detail Panel
+function PlanetDetailPanel({ planet, onClose }: { planet: PlanetData | null; onClose: () => void }) {
+  if (!planet) return null;
+  const hours = Math.floor(planet.time / 3600);
+  const mins = Math.floor((planet.time % 3600) / 60);
+  return (
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} className="absolute top-4 right-4 w-80 glass rounded-3xl p-6 shadow-2xl z-50 border border-white/10">
+        <button onClick={onClose} className="absolute top-4 right-4 text-zinc-400 hover:text-white transition"><X className="w-5 h-5" /></button>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: `radial-gradient(circle, ${planet.color}55, transparent)`, border: `2px solid ${planet.color}` }}>
+            <div className="w-6 h-6 rounded-full" style={{ backgroundColor: planet.color }} />
+          </div>
+          <div>
+            <div className="text-2xl font-semibold tracking-tight">{planet.name}</div>
+            <div className="text-sm" style={{ color: planet.color }}>{planet.category}</div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Total Focus Time</span><span className="font-mono text-xl tabular-nums text-white">{hours}h {mins}m</span></div>
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Sessions</span><span className="font-mono text-lg text-emerald-400">{planet.sessions}</span></div>
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Orbital Speed</span><span className="font-mono text-sm text-zinc-400">{planet.speed.toFixed(2)} rad/s</span></div>
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Rotation Speed</span><span className="font-mono text-sm text-zinc-400">{(planet.rotationSpeed || 1.5).toFixed(1)} rad/s</span></div>
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Orbit Distance</span><span className="font-mono text-sm text-zinc-400">{planet.orbitRadius.toFixed(1)} AU</span></div>
+          <div className="flex justify-between items-center py-3 border-b border-zinc-800"><span className="text-zinc-400">Eccentricity</span><span className="font-mono text-sm text-zinc-400">{planet.eccentricity?.toFixed(2) || '0.10'}</span></div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Camera Position Tracker - updates parent state with camera position
+function CameraTracker({ onPositionUpdate }: { onPositionUpdate: (pos: [number, number, number]) => void }) {
+  useFrame(({ camera }) => {
+    onPositionUpdate([camera.position.x, camera.position.y, camera.position.z]);
+  });
+  return null;
+}
+
+// Main Scene Component
+function SolarSystemScene({ planets, isPaused, speed, onPlanetClick, controlsRef, onPlanetPositionUpdate, category = 'Other', sunSize }: { planets: PlanetData[]; isPaused: boolean; speed: number; onPlanetClick: (data: PlanetData) => void; controlsRef: any; onPlanetPositionUpdate?: (name: string, position: THREE.Vector3) => void; category?: string; sunSize?: number }) {
+  return (
+    <>
+      <Sun category={category} size={sunSize} />
+      <ambientLight color="#ffffff" intensity={0.15} />
+      <hemisphereLight color="#6688cc" groundColor="#222233" intensity={0.1} />
+      <directionalLight position={[5, 10, 5]} intensity={0.15} color="#aabbff" />
+      {planets.filter((p) => p && p.name && (p.category || p.color)).map((planetData) => (<OrbitPath key={`orbit-${planetData.name}`} planet={planetData} />))}
+      {planets.filter((p) => { if (!p) return false; if (!p.name) return false; if (!p.category && !p.color) return false; return true; }).map((planetData) => (<TexturedPlanet key={planetData.name} data={planetData} isPaused={isPaused} speedMultiplier={speed} onClick={onPlanetClick} onPositionUpdate={onPlanetPositionUpdate} />))}
+      <Stars radius={200} depth={50} count={300} factor={2} fade speed={0.3} />
+      <OrbitControls ref={controlsRef} enablePan={true} enableZoom={true} minDistance={8} maxDistance={200} autoRotate={!isPaused} autoRotateSpeed={0.04} target={[0, 0, 0]} />
+    </>
+  );
+}
+
+// Category list for solar systems - loaded from localStorage settings
+const DEFAULT_CATEGORY_LIST = ['IDE', 'AI Tools', 'Browser', 'Entertainment', 'Communication', 'Design', 'Productivity', 'Tools', 'Other'];
+
+// Get categories from settings tier assignments
+function getCategoryListFromSettings(): string[] {
+  if (typeof window === 'undefined') return DEFAULT_CATEGORY_LIST;
+  try {
+    const tierAssignments = localStorage.getItem('deskflow-tier-assignments');
+    if (tierAssignments) {
+      const tiers = JSON.parse(tierAssignments);
+      const allCategories = [
+        ...(tiers.productive || []),
+        ...(tiers.neutral || []),
+        ...(tiers.distracting || [])
+      ];
+      if (allCategories.length > 0) return allCategories;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_CATEGORY_LIST;
+}
+
+// Category list constant - uses settings categories if available
+const CATEGORY_LIST = getCategoryListFromSettings();
+
+// Format duration in seconds to human-readable string
+function formatDurationSeconds(seconds: number): string {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+// Compute planets from appStats (more accurate - uses database totals)
+function computePlanetsFromStats(
+  appStats: { app: string; category: string; total_ms: number; sessions: number }[],
+  appColors?: Record<string, string>,
+  categoryOverrides?: Record<string, string>
+): PlanetData[] {
+  if (!appStats || appStats.length === 0) {
+    return computePlanets([], appColors, categoryOverrides);
+  }
+
+  // Group by app name and sum up total time
+  const grouped: Record<string, { total_ms: number; sessions: number; category: string }> = {};
+  for (const stat of appStats) {
+    const appName = stat.app.trim();
+    if (!grouped[appName]) {
+      // Use user-defined category override from settings, otherwise use default category from stat
+      grouped[appName] = { total_ms: 0, sessions: 0, category: categoryOverrides?.[appName] || stat.category || 'Other' };
+    }
+    grouped[appName].total_ms += stat.total_ms || 0;
+    grouped[appName].sessions += stat.sessions || 0;
+    // Use the first non-'Other' category we find, unless user has override
+    if (!categoryOverrides?.[appName] && grouped[appName].category === 'Other' && stat.category && stat.category !== 'Other') {
+      grouped[appName].category = stat.category;
+    }
+  }
+
+  // Convert to planets
+  const planets: PlanetData[] = [];
+  const sortedApps = Object.entries(grouped)
+    .map(([appName, data]) => ({
+      appName,
+      total_ms: data.total_ms,
+      sessions: data.sessions,
+      category: data.category,
+      // Convert ms to seconds for the planet time
+      time: Math.floor(data.total_ms / 1000)
+    }))
+    .sort((a, b) => a.time - b.time); // ascending: smallest first (closest to sun)
+
+  const maxTime = Math.max(...sortedApps.map(a => a.time), 1);
+  const baseRadius = 5;
+  const minSpacing = 2.0;
+
+  // Count apps per category for color assignment
+  const categoryCount: Record<string, number> = {};
+
+  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+    const app = sortedApps[idx];
+    const appName = app.appName;
+    const category = app.category || 'Other';
+
+    // Get color - use custom color from appColors if available, otherwise use category color
+    const color = appColors?.[appName] || getCategoryColor(category, categoryCount[category] || 0);
+    categoryCount[category] = (categoryCount[category] || 0) + 1;
+
+    // Calculate size based on time (normalized)
+    const timeRatio = maxTime > 0 ? app.time / maxTime : 0.5;
+    const radius = 0.8 + timeRatio * 1.2;
+
+    // Calculate orbit radius (further = more time)
+    const orbitRadius = baseRadius + idx * minSpacing;
+
+    // Speed based on orbit radius (Kepler-ish)
+    const speed = 0.15 - (idx * 0.008);
+
+    // Add some eccentricity and variation
+    const eccentricity = 0.05 + Math.random() * 0.15;
+    const inclination = (Math.random() - 0.5) * 0.3;
+    const longitudeOfPerihelion = Math.random() * Math.PI * 2;
+
+    planets.push({
+      name: appName,
+      category,
+      color,
+      time: app.time,
+      sessions: app.sessions,
+      radius,
+      orbitRadius,
+      speed,
+      eccentricity,
+      inclination,
+      longitudeOfPerihelion,
+      moons: [],
+      rings: radius > 1.5 ? [{ innerRadius: radius * 1.4, outerRadius: radius * 2.2, opacity: 0.2 + Math.random() * 0.3, color, tilt: (Math.random() - 0.5) * 0.5 }] : []
+    });
+  }
+
+  return planets;
+}
+
+// Compute solar systems from logs (grouped by category)
+// Dynamically builds category list from settings + data
+function computeSolarSystems(
+  logs: ActivityLog[], 
+  appColors?: Record<string, string>,
+  categoryOverrides?: Record<string, string>
+): { category: string; planets: PlanetData[]; totalTime: number; sunSize: number }[] {
+  // Guard against undefined logs
+  const safeLogs = logs || [];
+  
+  // Get categories from settings tier assignments (dynamic, reads from localStorage each time)
+  const settingsCategories = getCategoryListFromSettings();
+  
+  // Group planets by category
+  const categoryGroups: Record<string, PlanetData[]> = {};
+  const categoryTimes: Record<string, number> = {};
+  
+  // Initialize with settings categories
+  for (const cat of settingsCategories) {
+    categoryGroups[cat] = [];
+    categoryTimes[cat] = 0;
+  }
+  
+  // Compute planets for each category
+  const allPlanets = computePlanets(safeLogs, appColors, categoryOverrides);
+  for (const planet of allPlanets) {
+    let cat = planet.category || 'Other';
+    if (!categoryGroups[cat]) {
+      // New category found in data - add it dynamically
+      categoryGroups[cat] = [];
+      categoryTimes[cat] = 0;
+    }
+    categoryGroups[cat].push(planet);
+    categoryTimes[cat] += planet.time;
+  }
+  
+  // Build solar systems array - include ALL categories that have data
+  const allCategories = [...new Set([...settingsCategories, ...Object.keys(categoryGroups)])];
+  
+  return allCategories.map(cat => ({
+    category: cat,
+    planets: categoryGroups[cat] || [],
+    totalTime: categoryTimes[cat] || 0,
+    sunSize: SUN_CONFIGS[cat]?.sizeRange[0] || 3.5,
+  })).filter(ss => ss.planets.length > 0 || ss.totalTime > 0)
+     .sort((a, b) => {
+       // Sort by settings order, then by time descending
+       const aIdx = settingsCategories.indexOf(a.category);
+       const bIdx = settingsCategories.indexOf(b.category);
+       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+       if (aIdx !== -1) return -1;
+       if (bIdx !== -1) return 1;
+       return b.totalTime - a.totalTime;
+      });
+}
+
+// Website category map - maps website categories to visual configs
+const WEBSITE_SUN_CONFIGS: Record<string, { color: string; emissive: string; sizeRange: [number, number] }> = {
+  'Social Media': { color: '#ec4899', emissive: '#db2777', sizeRange: [1.5, 2] },
+  'Entertainment': { color: '#f43f5e', emissive: '#dc2626', sizeRange: [1.5, 2] },
+  'Productivity': { color: '#10b981', emissive: '#059669', sizeRange: [1.5, 2] },
+  'Search Engine': { color: '#3b82f6', emissive: '#2563eb', sizeRange: [1.5, 2] },
+  'News': { color: '#8b5cf6', emissive: '#7c3aed', sizeRange: [1.5, 2] },
+  'Shopping': { color: '#f59e0b', emissive: '#d97706', sizeRange: [1.5, 2] },
+  'Communication': { color: '#06b6d4', emissive: '#0891b2', sizeRange: [1.5, 2] },
+  'Education': { color: '#22d3ee', emissive: '#06b6d4', sizeRange: [1.5, 2] },
+  'Developer Tools': { color: '#6366f1', emissive: '#4f46e5', sizeRange: [1.5, 2] },
+  'Uncategorized': { color: '#64748b', emissive: '#475569', sizeRange: [1.5, 2] },
+  'Other': { color: '#94a3b8', emissive: '#64748b', sizeRange: [1.5, 2] },
+};
+
+// Default website sun config
+const DEFAULT_WEBSITE_SUN_CONFIG = { color: '#fbbf24', emissive: '#f59e0b', sizeRange: [1.5, 2] as [number, number] };
+
+// Website category list
+const WEBSITE_CATEGORY_LIST = ['Social Media', 'Entertainment', 'Productivity', 'Search Engine', 'News', 'Shopping', 'Communication', 'Education', 'Developer Tools', 'Uncategorized', 'Other'];
+
+// Compute website planets from website logs
+function computeWebsitePlanets(
+  websiteLogs: ActivityLog[],
+  websiteColors?: Record<string, string>,
+  websiteCategoryOverrides?: Record<string, string>
+): PlanetData[] {
+  const safeLogs = websiteLogs || [];
+  
+  const validLogs = safeLogs.filter((log: any) =>
+    log && log.app && typeof log.app === 'string' && log.app.trim().length > 0
+  );
+
+  if (validLogs.length === 0) {
+    return [];
+  }
+
+  const grouped: Record<string, any[]> = {};
+
+  for (const log of validLogs) {
+    // For browser logs, use domain field if available, otherwise use app
+    const domainName = (log as any).domain?.trim() || (log as any).app?.trim() || 'Unknown';
+    if (!grouped[domainName]) grouped[domainName] = [];
+    grouped[domainName].push(log);
+  }
+
+  const planets: PlanetData[] = [];
+  
+  const sortedApps = Object.entries(grouped)
+    .sort(([, a], [, b]) => {
+      // duration_ms in milliseconds, convert to seconds for display
+      const timeA = a.reduce((sum, l) => sum + ((l as any).duration_ms || (l as any).duration || 0) / 1000, 0);
+      const timeB = b.reduce((sum, l) => sum + ((l as any).duration_ms || (l as any).duration || 0) / 1000, 0);
+      return timeA - timeB;
+    });
+
+  const categoryCount: Record<string, number> = {};
+
+  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+    const [domainName, domainLogs] = sortedApps[idx];
+
+    const category = websiteCategoryOverrides?.[domainName] || domainLogs[0]?.category || 'Uncategorized';
+    const color = websiteColors?.[domainName] || getCategoryColor(category, categoryCount[category] || 0);
+    categoryCount[category] = (categoryCount[category] || 0) + 1;
+
+    // duration_ms in milliseconds, convert to seconds for display
+    const appTime = domainLogs.reduce((sum: number, l: any) => sum + ((l as any).duration_ms || (l as any).duration || 0) / 1000, 0);
+    const sessions = domainLogs.length;
+
+    const maxTime = Math.max(...sortedApps.map(([, logs]) => logs.reduce((sum: number, l: any) => sum + ((l as any).duration_ms || (l as any).duration || 0) / 1000, 0)), 1);
+    const timeRatio = appTime / maxTime;
+    const radius = 0.8 + timeRatio * 1.2;
+
+    const orbitRadius = 8 + idx * 2.0;
+    const speed = 0.15 - (idx * 0.008);
+    const eccentricity = 0.05 + Math.random() * 0.15;
+    const inclination = (Math.random() - 0.5) * 0.3;
+    const longitudeOfPerihelion = Math.random() * Math.PI * 2;
+
+    planets.push({
+      name: domainName,
+      category: category,
+      color: color,
+      time: appTime,
+      sessions: sessions,
+      radius,
+      orbitRadius,
+      speed,
+      eccentricity,
+      inclination,
+      longitudeOfPerihelion,
+      moons: [],
+      rings: radius > 1.5 ? [{ innerRadius: radius * 1.4, outerRadius: radius * 2.2, opacity: 0.2 + Math.random() * 0.3, color, tilt: (Math.random() - 0.5) * 0.5 }] : []
+    });
+  }
+
+  return planets;
+}
+
+// Compute website solar systems from website logs (grouped by category)
+function computeWebsiteSolarSystems(
+  websiteLogs: ActivityLog[],
+  websiteColors?: Record<string, string>,
+  websiteCategoryOverrides?: Record<string, string>
+): { category: string; planets: PlanetData[]; totalTime: number; sunSize: number }[] {
+  const safeLogs = websiteLogs || [];
+  
+  const categoryGroups: Record<string, PlanetData[]> = {};
+  const categoryTimes: Record<string, number> = {};
+  
+  for (const cat of WEBSITE_CATEGORY_LIST) {
+    categoryGroups[cat] = [];
+    categoryTimes[cat] = 0;
+  }
+  
+  const allPlanets = computeWebsitePlanets(safeLogs, websiteColors, websiteCategoryOverrides);
+  for (const planet of allPlanets) {
+    let cat = planet.category || 'Uncategorized';
+    if (!categoryGroups[cat]) {
+      categoryGroups[cat] = [];
+      categoryTimes[cat] = 0;
+    }
+    categoryGroups[cat].push(planet);
+    categoryTimes[cat] += planet.time;
+  }
+  
+  const allCategories = [...new Set([...WEBSITE_CATEGORY_LIST, ...Object.keys(categoryGroups)])];
+  
+  return allCategories.map(cat => ({
+    category: cat,
+    planets: categoryGroups[cat] || [],
+    totalTime: categoryTimes[cat] || 0,
+    sunSize: WEBSITE_SUN_CONFIGS[cat]?.sizeRange[0] || 3.5,
+  })).filter(ss => ss.planets.length > 0 || ss.totalTime > 0)
+     .sort((a, b) => {
+       const aIdx = WEBSITE_CATEGORY_LIST.indexOf(a.category);
+       const bIdx = WEBSITE_CATEGORY_LIST.indexOf(b.category);
+       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+       if (aIdx !== -1) return -1;
+       if (bIdx !== -1) return 1;
+       return b.totalTime - a.totalTime;
+     });
+}
+
+// Generate trail positions helper
+function generateTrailPositions(count: number): Float32Array {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const r = 2 + i * 0.4;
+    positions[i * 3] = Math.cos(angle) * r;
+    positions[i * 3 + 1] = Math.sin(angle * 0.5) * 0.3;
+    positions[i * 3 + 2] = Math.sin(angle) * r;
+  }
+  return positions;
+}
+
+// Trail particles component
+function SystemTrail({ color, positions }: { color: string; positions: Float32Array }) {
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={30}
+          array={positions}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.8}
+        color={color}
+        transparent
+        opacity={0.25}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// Galaxy View Component - shows TWO galaxies: Apps (blue/purple) and Websites (cyan/violet)
+function GalaxyView({ 
+  appSolarSystems, 
+  websiteSolarSystems,
+  appSunConfigs,
+  websiteSunConfigs,
+  defaultSunConfig,
+  galaxyType,
+  onSelectSystem, 
+  viewMode,
+}: { 
+  appSolarSystems: { category: string; totalTime: number; sunSize: number }[];
+  websiteSolarSystems: { category: string; totalTime: number; sunSize: number }[];
+  appSunConfigs: Record<string, { color: string; emissive: string; sizeRange: [number, number] }>;
+  websiteSunConfigs: Record<string, { color: string; emissive: string; sizeRange: [number, number] }>;
+  defaultSunConfig: { color: string; emissive: string; sizeRange: [number, number] };
+  galaxyType: 'apps' | 'websites';
+  onSelectSystem: (category: string) => void; 
+  viewMode: string;
+}) {
+  const groupRef = useRef<THREE.Group>(null!);
+  
+  // Apps galaxy position: (0, 0, 0)
+  // Websites galaxy position: (300, 0, 0)
+  const APPS_GALAXY_POS: [number, number, number] = [0, 0, 0];
+  const WEBSITES_GALAXY_POS: [number, number, number] = [300, 0, 0];
+  
+  // Generate trail positions
+  const appTrailPositions = useMemo(() => 
+    appSolarSystems.map(() => generateTrailPositions(30)), 
+  [appSolarSystems]);
+  
+  const websiteTrailPositions = useMemo(() => 
+    websiteSolarSystems.map(() => generateTrailPositions(30)), 
+  [websiteSolarSystems]);
+  
+  useFrame((state) => {
+    if (groupRef.current && viewMode === 'galaxy') {
+      groupRef.current.rotation.y += 0.0002;
+    }
+  });
+  
+  // Calculate positions in a 3x3 grid
+  const getSystemPosition = (index: number, total: number, offsetX: number = 0): [number, number, number] => {
+    const cols = 3;
+    const spacing = 60;
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    const xOffset = (total <= 3 ? (3 - total) * spacing / 2 : 0) + offsetX;
+    return [
+      col * spacing - spacing + xOffset,
+      Math.sin(index * 1.5) * 2,
+      row * spacing - spacing + (index % 2) * 2,
+    ];
+  };
+  
+  // Render a single galaxy at a given position
+  const renderGalaxy = (
+    systems: typeof appSolarSystems,
+    sunConfigs: typeof appSunConfigs,
+    trailPositions: Float32Array[],
+    basePosition: [number, number, number],
+    offsetX: number = 0
+  ) => {
+    return systems.map((system, idx) => {
+      const pos = getSystemPosition(idx, systems.length, offsetX);
+      const config = sunConfigs[system.category] || defaultSunConfig;
+      const brightness = Math.min(1, system.totalTime / 60);
+      const sunSize = config.sizeRange[0] * 0.9;
+      
+      // Add base position to get final world position
+      const finalPos: [number, number, number] = [
+        pos[0] + basePosition[0],
+        pos[1] + basePosition[1],
+        pos[2] + basePosition[2],
+      ];
+      
+      return (
+        <group key={`${basePosition[0]}-${system.category}`} position={finalPos}>
+          {/* Trail particles */}
+          <SystemTrail color={config.color} positions={trailPositions[idx]} />
+          {/* Solar system orb */}
+          <mesh onClick={() => onSelectSystem(system.category)}>
+            <sphereGeometry args={[sunSize, 48, 48]} />
+            <meshStandardMaterial
+              color={config.color}
+              emissive={new THREE.Color(config.emissive)}
+              emissiveIntensity={1.5 + brightness * 0.8}
+              roughness={0.2}
+              metalness={0.6}
+              toneMapped={false}
+            />
+          </mesh>
+          {/* Inner glow */}
+          <sprite scale={[sunSize * 3, sunSize * 3, 1]}>
+            <spriteMaterial
+              color={config.color}
+              transparent
+              opacity={0.5 * (0.6 + brightness * 0.4)}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </sprite>
+          {/* Outer glow */}
+          <sprite scale={[sunSize * 6, sunSize * 6, 1]}>
+            <spriteMaterial
+              color={config.color}
+              transparent
+              opacity={0.2 * (0.6 + brightness * 0.4)}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </sprite>
+          {/* Label */}
+          <Html center distanceFactor={40} position={[0, sunSize * 2.2 + 1.5, 0]}>
+            <div className="text-sm font-bold px-3 py-1.5 rounded-lg bg-black/85 text-white border border-white/30 whitespace-nowrap shadow-lg" style={{ fontSize: '12px' }}>
+              {system.category}
+            </div>
+          </Html>
+        </group>
+      );
+    });
+  };
+  
+    return (
+    <group ref={groupRef}>
+      {/* Apps Galaxy (Blue/Purple theme) */}
+      {renderGalaxy(appSolarSystems, appSunConfigs, appTrailPositions, APPS_GALAXY_POS)}
+      
+      {/* Websites Galaxy (Cyan/Violet theme - Electric Nebula) */}
+      {renderGalaxy(websiteSolarSystems, websiteSunConfigs, websiteTrailPositions, WEBSITES_GALAXY_POS)}
+    </group>
+  );
+}
+
+// Category Sidebar Panel - shows stats when solar system is selected in galaxy view
+function CategorySidebar({ 
+  system, 
+  onClose, 
+  onEnter,
+  onPlanetClick,
+}: { 
+  system: { category: string; planets: PlanetData[]; totalTime: number; sunSize: number };
+  onClose: () => void;
+  onEnter: () => void;
+  onPlanetClick: (planet: PlanetData) => void;
+}) {
+  if (!system) return null;
+  
+  const hours = Math.floor(system.totalTime / 3600);
+  const mins = Math.floor((system.totalTime % 3600) / 60);
+  const config = SUN_CONFIGS[system.category] || DEFAULT_SUN_CONFIG;
+  
+  return (
+    <AnimatePresence>
+      <motion.div 
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 40 }}
+        className="absolute top-4 right-4 w-72 glass rounded-3xl p-5 shadow-2xl z-50 border border-white/10 max-h-[560px] overflow-y-auto"
+      >
+        <button onClick={onClose} className="absolute top-3 right-3 text-zinc-400 hover:text-white transition">
+          <X className="w-5 h-5" />
+        </button>
+        
+        <div className="flex items-center gap-3 mb-4">
+          <div 
+            className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{ 
+              background: `radial-gradient(circle, ${config.color}44, transparent)`,
+              border: `2px solid ${config.color}`
+            }}
+          >
+            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config.color }} />
+          </div>
+          <div>
+            <div className="text-xl font-semibold tracking-tight">{system.category}</div>
+            <div className="text-xs text-zinc-500">Solar System</div>
+          </div>
+        </div>
+        
+        <div className="space-y-3 border-t border-zinc-800 pt-3 mb-3">
+          <div className="flex justify-between items-center">
+            <span className="text-zinc-400 flex items-center gap-2"><Clock className="w-3.5 h-3.5" />Total Time</span>
+            <span className="font-mono text-lg text-white">{hours}h {mins}m</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-zinc-400">Planets</span>
+            <span className="font-mono text-lg text-emerald-400">{system.planets.length}</span>
+          </div>
+        </div>
+        
+        <div className="border-t border-zinc-800 pt-3">
+          <div className="text-xs text-zinc-500 mb-2">Planets / Apps</div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {system.planets.map((p, i) => (
+              <div 
+                key={i} 
+                className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-zinc-800/50 cursor-pointer group"
+                onClick={() => onPlanetClick(p)}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                  <span className="text-xs text-zinc-300 group-hover:text-white">{p.name}</span>
+                </div>
+                <span className="text-[10px] text-zinc-500">
+                    {Math.floor(p.time / 3600) > 0 ? `${Math.floor(p.time / 3600)}h ` : ''}
+                    {Math.floor((p.time % 3600) / 60)}m
+                  </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <button
+          onClick={onEnter}
+          className="w-full mt-4 py-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition text-sm font-medium border border-indigo-500/30"
+        >
+          Enter Solar System →
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Category Dropdown - collapsible on left side
+// Dynamically reads categories from settings
+function CategoryDropdown({ 
+  currentCategory, 
+  onSelect,
+  isExpanded,
+  onToggle,
+}: { 
+  currentCategory: string;
+  onSelect: (cat: string) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  // Dynamically get categories from settings
+  const categories = getCategoryListFromSettings();
+  
+  return (
+    <div className="absolute top-4 left-4 z-20">
+      <button
+        onClick={onToggle}
+        className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
+      >
+        <Globe className="w-4 h-4" />
+        <span className="text-zinc-300">{currentCategory}</span>
+        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      
+      {isExpanded && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute top-full left-0 mt-2 glass rounded-xl py-2 min-w-[160px] shadow-xl border border-zinc-700"
+        >
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => onSelect(cat)}
+              className={`w-full px-4 py-2 text-left text-xs transition flex items-center gap-2 ${
+                currentCategory === cat 
+                  ? 'bg-indigo-500/20 text-indigo-300' 
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              <div 
+                className="w-2 h-2 rounded-full" 
+                style={{ backgroundColor: SUN_CONFIGS[cat]?.color || '#888' }} 
+              />
+              {cat}
+            </button>
+          ))}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// Collapsible Planet Legend
+function PlanetLegend({ 
+  planets, 
+  isExpanded, 
+  onToggle, 
+  onPlanetClick,
+  showCategoryHeaders = true,
+  allCategories = [],
+}: { 
+  planets: PlanetData[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  onPlanetClick: (planet: PlanetData) => void;
+  showCategoryHeaders?: boolean;
+  allCategories?: { category: string; totalTime: number; planets: PlanetData[] }[];
+}) {
+  const totalPlanets = planets.length;
+  const totalTime = planets.reduce((sum, p) => sum + p.time, 0);
+  const hours = Math.floor(totalTime / 3600);
+  const mins = Math.floor((totalTime % 3600) / 60);
+  
+  // Group by category
+  const groupedPlanets = useMemo(() => {
+    const groups: Record<string, PlanetData[]> = {};
+    for (const p of planets) {
+      const cat = p.category || 'Other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(p);
+    }
+    return groups;
+  }, [planets]);
+  
+  // Use dynamic categories from settings
+  const settingsCategories = getCategoryListFromSettings();
+  const allCategoriesFromData = [...new Set([...settingsCategories, ...Object.keys(groupedPlanets)])];
+  const categoryOrder = allCategoriesFromData.filter(c => groupedPlanets[c]?.length > 0);
+  
+  return (
+    <div className="absolute bottom-0 left-0 right-0 z-10">
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-2 bg-zinc-950/95 border-t border-zinc-800 flex items-center justify-between text-xs hover:bg-zinc-900/95 transition"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-zinc-300 font-medium">
+            {showCategoryHeaders ? 'All Categories' : 'Planets'}: {totalPlanets} apps
+          </span>
+          <span className="text-zinc-500">•</span>
+          <span className="text-zinc-400">{hours}h {mins}m total</span>
+        </div>
+        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+      </button>
+      
+      {isExpanded && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-zinc-950/98 border-t border-zinc-800 max-h-48 overflow-y-auto px-4 py-3"
+        >
+          <div className="space-y-3">
+            {categoryOrder.map(cat => (
+              <div key={cat}>
+                {showCategoryHeaders && (
+                  <div className="text-xs text-zinc-500 mb-1">{cat}</div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {groupedPlanets[cat]?.map((p, i) => (
+                    <div 
+                      key={i}
+                      onClick={() => onPlanetClick(p)}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-900/50 hover:bg-zinc-800 cursor-pointer group"
+                    >
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: p.color }}
+                      />
+                      <span className="text-xs text-zinc-400 group-hover:text-white">{p.name}</span>
+                      <span className="text-[10px] text-zinc-600">{formatDurationSeconds(p.time)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// Main Export Component
+export default function OrbitSystem({ logs, appColors, categoryOverrides, websiteLogs, websiteColors, websiteCategoryOverrides }: OrbitSystemProps) {
+  
+  const [isPaused, setIsPaused] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const speedOptions = [0.25, 0.5, 1, 2, 4];
+  const [selectedPlanet, setSelectedPlanet] = useState<PlanetData | null>(null);
+  const [textureRefreshKey, setTextureRefreshKey] = useState(0);
+  const [viewMode, setViewMode] = useState<'galaxy' | 'solarSystem'>('galaxy');
+  const [galaxyType, setGalaxyType] = useState<'apps' | 'websites'>('apps');
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 100, 200]);
+  const [currentCategory, setCurrentCategory] = useState<string>(() => {
+    try {
+      return localStorage.getItem('deskflow-last-category') || 'Other';
+    } catch { return 'Other'; }
+  });
+  const [selectedSystem, setSelectedSystem] = useState<{ category: string; planets: PlanetData[]; totalTime: number; sunSize: number } | null>(null);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [showPerf, setShowPerf] = useState(false);
+  const [fps, setFps] = useState(0);
+  const [animationSpeed] = useState<AnimationSpeed>(() => {
+    try {
+      return (localStorage.getItem('deskflow-animation-speed') as AnimationSpeed) || 'normal';
+    } catch { return 'normal'; }
+  });
+  const controlsRef = useRef<any>(null);
+  
+  // App galaxy solar systems
+  const appSolarSystems = useMemo(() => {
+    return computeSolarSystems(logs, appColors, categoryOverrides);
+  }, [logs, appColors, categoryOverrides]);
+  
+  // Website galaxy solar systems
+  const websiteSolarSystems = useMemo(() => {
+    return computeWebsiteSolarSystems(websiteLogs || [], websiteColors, websiteCategoryOverrides);
+  }, [websiteLogs, websiteColors, websiteCategoryOverrides]);
+  
+  // Determine galaxy type based on camera position
+  useEffect(() => {
+    // Apps galaxy center is at x=0, Websites galaxy center is at x=300
+    // If camera is closer to x=300, show websites galaxy
+    const threshold = 150; // Halfway between galaxies
+    const newGalaxyType = cameraPosition[0] > threshold ? 'websites' : 'apps';
+    if (newGalaxyType !== galaxyType) {
+      setGalaxyType(newGalaxyType);
+      // Reset view mode to galaxy when switching galaxies
+      if (viewMode === 'solarSystem') {
+        setViewMode('galaxy');
+        setSelectedPlanet(null);
+      }
+    }
+  }, [cameraPosition]);
+  
+  // Current galaxy solar systems based on type
+  const solarSystems = galaxyType === 'apps' ? appSolarSystems : websiteSolarSystems;
+  
+  // Current sun configs based on galaxy type
+  const currentSunConfigs = galaxyType === 'apps' ? SUN_CONFIGS : WEBSITE_SUN_CONFIGS;
+  const defaultSunConfig = galaxyType === 'apps' ? DEFAULT_SUN_CONFIG : DEFAULT_WEBSITE_SUN_CONFIG;
+  
+  const planets = useMemo(() => {
+    const system = solarSystems.find(s => s.category === currentCategory);
+    return system?.planets || [];
+  }, [solarSystems, currentCategory]);
+  
+  // All planets for legend (from all categories)
+  const allPlanets = useMemo(() => {
+    return solarSystems.flatMap(s => s.planets);
+  }, [solarSystems]);
+  
+  const handlePlanetClick = (data: PlanetData) => { 
+    setSelectedPlanet(data); 
+    setCurrentCategory(data.category);
+    setViewMode('solarSystem');
+    setSelectedSystem(null);
+  };
+  
+  const handleSelectSystem = (category: string) => {
+    const system = solarSystems.find(s => s.category === category);
+    setSelectedSystem(system || null);
+  };
+
+  const handleEnterSystem = () => {
+    if (selectedSystem) {
+      setCurrentCategory(selectedSystem.category);
+      setStoredCategory(selectedSystem.category);
+      setViewMode('solarSystem');
+      setSelectedSystem(null);
+      setLegendExpanded(true);
+      if (controlsRef.current) controlsRef.current.reset();
+    }
+  };
+
+  const handleCloseSystem = () => {
+    setSelectedSystem(null);
+  };
+
+  const handleZoomOut = () => {
+    setViewMode('galaxy');
+    setSelectedPlanet(null);
+    setSelectedSystem(null);
+    if (controlsRef.current) controlsRef.current.reset();
+  };
+
+  const handleRefreshTextures = () => {
+    setTextureRefreshKey(k => k + 1);
+    setSelectedPlanet(null);
+    if (controlsRef.current) controlsRef.current.reset();
+  };
+  
+  // Handle category selection from dropdown
+  const handleCategorySelect = (cat: string) => {
+    setCurrentCategory(cat);
+    setStoredCategory(cat);
+    setViewMode('solarSystem');
+    setSelectedSystem(null);
+    setCategoryDropdownOpen(false);
+    if (controlsRef.current) controlsRef.current.reset();
+  };
+
+  // Track current planet positions for camera navigation
+  const planetPositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
+
+  // Called when a planet reports its position each frame
+  const handlePlanetPositionUpdate = (name: string, position: THREE.Vector3) => {
+    planetPositionsRef.current.set(name, position.clone());
+  };
+
+  // Called when user clicks a legend item — fly camera to that planet
+  const focusOnPlanet = (planet: PlanetData) => {
+    setCurrentCategory(planet.category);
+    setStoredCategory(planet.category);
+    setViewMode('solarSystem');
+    setSelectedPlanet(planet);
+    
+    // Then animate to planet position
+    if (controlsRef.current) {
+      let planetPos: THREE.Vector3;
+      
+      const trackedPos = planetPositionsRef.current.get(planet.name);
+      if (trackedPos) {
+        planetPos = trackedPos;
+      } else {
+        const semiLatusRectum = planet.orbitRadius * (1 - (planet.eccentricity || 0.1) ** 2);
+        const angle = Math.random() * Math.PI * 2;
+        const lonPeri = planet.longitudeOfPerihelion || 0;
+        const dist = semiLatusRectum / (1 + (planet.eccentricity || 0.1) * Math.cos(angle + lonPeri));
+        const inc = planet.inclination || 0;
+        const px = Math.cos(angle + lonPeri) * dist;
+        const py = Math.sin(angle + lonPeri) * dist * Math.sin(inc) * 0.3;
+        const pz = Math.sin(angle + lonPeri) * dist * Math.cos(inc);
+        planetPos = new THREE.Vector3(px, py, pz);
+      }
+
+      const camOffset = Math.max(planet.radius * 6, 12);
+      const camPos = new THREE.Vector3(
+        planetPos.x + camOffset,
+        planetPos.y + camOffset * 0.6,
+        planetPos.z + camOffset
+      );
+
+      animateCamera(camPos, planetPos, ANIMATION_DURATIONS[animationSpeed]);
+    }
+  };
+
+  const currentSunSize = useMemo(() => {
+    const config = currentSunConfigs[currentCategory];
+    return config?.sizeRange[0] || 3.5;
+  }, [currentCategory, currentSunConfigs]);
+
+  // Helper to animate camera to target position smoothly
+  const animateCamera = (targetPos: THREE.Vector3, lookAtPos: THREE.Vector3, duration: number) => {
+    if (!controlsRef.current) return;
+    
+    const startPos = controlsRef.current.object.position.clone();
+    const startTarget = controlsRef.current.target.clone();
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      
+      controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
+      controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
+      
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    animate();
+  };
+
+  return (
+    <div className="relative w-full rounded-none overflow-visible">
+      {/* Control buttons - top left */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <button
+          onClick={handleZoomOut}
+          className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
+        >
+          <Globe className="w-4 h-4" />
+          Galaxy
+        </button>
+        <button
+          onClick={() => setShowPerf(!showPerf)}
+          className={`glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium transition ${
+            showPerf ? 'text-emerald-400 bg-emerald-500/20' : 'hover:text-white'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          {fps > 0 ? `${fps} FPS` : 'Perf'}
+        </button>
+      </div>
+      
+      {/* FPS display overlay */}
+      {showPerf && fps > 0 && (
+        <div className="absolute top-20 left-4 z-20">
+          <div className="glass rounded-xl px-3 py-2 text-xs font-mono">
+            <div className="flex items-center gap-2">
+              <Activity className="w-3 h-3 text-emerald-400" />
+              <span className={fps >= 50 ? 'text-emerald-400' : fps >= 30 ? 'text-amber-400' : 'text-red-400'}>
+                {fps} FPS
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Category dropdown - visible in both galaxy and solar system views */}
+      <CategoryDropdown 
+        currentCategory={currentCategory}
+        onSelect={handleCategorySelect}
+        isExpanded={categoryDropdownOpen}
+        onToggle={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+      />
+      
+      <div className="w-full h-[600px] bg-transparent">
+        {(() => {
+          try {
+            return (
+              <Canvas 
+                key={`canvas-${textureRefreshKey}`} 
+                camera={{ position: viewMode === 'galaxy' ? [0, 100, 200] : [0, 100, 180], fov: 45 }} 
+                onError={(e) => console.error('[OrbitSystem] Canvas error:', e)}
+                gl={{
+                  powerPreference: 'high-performance',
+                  antialias: false,
+                  alpha: false,
+                  stencil: false,
+                  depth: true,
+                }}
+                dpr={Math.min(window.devicePixelRatio, 1.5)}
+                frameloop="always"
+              >
+                <PerformanceMonitor 
+                  inHotspot={false}
+                  bounds={[30, 60]}
+                  flipflops={3}
+                  onDecline={() => console.log('[OrbitSystem] Performance declined - reducing quality')}
+                  onIncline={() => console.log('[OrbitSystem] Performance improved - increasing quality')}
+                >
+                  <color attach="background" args={['#0a0a14']} />
+                  
+                  {/* Space Lighting */}
+                  <ambientLight intensity={0.03} color="#1a1a2e" />
+                  <hemisphereLight groundColor="#000000" skyColor="#0d1b2a" intensity={0.08} />
+                  <pointLight position={[0, 0, 0]} intensity={3} color="#ffaa00" distance={200} decay={1.5} />
+                  <directionalLight position={[50, 30, 50]} intensity={0.5} color="#fff5e6" />
+                  
+                  {/* Post-Processing Effects */}
+                  <EffectComposer multisampling={0}>
+                    <Bloom 
+                      intensity={1.2} 
+                      luminanceThreshold={0.85} 
+                      luminanceSmoothing={0.3}
+                      mipmapBlur 
+                    />
+                    <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                    <Vignette offset={0.3} darkness={0.5} blendFunction={BlendFunction.NORMAL} />
+                    <ChromaticAberration offset={[0.0005, 0.0005]} blendFunction={BlendFunction.NORMAL} />
+                  </EffectComposer>
+                  
+                  {/* FPS Counter */}
+                  {showPerf && <FPSCounter onFpsUpdate={setFps} />}
+                  
+                {viewMode === 'galaxy' ? (
+                  <>
+                    <GalaxyDustCloud />
+                    <GalaxyView 
+                      appSolarSystems={appSolarSystems}
+                      websiteSolarSystems={websiteSolarSystems}
+                      appSunConfigs={SUN_CONFIGS}
+                      websiteSunConfigs={WEBSITE_SUN_CONFIGS}
+                      defaultSunConfig={defaultSunConfig}
+                      galaxyType={galaxyType}
+                      onSelectSystem={handleSelectSystem} 
+                      viewMode={viewMode}
+                    />
+                    <CameraTracker onPositionUpdate={setCameraPosition} />
+                    <Stars radius={500} depth={100} count={3000} factor={4} fade speed={0.1} saturation={0.3} />
+                    <OrbitControls 
+                      enablePan={true} 
+                      enableZoom={true} 
+                      minDistance={50} 
+                      maxDistance={800} 
+                      autoRotate={false}
+                      target={[0, 0, 0]}
+                    />
+                  </>
+                ) : (
+            <SolarSystemScene
+              planets={planets}
+              isPaused={isPaused}
+              speed={speed}
+              onPlanetClick={handlePlanetClick}
+              controlsRef={controlsRef}
+              onPlanetPositionUpdate={handlePlanetPositionUpdate}
+              category={currentCategory}
+              sunSize={currentSunSize}
+            />
+          )}
+                </PerformanceMonitor>
+              </Canvas>
+            );
+          } catch (e) {
+            console.error('[OrbitSystem] Canvas render error:', e);
+            return (
+              <div className="h-[600px] flex items-center justify-center bg-zinc-900/50 rounded-3xl">
+                <div className="text-zinc-400">3D visualization error. Check console for details.</div>
+              </div>
+            );
+          }
+        })()}
+      </div>
+      
+      {/* Category sidebar - when system selected in galaxy view */}
+      {selectedSystem && viewMode === 'galaxy' && (
+        <CategorySidebar 
+          system={selectedSystem}
+          onClose={handleCloseSystem}
+          onEnter={handleEnterSystem}
+          onPlanetClick={(p) => {
+            handlePlanetClick(p);
+            setSelectedSystem(null);
+          }}
+        />
+      )}
+      
+      <PlanetDetailPanel planet={selectedPlanet} onClose={() => setSelectedPlanet(null)} />
+
+      {/* Controls overlay — top-right */}
+      <div className="absolute top-4 right-4 z-10">
+        <div className="glass rounded-xl px-4 py-2 flex items-center gap-3">
+          <button 
+            onClick={() => setIsPaused(!isPaused)} 
+            className="flex items-center gap-1.5 text-xs font-medium hover:text-white transition"
+          >
+            <Play className="w-3.5 h-3.5" />
+            {isPaused ? 'Resume' : 'Pause'}
+          </button>
+          <div className="w-px h-4 bg-zinc-700" />
+          <button 
+            onClick={() => { setSelectedPlanet(null); if (controlsRef.current) controlsRef.current.reset(); }} 
+            className="flex items-center gap-1.5 text-xs font-medium hover:text-white transition"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset
+          </button>
+          <div className="w-px h-4 bg-zinc-700" />
+          <button 
+            onClick={handleRefreshTextures} 
+            className="flex items-center gap-1.5 text-xs font-medium hover:text-white transition"
+            title="Refresh textures"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px h-4 bg-zinc-700" />
+          {speedOptions.map((s) => (
+            <button 
+              key={s} 
+              onClick={() => setSpeed(s)} 
+              className={`px-2 py-0.5 rounded text-xs transition ${
+                speed === s 
+                  ? 'bg-indigo-500/30 text-indigo-300' 
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {s}x
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Planet Legend — bottom - shows apps in current view */}
+      <PlanetLegend 
+        planets={viewMode === 'solarSystem' ? planets : allPlanets}
+        isExpanded={legendExpanded}
+        onToggle={() => setLegendExpanded(!legendExpanded)}
+        onPlanetClick={focusOnPlanet}
+        showCategoryHeaders={true}
+        allCategories={solarSystems}
+      />
+      
+      {/* Galaxy hint text */}
+      {viewMode === 'galaxy' && (
+        <div className="absolute bottom-24 left-0 right-0 text-center">
+          <div className="text-xs text-zinc-500">Click a solar system to explore • Drag to rotate • Scroll to zoom</div>
+        </div>
+      )}
+    </div>
+  );
+}

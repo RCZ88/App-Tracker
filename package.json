@@ -1,0 +1,101 @@
+{
+  "name": "deskflow",
+  "productName": "DeskFlow",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "author": "DeskFlow Team",
+  "description": "Productivity time tracker for desktop apps and browser",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "vite build",
+    "build:electron": "tsc src/main.ts src/preload.ts --module commonjs --target ES2020 --esModuleInterop --outDir dist-electron --skipLibCheck && move /Y dist-electron\\main.js dist-electron\\main.cjs && move /Y dist-electron\\preload.js dist-electron\\preload.cjs",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "electron .",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.deskflow.app",
+    "productName": "DeskFlow",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.cjs"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/active-win/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
+    ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "win": {
+      "target": "portable"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/vite.svg"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/vite.svg"
+    }
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/three": "^0.183.1",
+    "active-win": "^8.2.1",
+    "better-sqlite3": "^12.8.0",
+    "canvas-confetti": "^1.9.4",
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.35.0",
+    "lucide-react": "^0.577.0",
+    "postprocessing": "^6.39.0",
+    "r3f-perf": "^7.2.3",
+    "react": "^19.2.0",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.1",
+    "tailwindcss": "^4.2.1",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@eslint/js": "^9.39.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "asar": "^3.2.0",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
+    "electron-rebuild": "^3.2.9",
+    "electron-vite": "^5.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "madge": "^8.0.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.48.0",
+    "vite": "^7.3.1"
+  }
+}
