@@ -6,13 +6,43 @@
 
 ## 📊 Current Status
 
-**Version:** 1.19
+**Version:** 1.20
 **Last Updated:** 2026-04-16
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-16 — Galaxy Camera/Visualization Clipping Fix (v1.20)
+
+**What Changed:**
+1. ✅ Fixed dust cloud position mismatch - `WebsiteGalaxyDustCloud` now at `[3250, 0, 0]` (was 650)
+2. ✅ Added camera far plane `far: 10000` (was default ~2000)
+3. ✅ Added camera near plane `near: 0.1`
+4. ✅ Increased `OrbitControls maxDistance` from 800 to 5000
+5. ✅ Increased `Stars radius` from 500 to 4000, count from 3000 to 8000
+6. ✅ Added exponential fog `fog(1500, 4500)` for smooth particle fade-out
+
+**Root Cause:**
+- Camera far plane too close - particles beyond ~2000 got clipped (black square)
+- WebsiteGalaxyDustCloud at wrong position (650 vs 3250)
+- OrbitControls maxDistance too small (800) - couldn't zoom out to see far galaxy
+- Stars radius too small - disappeared when viewing far galaxy
+- No fog - particles had harsh cutoff instead of smooth fade
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Camera config, dust cloud position, OrbitControls, Stars, fog
+
+**Result:**
+- Galaxy visualization no longer shows black square when dragging
+- Particles fade naturally with fog instead of hard cutoff
+- Can zoom out to 5000 units to see both galaxies
+- Dust clouds align with their respective galaxies
+
+**Build:** ✅ Successful
+
+---
 
 ### 2026-04-16 — Reflection: Application Data Loading (v1.19)
 
@@ -925,6 +955,7 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.14 | 2026-04-16 | Settings page issues verification: All features verified working |
 | 1.18 | 2026-04-16 | Galaxy data fix: OrbitSystem now uses filteredLogs, two-galaxy with different visuals (spiral apps, nebula websites), smooth camera transitions, dashboard productivity includes websites |
 | 1.19 | 2026-04-16 | Reflection documentation: Created universal self-improvement skill, documented galaxy data and application data loading patterns, added auto-reflect rules to AGENTS.md |
+| 1.20 | 2026-04-16 | Galaxy camera fix: Fixed black square clipping, dust cloud position mismatch, added fog, increased camera far plane to 10000, OrbitControls maxDistance to 5000 |
 
 ---
 

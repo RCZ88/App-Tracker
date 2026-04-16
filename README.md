@@ -83,12 +83,21 @@ Or use the auto-created shortcut on your desktop.
 ### Main Features
 
 | Feature | Description |
-|---------|------------|
-| **Galaxy View** | Visualize apps as planets orbiting by category |
-| **Dashboard** | See today's focus time and productivity |
-| **Applications** | Detailed breakdown by app |
+|---------|-------------|
+| **Galaxy View** | Two separate 3D galaxies - apps (blue) and websites (cyan/violet nebula) |
+| **Dashboard** | See today's focus time and productivity with heatmap |
+| **Applications** | Detailed breakdown by app with time totals |
 | **Browser Activity** | Track websites in Chrome/Firefox |
-| **Settings** | Customize categories, colors, auto-start |
+| **Settings** | Customize categories, colors, animation speed, auto-start |
+
+### Galaxy Navigation
+
+| Action | Result |
+|--------|--------|
+| Drag left | Return to Apps Galaxy |
+| Drag right | Visit Websites Galaxy |
+| Click planet | Fly camera to that planet |
+| Click legend item | Fly camera to that planet |
 
 ### Timeline Selection
 
@@ -128,9 +137,11 @@ npx electron-rebuild
 
 ### Browser tracking not working
 
-1. Install the DeskFlow browser extension
-2. Enable "Allow in incognito" in Chrome extensions
-3. Make sure the browser extension is enabled
+1. Make sure the DeskFlow browser extension is installed
+2. Enable "Allow in incognito" in Chrome/Firefox extensions page
+3. Enable "Allow access to file URLs" if using file:// protocol
+4. Click the extension icon to confirm it's tracking
+5. Check that the extension shows a green indicator when visiting sites
 
 ### Storage shows "Loading..."
 
@@ -147,61 +158,77 @@ The database may be initializing. Wait a few seconds. If it persists:
 ```
 App Tracker/
 ├── src/
-│   ├── main.ts         # Electron main process
-│   ├── preload.ts     # IPC bridge
-│   └── App.tsx       # React app entry
-├── agent/            # AI agent resources
-├── public/           # Static assets
-├── dist/             # Built renderer
-├── dist-electron/    # Built Electron
-├── release/          # Packaged executables
-│   └── win-unpacked/ # DeskFlow.exe
-└── PROBLEMS.md      # Known issues
-```
+│   ├── main.ts              # Electron main process (tracking, DB, IPC)
+│   ├── preload.ts           # IPC bridge (contextBridge)
+│   ├── main.tsx             # React entry point
+│   ├── App.tsx              # Main app (routing, state, computation)
+│   ├── components/
+│   │   └── OrbitSystem.tsx  # 3D galaxy visualization
+│   └── pages/
+│       ├── StatsPage.tsx          # Applications breakdown
+│       ├── ProductivityPage.tsx   # Productivity scores & trends
+│       ├── BrowserActivityPage.tsx # Website tracking
+│       ├── SettingsPage.tsx       # Category/colors/settings
+│       └── DatabasePage.tsx       # DB viewer
+├── browser-extension/       # Chrome/Firefox extension
+├── agent/                   # AI agent resources & docs
+├── public/                  # Static assets
+├── dist/                    # Built renderer
+├── dist-electron/           # Built Electron main/preload
+├── release/win-unpacked/    # Packaged executable
+│   └── DeskFlow.exe
+└── PROBLEMS.md             # Known issues
 
 ---
 
 ## 🧰 Tech Stack
 
 ### Core Technologies
-| Technology | Purpose |
-|------------|---------|
-| Electron 41 | Desktop wrapper |
-| React 19 | UI framework |
-| Vite | Build tool |
-| TypeScript | Type safety |
-| Tailwind CSS | Styling |
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Electron | ^41.1.1 | Desktop wrapper |
+| React | ^19.2.0 | UI framework |
+| TypeScript | ~5.9.3 | Type safety |
+| Vite | ^7.3.1 | Build tool |
+| Tailwind CSS | ^4.2.1 | Styling |
+| React Router | ^7.13.1 | Navigation |
 
 ### 3D & Visualization
-| Technology | Purpose |
-|------------|---------|
-| Three.js | 3D rendering engine |
-| @react-three/fiber | React Three.js integration |
-| @react-three/drei | Three.js helpers & components |
-| @react-three/postprocessing | Post-processing effects |
-| postprocessing | GPU-accelerated effects |
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Three.js | ^0.183.2 | 3D rendering engine |
+| @react-three/fiber | ^9.5.0 | React Three.js integration |
+| @react-three/drei | ^10.7.7 | Three.js helpers & components |
+| @react-three/postprocessing | ^3.0.4 | Post-processing effects |
+| postprocessing | ^6.39.0 | GPU-accelerated effects |
+| r3f-perf | ^7.2.3 | Performance monitoring |
 
 ### Data & Storage
-| Technology | Purpose |
-|------------|---------|
-| better-sqlite3 | Local SQLite database |
-| active-win | Active window detection |
-| date-fns | Date manipulation |
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| better-sqlite3 | ^12.8.0 | Local SQLite database |
+| active-win | ^8.2.1 | Active window detection |
+| date-fns | ^4.1.0 | Date manipulation |
 
 ### UI & Animation
-| Technology | Purpose |
-|------------|---------|
-| Framer Motion | React animations |
-| Lucide React | Icons |
-| Chart.js | Data visualization |
-| react-chartjs-2 | React Chart.js wrapper |
-| canvas-confetti | Celebration effects |
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Framer Motion | ^12.35.0 | React animations |
+| Lucide React | ^0.577.0 | Icons |
+| Chart.js | ^4.5.1 | Data visualization |
+| react-chartjs-2 | ^5.3.1 | React Chart.js wrapper |
+| canvas-confetti | ^1.9.4 | Celebration effects |
+| @dnd-kit | ^6.3.1 | Drag and drop |
 
 ---
 
 ## 🌟 Advanced Features
 
 ### 3D Galaxy Visualization
+- **Two-Galaxy System** - Apps Galaxy and Websites Galaxy are separate 3D worlds
+- **Apps Galaxy** - Spiral galaxy with 8,000+ particles, blue/purple color theme
+- **Websites Galaxy** - Nebula-style dust cloud with cyan/violet colors
+- **Camera-Based Detection** - Drag right to visit Websites Galaxy, left for Apps Galaxy
 - **Spiral Galaxy Rendering** - 8,000+ particles with custom color gradients
 - **Solar System View** - Animated planets with orbits, rings, and moons
 - **Custom Shaders** - GLSL shaders for particle systems and effects
@@ -223,10 +250,11 @@ App Tracker/
 - **Depth Management** - Proper depthWrite handling for transparency
 
 ### Electron Features
-- **System Tray** - Background operation
-- **Window Tracking** - Native active window detection
-- **Browser Extension** - Chrome/Firefox website tracking
-- **SQLite Storage** - Persistent local data
+- **System Tray** - Background operation with show/hide toggle
+- **Window Tracking** - Native active window detection via active-win
+- **Browser Extension** - Chrome/Firefox website tracking with delta-based updates
+- **SQLite Storage** - Persistent local data with JSON fallback
+- **Auto-Start** - Launch on system boot (configurable)
 
 ---
 
@@ -258,14 +286,16 @@ npx electron-builder --win nsis
 
 ## 📋 Key Features
 
-- 🌌 **Galaxy View** - 3D visualization of app usage
-- 📊 **Dashboard** - Focus time and productivity scores
-- 🌐 **Browser Tracking** - Track website activity
-- 🔍 **Deep Search** - Query your usage history
+- 🌌 **Two-Galaxy System** - Apps Galaxy (blue/purple) + Websites Galaxy (cyan/violet nebula)
+- 📊 **Dashboard** - Focus time, productivity scores, and heatmap with week navigation
+- 🌐 **Browser Tracking** - Track websites in Chrome/Firefox via browser extension
+- 🔍 **Deep Search** - Query your usage history across all apps and websites
 - ⚡ **Auto-start** - Launch on system boot
-- 🔔 **System Tray** - Runs in background
-- 📈 **Heatmap** - Daily activity visualization
-- 🎯 **Focus Tracking** - Categorize productive time
+- 🔔 **System Tray** - Runs in background, click to show/hide
+- 📈 **Heatmap** - Daily activity visualization with week navigation
+- 🎯 **Focus Tracking** - Categorize apps as Productive/Neutral/Distracting
+- 🎨 **Custom Colors** - Per-app and per-category color customization
+- 📱 **Category Overrides** - Override automatic categorization for any app/website
 
 ---
 
@@ -275,6 +305,8 @@ npx electron-builder --win nsis
 - **Development** - [`agent/`](agent/)
 - **Project State** - [`agent/state.md`](agent/state.md)
 - **Architecture** - [`agent/context.md`](agent/context.md)
+- **Known Issues** - [`agent/PROBLEMS.md`](agent/PROBLEMS.md)
+- **Browser Extension** - [`browser-extension/`](browser-extension/)
 
 ---
 
@@ -282,19 +314,42 @@ npx electron-builder --win nsis
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0.0 | 2026-04-13 | Initial release |
-| 1.1.0 | 2026-04-14 | Advanced 3D visuals with post-processing |
+| 1.0 | 2026-04-04 | Initial release |
+| 1.1 | 2026-04-05 | Fixed data persistence, added storage diagnostics |
+| 1.2 | 2026-04-05 | Solar system visual overhaul, DB expansion, period filtering |
+| 1.3 | 2026-04-07 | Data persistence fixes, heatmap fix, time period unification |
+| 1.4 | 2026-04-07 | Productivity tracking, smart YouTube categorization |
+| 1.5 | 2026-04-08 | Browser tracking delta fix, data cleanup button |
+| 1.6 | 2026-04-09 | Customizable productivity & category system |
+| 1.7 | 2026-04-09 | Focus/Total pie chart sync, historical data toggle |
+| 1.7.1 | 2026-04-10 | Real-time 30-second polling, day change detection |
+| 1.11 | 2026-04-14 | Fixed Top Bar Total, OrbitSystem data filtering |
+| 1.12 | 2026-04-15 | App colors persistence, console spam removal |
+| 1.14 | 2026-04-16 | Settings page verification - all features working |
+| 1.15 | 2026-04-16 | Category override reload fix |
+| 1.17 | 2026-04-16 | Category config persistence across restarts |
+| 1.18 | 2026-04-16 | Two-galaxy system: Apps + Websites separate |
+| 1.19 | 2026-04-16 | Reflection documentation, auto-reflect rules |
 
 ---
 
 ## 🚀 Development Highlights
 
-### Recent Updates (v1.1.0)
-- **Phenomenal 3D Graphics** - Post-processing pipeline with Bloom, tone mapping
-- **Enhanced Sun Rendering** - Multi-layer corona with animated textures
-- **Improved Galaxy** - 8,000 particles with spiral arm distribution
-- **Performance Monitor** - Adaptive quality based on FPS
-- **DevTools Access** - Press Ctrl+Shift+I to inspect
+### Recent Updates (v1.18 - Two Galaxy System)
+- **Two-Galaxy System** - Apps Galaxy and Websites Galaxy are now separate
+- **Apps Galaxy** - 8,000+ particles with spiral arm distribution (blue/purple theme)
+- **Websites Galaxy** - Nebula-style dust cloud (cyan/violet theme)
+- **Camera-Based Detection** - Automatically switches galaxy when you drag
+- **Galaxy Type Indicator** - UI shows current galaxy (APPS / WEBSITES)
+- **Data Consistency** - Galaxy data now matches Applications page exactly
+
+### Previous Updates (v1.12 - v1.17)
+- **Category Override Persistence** - Changes now persist across app restarts
+- **Real-Time Data Refresh** - 30-second polling keeps all views updated
+- **Heatmap Week Navigation** - LEFT/RIGHT arrows to navigate weeks
+- **Productivity Score Sync** - Dashboard and Productivity page now match
+- **App Colors Persistence** - Colors saved and restored correctly
+- **Console Spam Removal** - Removed 10+ debug logs flooding console
 
 ### Building from Source
 ```bash
@@ -343,6 +398,6 @@ If you encounter issues:
 
 ---
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-16
 
 **Maintained By:** DeskFlow Team

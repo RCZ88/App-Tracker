@@ -2766,9 +2766,9 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
         {(() => {
           try {
             return (
-              <Canvas 
+                <Canvas 
                 key={`canvas-${textureRefreshKey}`} 
-                camera={{ position: viewMode === 'galaxy' ? [0, 100, 200] : [0, 100, 180], fov: 45 }} 
+                camera={{ position: viewMode === 'galaxy' ? [0, 100, 200] : [0, 100, 180], fov: 45, near: 0.1, far: 10000 }} 
                 onError={(e) => console.error('[OrbitSystem] Canvas error:', e)}
                 gl={{
                   powerPreference: 'high-performance',
@@ -2788,6 +2788,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                   onIncline={() => console.log('[OrbitSystem] Performance improved - increasing quality')}
                 >
                   <color attach="background" args={['#0a0a14']} />
+                  <fog attach="fog" args={['#0a0a14', 1500, 4500]} />
                   
                   {/* Space Lighting */}
                   <ambientLight intensity={0.03} color="#1a1a2e" />
@@ -2815,8 +2816,8 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                   <>
                     {/* Apps Galaxy - Spiral dust cloud at origin */}
                     <GalaxyDustCloud />
-                    {/* Websites Galaxy - Nebula dust cloud at x=650 */}
-                    <group position={[650, 0, 0]}>
+                    {/* Websites Galaxy - Nebula dust cloud at x=3250 */}
+                    <group position={[3250, 0, 0]}>
                       <WebsiteGalaxyDustCloud />
                     </group>
                     <GalaxyView 
@@ -2830,12 +2831,12 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                       viewMode={viewMode}
                     />
                     <CameraTracker cameraPosRef={cameraPosRef} />
-                    <Stars radius={500} depth={100} count={3000} factor={4} fade speed={0.1} saturation={0.3} />
+                    <Stars radius={4000} depth={200} count={8000} factor={6} fade speed={0.1} saturation={0.3} />
                     <OrbitControls 
                       enablePan={true} 
                       enableZoom={true} 
                       minDistance={50} 
-                      maxDistance={800} 
+                      maxDistance={5000} 
                       autoRotate={false}
                       target={[0, 0, 0]}
                     />

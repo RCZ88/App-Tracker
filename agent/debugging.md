@@ -344,6 +344,71 @@ npx tsc src/main.ts src/preload.ts \
 
 ---
 
+## 📷 3D Camera/Clipping Debugging Pattern
+
+**When you see black squares, cut-off objects, or particles disappearing when rotating camera:**
+
+### Step 1: Check Camera Far Plane
+```typescript
+// Wrong - far plane defaults to ~2000
+camera={{ position: [0, 100, 200], fov: 45 }}
+
+// Right - explicit far plane
+camera={{ position: [0, 100, 200], fov: 45, near: 0.1, far: 10000 }}
+```
+
+### Step 2: Check Position Mismatches
+Verify all positioned elements match their constants:
+```typescript
+const APPS_GALAXY_POS: [number, number, number] = [0, 0, 0];
+const WEBSITES_GALAXY_POS: [number, number, number] = [3250, 0, 0];
+
+// Element must match constant
+<group position={WEBSITES_GALAXY_POS}>  // NOT [650, 0, 0]
+```
+
+### Step 3: Check OrbitControls Limits
+```typescript
+// Wrong - can't zoom out far enough
+<OrbitControls maxDistance={800} />
+
+// Right - allow viewing entire scene
+<OrbitControls maxDistance={5000} />
+```
+
+### Step 4: Add Fog for Smooth Fade
+```typescript
+// Fog helps objects fade naturally instead of clipping
+<fog attach="fog" args={['#0a0a14', 1500, 4500]} />
+```
+
+### Step 5: Check Stars Coverage
+```typescript
+// Wrong - stars disappear when zooming out
+<Stars radius={500} depth={100} count={3000} />
+
+// Right - stars cover entire viewable area
+<Stars radius={4000} depth={200} count={8000} />
+```
+
+### Key Numbers to Remember for DeskFlow
+| Setting | Value | Reason |
+|---------|-------|--------|
+| Galaxy distance | 3250 | 5x galaxy width |
+| Camera far | 10000 | Covers both galaxies |
+| OrbitControls maxDistance | 5000 | Can zoom to see both |
+| Stars radius | 4000 | Background covers scene |
+| Fog range | 1500-4500 | Smooth particle fade |
+
+### Signs of Camera/Clipping Issues
+- Black square appears when rotating
+- Particles cut off sharply instead of fading
+- Can't zoom out far enough
+- Stars disappear when moving camera
+- Objects "pop" into existence
+
+---
+
 ## 🔄 Version History
 
 | Version | Date | Changes |
@@ -352,6 +417,7 @@ npx tsc src/main.ts src/preload.ts \
 | 1.1 | 2026-04-16 | Added callback/promise fix patterns |
 | 1.2 | 2026-04-16 | Added Data Mismatch Debugging Pattern |
 | 1.3 | 2026-04-16 | Added Data Computation Pattern (Single Source of Truth) |
+| 1.4 | 2026-04-16 | Added 3D Camera/Clipping Debugging Pattern |
 
 ---
 
