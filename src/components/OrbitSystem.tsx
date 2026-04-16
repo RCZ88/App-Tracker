@@ -94,11 +94,11 @@ function GalaxyDustCloud() {
     return col;
   }, [positions]);
   
-  // Subtle particle animation
+  // Subtle particle animation - removed internal rotation since parent group handles it
   useFrame((state) => {
     if (pointsRef.current) {
       const t = state.clock.elapsedTime;
-      pointsRef.current.rotation.y += 0.000012;
+      // Gentle floating motion only - no rotation, group handles that
       pointsRef.current.position.y = Math.sin(t * 0.1) * 0.3;
     }
   });
@@ -217,14 +217,11 @@ function WebsiteGalaxyDustCloud() {
     return col;
   }, [positions]);
 
-  // Slower, more ethereal animation
+  // Slower, more ethereal animation - removed internal rotation since parent group handles it
   useFrame((state) => {
     if (pointsRef.current) {
       const t = state.clock.elapsedTime;
-      // Very slow rotation for ethereal feel
-      pointsRef.current.rotation.y += 0.000008;
-      pointsRef.current.rotation.x = Math.sin(t * 0.05) * 0.02;
-      // Gentle floating motion
+      // Gentle floating motion only - no rotation, group handles that
       pointsRef.current.position.y = Math.sin(t * 0.08) * 0.5;
     }
   });
@@ -2084,7 +2081,8 @@ function GalaxyView({
   onSelectSystem: (category: string) => void; 
   viewMode: string;
 }) {
-  const groupRef = useRef<THREE.Group>(null!);
+  const appsGroupRef = useRef<THREE.Group>(null!);
+  const websitesGroupRef = useRef<THREE.Group>(null!);
   
   // Apps galaxy position: (0, 0, 0)
   // Websites galaxy position: (3250, 0, 0) - 5x galaxy widths apart
@@ -2101,22 +2099,44 @@ function GalaxyView({
   [websiteSolarSystems]);
   
   useFrame((state) => {
-    if (groupRef.current && viewMode === 'galaxy') {
-      groupRef.current.rotation.y += 0.0002;
+    if (viewMode === 'galaxy') {
+      // Each galaxy rotates around its own center
+      if (appsGroupRef.current) {
+        appsGroupRef.current.rotation.y += 0.0002;
+      }
+      if (websitesGroupRef.current) {
+        websitesGroupRef.current.rotation.y += 0.00015; // Slightly different speed for variety
+      }
     }
   });
   
-  // Calculate positions in a 3x3 grid
+  // Seeded random function for stable positions
+  const seededRandom = (seed: number): number => {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  // Calculate positions in a scattered radial pattern within galaxy bounds
   const getSystemPosition = (index: number, total: number, offsetX: number = 0): [number, number, number] => {
-    const cols = 3;
-    const spacing = 60;
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    const xOffset = (total <= 3 ? (3 - total) * spacing / 2 : 0) + offsetX;
+    // Use golden angle distribution for more natural, scattered look
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~2.399 radians
+    const radiusScale = 180; // Maximum radius within galaxy (galaxy dust cloud radius is ~280)
+    
+    // Distribute using golden spiral for even but random-looking coverage
+    const angle = index * goldenAngle;
+    // Use sqrt for more central concentration (like real galaxies)
+    const normalizedIdx = total > 1 ? index / (total - 1) : 0.5;
+    const radius = Math.sqrt(normalizedIdx) * radiusScale * (0.3 + seededRandom(index * 4) * 0.4);
+    
+    // Add some offset for more natural scattering (seeded for stability)
+    const jitterX = (seededRandom(index * 4 + 1) - 0.5) * 40;
+    const jitterY = (seededRandom(index * 4 + 2) - 0.5) * 20;
+    const jitterZ = (seededRandom(index * 4 + 3) - 0.5) * 40;
+    
     return [
-      col * spacing - spacing + xOffset,
-      Math.sin(index * 1.5) * 2,
-      row * spacing - spacing + (index % 2) * 2,
+      Math.cos(angle) * radius + jitterX + offsetX,
+      jitterY,
+      Math.sin(angle) * radius + jitterZ,
     ];
   };
   
@@ -2191,13 +2211,19 @@ function GalaxyView({
   };
   
     return (
-    <group ref={groupRef}>
-      {/* Apps Galaxy (Blue/Purple theme) */}
-      {renderGalaxy(appSolarSystems, appSunConfigs, appTrailPositions, APPS_GALAXY_POS)}
+    <>
+      {/* Apps Galaxy (Blue/Purple theme) - rotates around its own center */}
+      <group ref={appsGroupRef} position={APPS_GALAXY_POS}>
+        <GalaxyDustCloud />
+        {renderGalaxy(appSolarSystems, appSunConfigs, appTrailPositions, [0, 0, 0])}
+      </group>
       
-      {/* Websites Galaxy (Cyan/Violet theme - Electric Nebula) */}
-      {renderGalaxy(websiteSolarSystems, websiteSunConfigs, websiteTrailPositions, WEBSITES_GALAXY_POS)}
-    </group>
+      {/* Websites Galaxy (Cyan/Violet theme - Electric Nebula) - rotates around its own center */}
+      <group ref={websitesGroupRef} position={WEBSITES_GALAXY_POS}>
+        <WebsiteGalaxyDustCloud />
+        {renderGalaxy(websiteSolarSystems, websiteSunConfigs, websiteTrailPositions, [0, 0, 0])}
+      </group>
+    </>
   );
 }
 
@@ -2292,20 +2318,24 @@ function CategorySidebar({
 }
 
 // Category Dropdown - collapsible on left side
-// Dynamically reads categories from settings
+// Shows all categories that exist in both settings AND planet data
 function CategoryDropdown({ 
   currentCategory, 
   onSelect,
   isExpanded,
   onToggle,
+  additionalCategories = [],
 }: { 
   currentCategory: string;
   onSelect: (cat: string) => void;
   isExpanded: boolean;
   onToggle: () => void;
+  additionalCategories?: string[];
 }) {
-  // Dynamically get categories from settings
-  const categories = getCategoryListFromSettings();
+  // Get categories from settings
+  const settingsCategories = getCategoryListFromSettings();
+  // Combine settings categories with any additional categories from data
+  const allCategories = [...new Set([...settingsCategories, ...additionalCategories])];
   
   return (
     <div className="relative z-20">
@@ -2323,7 +2353,7 @@ function CategoryDropdown({
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-full left-0 mt-2 glass rounded-xl py-2 min-w-[160px] shadow-xl border border-zinc-700"
         >
-          {categories.map(cat => (
+          {allCategories.map(cat => (
             <button
               key={cat}
               onClick={() => onSelect(cat)}
@@ -2543,6 +2573,11 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     return solarSystems.flatMap(s => s.planets);
   }, [solarSystems]);
   
+  // Extract unique categories from planet data for dropdown
+  const planetCategories = useMemo(() => {
+    return [...new Set(allPlanets.map(p => p.category).filter(Boolean))];
+  }, [allPlanets]);
+  
   const handlePlanetClick = (data: PlanetData) => { 
     setSelectedPlanet(data); 
     setCurrentCategory(data.category);
@@ -2562,7 +2597,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
       setViewMode('solarSystem');
       setSelectedSystem(null);
       setLegendExpanded(true);
-      if (controlsRef.current) controlsRef.current.reset();
+      resetCameraToGalaxy();
     }
   };
 
@@ -2649,24 +2684,33 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   // Helper to animate camera to target position smoothly
   const animateCamera = (targetPos: THREE.Vector3, lookAtPos: THREE.Vector3, duration: number) => {
     if (!controlsRef.current) return;
-    
+
     const startPos = controlsRef.current.object.position.clone();
     const startTarget = controlsRef.current.target.clone();
     const startTime = Date.now();
-    
+
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const t = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-      
+
       controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
       controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
-      
+
       if (t < 1) {
         requestAnimationFrame(animate);
       }
     };
     animate();
+  };
+
+  // Reset camera to current galaxy's default view position
+  const resetCameraToGalaxy = () => {
+    const duration = animationSpeed === 'instant' ? 100 : ANIMATION_DURATIONS[animationSpeed];
+    const targetX = galaxyType === 'websites' ? 3250 : 0;
+    const targetPos = new THREE.Vector3(targetX, 100, 200);
+    const lookAtPos = new THREE.Vector3(targetX, 0, 0);
+    animateCamera(targetPos, lookAtPos, duration);
   };
 
   return (
@@ -2698,6 +2742,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
             onSelect={handleCategorySelect}
             isExpanded={categoryDropdownOpen}
             onToggle={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+            additionalCategories={planetCategories}
           />
         </div>
         
@@ -2711,12 +2756,10 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
           <Activity className="w-4 h-4" />
           Perf
         </button>
-      </div>
-      
-      {/* FPS Stats panel - below Perf button when expanded - uses ref instead of state */}
-      {showPerf && (
-        <div className="absolute top-[110px] left-4 z-20 w-[180px]">
-          <div className="glass rounded-xl px-3 py-2 text-xs font-mono space-y-1">
+        
+        {/* FPS Stats panel - directly below Perf button when expanded */}
+        {showPerf && (
+          <div className="glass rounded-xl px-3 py-2 text-xs font-mono space-y-1 w-[180px]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity className="w-3 h-3 text-emerald-400" />
@@ -2759,8 +2802,8 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
               </motion.div>
             )}
           </div>
-        </div>
-)}
+        )}
+      </div>
       
       <div className="w-full h-[600px] bg-transparent">
         {(() => {
@@ -2768,7 +2811,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
             return (
                 <Canvas 
                 key={`canvas-${textureRefreshKey}`} 
-                camera={{ position: viewMode === 'galaxy' ? [0, 100, 200] : [0, 100, 180], fov: 45, near: 0.1, far: 10000 }} 
+                camera={{ position: viewMode === 'galaxy' ? (galaxyType === 'websites' ? [3250, 100, 200] : [0, 100, 200]) : [0, 100, 180], fov: 45, near: 0.1, far: 10000 }} 
                 onError={(e) => console.error('[OrbitSystem] Canvas error:', e)}
                 gl={{
                   powerPreference: 'high-performance',
@@ -2780,13 +2823,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                 dpr={Math.min(window.devicePixelRatio, 1.5)}
                 frameloop="always"
               >
-                <PerformanceMonitor 
-                  inHotspot={false}
-                  bounds={[30, 60]}
-                  flipflops={3}
-                  onDecline={() => console.log('[OrbitSystem] Performance declined - reducing quality')}
-                  onIncline={() => console.log('[OrbitSystem] Performance improved - increasing quality')}
-                >
+                <PerformanceMonitor>
                   <color attach="background" args={['#0a0a14']} />
                   <fog attach="fog" args={['#0a0a14', 1500, 4500]} />
                   
@@ -2814,12 +2851,6 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                   
                 {viewMode === 'galaxy' ? (
                   <>
-                    {/* Apps Galaxy - Spiral dust cloud at origin */}
-                    <GalaxyDustCloud />
-                    {/* Websites Galaxy - Nebula dust cloud at x=3250 */}
-                    <group position={[3250, 0, 0]}>
-                      <WebsiteGalaxyDustCloud />
-                    </group>
                     <GalaxyView 
                       appSolarSystems={appSolarSystems}
                       websiteSolarSystems={websiteSolarSystems}
@@ -2838,7 +2869,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                       minDistance={50} 
                       maxDistance={5000} 
                       autoRotate={false}
-                      target={[0, 0, 0]}
+                      target={galaxyType === 'websites' ? [3250, 0, 0] : [0, 0, 0]}
                     />
                   </>
                 ) : (

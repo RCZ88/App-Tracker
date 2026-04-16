@@ -118,6 +118,8 @@ export default function IDEProjectsPage() {
   const [syncingGit, setSyncingGit] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [showAgentDebug, setShowAgentDebug] = useState(false);
+  const [agentDebugInfo, setAgentDebugInfo] = useState<any>(null);
 
   useEffect(() => {
     loadOverview();
@@ -219,6 +221,16 @@ export default function IDEProjectsPage() {
       console.error('AI sync failed:', err);
     }
     setSyncingAI(false);
+  };
+
+  const handleDebugAgents = async () => {
+    setShowAgentDebug(true);
+    try {
+      const info = await window.deskflowAPI!.debugAIAgents() as any;
+      setAgentDebugInfo(info);
+    } catch (err) {
+      console.error('Debug failed:', err);
+    }
   };
 
   const handleAddProject = async () => {
@@ -946,8 +958,129 @@ export default function IDEProjectsPage() {
                 <span className="text-zinc-500">Total Cost: </span>
                 <span className="text-emerald-400 font-medium">{formatCurrency(overview?.aiUsage?.totalCost || 0)}</span>
               </div>
+              <button
+                onClick={handleDebugAgents}
+                className="px-3 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                {showAgentDebug ? 'Hide Details' : 'Show Details'}
+              </button>
             </div>
           </motion.div>
+
+          {/* Debug Panel */}
+          <AnimatePresence>
+            {showAgentDebug && agentDebugInfo && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="glass rounded-3xl p-6 overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">Agent Detection Details</h3>
+                  <button
+                    onClick={() => setShowAgentDebug(false)}
+                    className="text-zinc-500 hover:text-white text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Database State */}
+                {agentDebugInfo.database && (
+                  <div className="mb-4 p-4 bg-zinc-900/50 rounded-xl">
+                    <h4 className="text-sm font-medium text-zinc-400 mb-2">Database State</h4>
+                    {agentDebugInfo.database.error ? (
+                      <p className="text-red-400 text-sm">{agentDebugInfo.database.error}</p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-zinc-500">Total Records:</span>
+                          <span className="text-white ml-2">{agentDebugInfo.database.totalRecords}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Total Tokens:</span>
+                          <span className="text-violet-400 ml-2">{formatTokens(agentDebugInfo.database.totalTokens || 0)}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">By Tool:</span>
+                          <span className="text-white ml-2">
+                            {agentDebugInfo.database.byTool?.map((t: any) => `${t.tool}: ${t.count}`).join(', ') || 'None'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Agent Status Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {Object.entries(agentDebugInfo.agents || {}).map(([agentId, info]: [string, any]) => (
+                    <div key={agentId} className="bg-zinc-900/50 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${info.detected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                          <span className="text-white font-medium">{agentId}</span>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded ${info.detected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {info.detected ? 'Detected' : 'Not Found'}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-xs text-zinc-500">Paths:</span>
+                          <div className="text-xs text-zinc-400 font-mono mt-1">
+                            {info.paths.map((p: string, i: number) => (
+                              <div key={i} className="truncate" title={p}>{p}</div>
+                            ))}
+                          </div>
+                        </div>
+                        {info.sampleFiles && info.sampleFiles.length > 0 && (
+                          <div>
+                            <span className="text-xs text-zinc-500">Files Found:</span>
+                            <div className="text-xs text-zinc-400 font-mono mt-1 max-h-20 overflow-y-auto">
+                              {info.sampleFiles.slice(0, 8).map((f: string, i: number) => (
+                                <div key={i} className="truncate">{f}</div>
+                              ))}
+                              {info.sampleFiles.length > 8 && <div className="text-zinc-600">...and {info.sampleFiles.length - 8} more</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Sync Result */}
+          <AnimatePresence>
+            {aiSyncResult && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="glass rounded-2xl p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-emerald-400" />
+                  <div className="flex-1">
+                    <div className="text-sm text-white font-medium">Sync Complete</div>
+                    <div className="text-xs text-zinc-400">
+                      {Object.keys(aiSyncResult.agents).length > 0 ? (
+                        Object.entries(aiSyncResult.agents).map(([agent, count]) => (
+                          <span key={agent} className="mr-3">{agent}: <span className="text-violet-400">{count as number} records</span></span>
+                        ))
+                      ) : (
+                        <span>No new records found. Click "Show Details" to debug.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Agent Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1007,9 +1140,16 @@ export default function IDEProjectsPage() {
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-4">
+                  <div className="text-center py-3">
                     <span className="text-sm text-zinc-500">Not detected</span>
-                    <p className="text-xs text-zinc-600 mt-1">Install {agent.name} to start tracking</p>
+                    {agentDebugInfo?.agents?.[agent.id]?.paths ? (
+                      <p className="text-xs text-zinc-600 mt-1 truncate mx-2" title={agentDebugInfo.agents[agent.id].paths[0]}>
+                        Looking in: {agentDebugInfo.agents[agent.id].paths[0]}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-zinc-600 mt-1">Install {agent.name} to start tracking</p>
+                    )}
+                    <p className="text-xs text-violet-500 mt-2">Click "Show Details" to debug</p>
                   </div>
                 )}
               </motion.div>
@@ -1120,18 +1260,6 @@ export default function IDEProjectsPage() {
               </div>
             </motion.div>
           )}
-
-          {/* Sync Button */}
-          <motion.button
-            onClick={handleSyncAI}
-            disabled={syncingAI}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-2xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Sparkles className={`w-5 h-5 ${syncingAI ? 'animate-spin' : ''}`} />
-            {syncingAI ? 'Syncing AI Data...' : 'Sync All AI Agents'}
-          </motion.button>
         </div>
       )}
 

@@ -1,6 +1,15 @@
 # 🌌 DeskFlow - AI-Powered Productivity Tracker
 
-**Electron desktop app that visualizes your app usage as an interactive 3D galaxy.**
+> Electron desktop app that visualizes your app and browser usage as an interactive 3D galaxy with real-time tracking.
+
+[![Electron](https://img.shields.io/badge/Electron-41.1.1-47848F?style=flat&logo=electron&logoColor=white)](https://electronjs.org/)
+[![React](https://img.shields.io/badge/React-19.2.0-61DAFB?style=flat&logo=react&logoColor=white)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://typescriptlang.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-0.183.2-000000?style=flat&logo=three.js&logoColor=white)](https://threejs.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-12.8.0-003B57?style=flat&logo=sqlite&logoColor=white)](https://sqlite.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.2.1-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Complexity: Advanced](https://img.shields.io/badge/Complexity-Advanced-red?style=flat&logo=complexity&logoColor=white)]()
 
 ---
 
@@ -178,47 +187,47 @@ App Tracker/
 ├── release/win-unpacked/    # Packaged executable
 │   └── DeskFlow.exe
 └── PROBLEMS.md             # Known issues
-
+```
 ---
 
 ## 🧰 Tech Stack
 
 ### Core Technologies
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Electron | ^41.1.1 | Desktop wrapper |
-| React | ^19.2.0 | UI framework |
-| TypeScript | ~5.9.3 | Type safety |
-| Vite | ^7.3.1 | Build tool |
-| Tailwind CSS | ^4.2.1 | Styling |
-| React Router | ^7.13.1 | Navigation |
+| Component | Technology |
+|-----------|------------|
+| **Desktop Wrapper** | Electron ^41.1.1 |
+| **UI Framework** | React ^19.2.0 |
+| **Language** | TypeScript ~5.9.3 |
+| **Build Tool** | Vite ^7.3.1 |
+| **Styling** | Tailwind CSS ^4.2.1 |
+| **Navigation** | React Router ^7.13.1 |
 
 ### 3D & Visualization
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Three.js | ^0.183.2 | 3D rendering engine |
-| @react-three/fiber | ^9.5.0 | React Three.js integration |
-| @react-three/drei | ^10.7.7 | Three.js helpers & components |
-| @react-three/postprocessing | ^3.0.4 | Post-processing effects |
-| postprocessing | ^6.39.0 | GPU-accelerated effects |
-| r3f-perf | ^7.2.3 | Performance monitoring |
+| Component | Technology |
+|-----------|------------|
+| **3D Engine** | Three.js ^0.183.2 |
+| **React Bridge** | @react-three/fiber ^9.5.0 |
+| **3D Helpers** | @react-three/drei ^10.7.7 |
+| **Post-Processing** | @react-three/postprocessing ^3.0.4 |
+| **Effects Library** | postprocessing ^6.39.0 |
+| **Perf Monitor** | r3f-perf ^7.2.3 |
 
 ### Data & Storage
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| better-sqlite3 | ^12.8.0 | Local SQLite database |
-| active-win | ^8.2.1 | Active window detection |
-| date-fns | ^4.1.0 | Date manipulation |
+| Component | Technology |
+|-----------|------------|
+| **Database** | better-sqlite3 ^12.8.0 |
+| **Window Tracking** | active-win ^8.2.1 |
+| **Date Handling** | date-fns ^4.1.0 |
 
 ### UI & Animation
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Framer Motion | ^12.35.0 | React animations |
-| Lucide React | ^0.577.0 | Icons |
-| Chart.js | ^4.5.1 | Data visualization |
-| react-chartjs-2 | ^5.3.1 | React Chart.js wrapper |
-| canvas-confetti | ^1.9.4 | Celebration effects |
-| @dnd-kit | ^6.3.1 | Drag and drop |
+| Component | Technology |
+|-----------|------------|
+| **Animations** | Framer Motion ^12.35.0 |
+| **Icons** | Lucide React ^0.577.0 |
+| **Charts** | Chart.js ^4.5.1 |
+| **React Charts** | react-chartjs-2 ^5.3.1 |
+| **Celebrations** | canvas-confetti ^1.9.4 |
+| **Drag & Drop** | @dnd-kit ^6.3.1 |
 
 ---
 
@@ -255,6 +264,20 @@ App Tracker/
 - **Browser Extension** - Chrome/Firefox website tracking with delta-based updates
 - **SQLite Storage** - Persistent local data with JSON fallback
 - **Auto-Start** - Launch on system boot (configurable)
+
+---
+
+## 🧠 Core Computer Science Concepts
+
+| Concept | Where It's Used |
+|---------|------------------|
+| **Event-Driven Architecture** | IPC communication between main process and renderer |
+| **Real-time Data Polling** | 30-second interval refresh for live dashboard updates |
+| **Caching Strategies** | Single source of truth pattern for computed stats |
+| **Procedural Texture Generation** | Canvas-based planet textures from seed values |
+| **GPU-Accelerated Rendering** | Three.js WebGL with post-processing pipeline |
+| **SQLite with Fallback** | Hybrid storage with automatic JSON failover |
+| **Delta-Based Updates** | Browser extension sends incremental duration updates |
 
 ---
 
@@ -296,6 +319,30 @@ npx electron-builder --win nsis
 - 🎯 **Focus Tracking** - Categorize apps as Productive/Neutral/Distracting
 - 🎨 **Custom Colors** - Per-app and per-category color customization
 - 📱 **Category Overrides** - Override automatic categorization for any app/website
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    A[User Desktop] -->|Window Tracking| B[active-win<br/>Polling 2s]
+    B --> C[Electron Main Process<br/>main.ts]
+    C --> D[SQLite DB<br/>better-sqlite3]
+    C --> E[JSON Fallback<br/>Auto-failover]
+    C -->|IPC Bridge| F[Preload Script<br/>preload.ts]
+    F -->|contextBridge| G[React App<br/>App.tsx]
+    G -->|State| H[Pages<br/>Stats/Productivity/Browser/Settings]
+    G -->|3D Render| I[OrbitSystem<br/>OrbitSystem.tsx]
+    I -->|Galaxy| J[Apps Galaxy<br/>Blue/Purple Spiral]
+    I -->|Galaxy| K[Websites Galaxy<br/>Cyan/Violet Nebula]
+
+    L[Browser Extension<br/>Chrome/Firefox] -->|Website Data| C
+
+    style J fill:#6366f1,color:#fff
+    style K fill:#06b6d4,color:#fff
+    style D fill:#003B57,color:#fff
+```
 
 ---
 
@@ -397,6 +444,14 @@ If you encounter issues:
 4. Clear data in Settings if needed
 
 ---
+
+<div align="center">
+
+**Built with ❤️ using Electron + React + Three.js**
+
+[Report Bug](https://github.com/yourproject/issues) · [Request Feature](https://github.com/yourproject/issues)
+
+</div>
 
 **Last Updated:** 2026-04-16
 

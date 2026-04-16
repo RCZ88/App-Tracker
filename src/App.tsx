@@ -792,22 +792,27 @@ function App() {
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
-    // Track actual user activity (mouse/keyboard) to prevent false idle detection
+    // Track actual user activity (mouse/keyboard) - ALWAYS active to detect return from idle
     const handleActivity = () => {
       setLastActivity(Date.now());
       if (isIdle) {
+        // Immediately resume tracking when user returns from idle
+        console.log('[DeskFlow] Activity detected - resuming tracking');
         setIsIdle(false);
+        setIsTracking(true);
+        setSessionStart(new Date());
       }
     };
 
-    if (isTracking) {
-      // Listen for user activity
-      window.addEventListener('mousemove', handleActivity);
-      window.addEventListener('mousedown', handleActivity);
-      window.addEventListener('keydown', handleActivity);
-      window.addEventListener('touchstart', handleActivity);
-      window.addEventListener('scroll', handleActivity);
+    // Always listen for activity (even when tracking is paused)
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('mousedown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+    window.addEventListener('wheel', handleActivity);
 
+    if (isTracking) {
       interval = setInterval(() => {
         const now = Date.now();
 
@@ -839,11 +844,12 @@ function App() {
     }
     return () => {
       clearInterval(interval);
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('mousedown', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('touchstart', handleActivity);
-      window.removeEventListener('scroll', handleActivity);
+      // Don't remove activity listeners - we need them to detect return from idle
+      // window.removeEventListener('mousemove', handleActivity);
+      // window.removeEventListener('mousedown', handleActivity);
+      // window.removeEventListener('keydown', handleActivity);
+      // window.removeEventListener('touchstart', handleActivity);
+      // window.removeEventListener('scroll', handleActivity);
     };
   }, [isTracking, lastActivity, elapsedTime, currentApp, sessionStart, idleThreshold, isIdle]);
 

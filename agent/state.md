@@ -6,13 +6,113 @@
 
 ## 📊 Current Status
 
-**Version:** 1.20
+**Version:** 1.24
 **Last Updated:** 2026-04-16
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-16 — IDE Projects: AI Sync Debug Panel
+
+**What Changed:**
+1. ✅ Added debug panel to AI Tools tab - shows per-agent detection status, paths, and sample files
+2. ✅ Added "Show Details" button in summary bar to toggle debug panel
+3. ✅ Enhanced sync result display - shows per-agent record counts
+4. ✅ Improved "Not detected" message - shows path being scanned
+5. ✅ Removed duplicate "Sync All AI Agents" button from bottom of AI Tools tab
+6. ✅ Added `handleDebugAgents()` function to call `debugAIAgents` IPC
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Added debug state, handleDebugAgents function, debug panel UI, improved agent cards
+
+**Why:**
+- AI sync was showing "0" for all agents but no way to debug why
+- Backend had `debug-ai-agents` handler but frontend never called it
+- User couldn't see detection status, paths, or database state
+
+**How to Use:**
+1. Go to IDE Projects → AI Tools tab
+2. Click "Show Details" to see:
+   - Database state: total records, tokens, breakdown by tool
+   - Per-agent detection: green = detected, red = not found
+   - Paths being scanned for each agent
+   - Sample files in those paths
+3. Click "Sync AI Usage" in header
+4. Check sync result for per-agent record counts
+
+**Next Steps:**
+- If agents show "Not Found" (red): tool not installed or in different location
+- If agents detected but 0 records: parsing issue - need to check token field names
+- IDE detection improvements (IntelliJ, Android Studio, etc.) - planned for next iteration
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-16 — Galaxy Camera & Mouse Sensitivity Fixes (v1.23)
+
+**What Changed:**
+1. ✅ Fixed mouse sensitivity bug - OrbitControls target now dynamic based on galaxy type
+2. ✅ Fixed reset button - now stays in current galaxy instead of always going to apps galaxy
+3. ✅ Fixed camera initial position - starts at correct galaxy based on galaxyType
+4. ✅ Fixed choppy galaxy movement - replaced Math.random() with seededRandom for stable positions
+5. ✅ Fixed PerformanceMonitor error - simplified to plain JSX children
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Added resetCameraToGalaxy(), dynamic OrbitControls target, seededRandom function
+
+**Root Causes:**
+- Mouse sluggishness: OrbitControls target was always `[0, 0, 0]` even when viewing websites galaxy at `[3250, 0, 0]`
+- Reset always to apps: Used generic `controlsRef.current.reset()` which resets to default position
+- Choppy movement: `Math.random()` called on every frame in `getSystemPosition()`
+- PerformanceMonitor error: Incorrect render function pattern
+
+**Result:**
+- Smooth mouse control in both galaxies
+- Reset stays in current galaxy
+- Stable galaxy positions without jitter
+- No PerformanceMonitor errors
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-16 — Idle Detection: Immediate Resume on Activity (v1.22)
+
+**What Changed:**
+1. ✅ Activity listeners now stay active even when tracking is paused from idle
+2. ✅ ANY activity immediately resumes tracking (no delay)
+3. ✅ Added `wheel` event to catch mouse wheel scrolling
+
+**Files Modified:**
+- `src/App.tsx` - Idle detection useEffect
+
+**Result:** Tracking pauses after idle → ANY mouse/keyboard/scroll immediately resumes
+
+---
+
+### 2026-04-16 — UI Fixes: FPS Panel & Category Dropdown (v1.21)
+
+**What Changed:**
+1. ✅ Fixed FPS panel overlap with Perf button - moved FPS panel inside control buttons container
+2. ✅ Fixed CategoryDropdown to match planet legend categories - now shows all categories from data + settings
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - FPS panel repositioned, CategoryDropdown updated with additionalCategories prop
+
+**Why:**
+- FPS panel was absolutely positioned at `top-[110px]` but Perf button wasn't at a fixed position, causing overlap
+- CategoryDropdown only showed settings categories, missing any custom categories from data
+
+**Result:**
+- FPS panel now appears directly below Perf button (as sibling in flex column)
+- CategoryDropdown shows categories from BOTH settings AND actual planet data
+
+**Build:** ✅ Successful
+
+---
 
 ### 2026-04-16 — Galaxy Camera/Visualization Clipping Fix (v1.20)
 
@@ -274,6 +374,41 @@
 **Result:** Both Dashboard and OrbitSystem now show the SAME data when "Today" or "Week" is selected.
 
 **Build:** ✅ Successful
+
+---
+
+## 🔧 OrbitSystem Galaxy Fixes (2026-04-16)
+
+### Mouse Sensitivity & Reset Camera Fix (v1.23)
+**Problem:** 
+1. OrbitControls target hardcoded to `[0, 0, 0]` - when viewing websites galaxy at `[3250, 0, 0]`, rotation/pan was around wrong center causing sluggish, low-DPI feel
+2. Reset button always went to apps galaxy `[0, 0, 0]` instead of staying in current galaxy
+3. Camera initial position always `[0, 100, 200]` regardless of galaxy type
+
+**Solution:**
+1. Made OrbitControls target dynamic: `target={galaxyType === 'websites' ? [3250, 0, 0] : [0, 0, 0]}`
+2. Created `resetCameraToGalaxy()` function that animates to current galaxy's position
+3. Made camera initial position dynamic based on galaxy type
+4. Replaced all `controlsRef.current.reset()` calls with `resetCameraToGalaxy()`
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Added resetCameraToGalaxy(), dynamic OrbitControls target, dynamic camera position
+
+### Seeded Random for Stable Galaxy Positions (v1.23)
+**Problem:** `getSystemPosition` used `Math.random()` which was called on every frame, causing solar systems to jitter/choppy movement
+
+**Solution:** Created `seededRandom(seed)` function that produces stable positions based on index
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Added seededRandom, replaced Math.random() in getSystemPosition
+
+### PerformanceMonitor Fix (v1.22)
+**Problem:** PerformanceMonitor.js:54 error "a is not a function or its return value is not iterable" - render function pattern was incorrect
+
+**Solution:** Simplified PerformanceMonitor to use plain JSX children instead of render function pattern
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Simplified PerformanceMonitor
 
 ---
 
@@ -956,8 +1091,11 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.18 | 2026-04-16 | Galaxy data fix: OrbitSystem now uses filteredLogs, two-galaxy with different visuals (spiral apps, nebula websites), smooth camera transitions, dashboard productivity includes websites |
 | 1.19 | 2026-04-16 | Reflection documentation: Created universal self-improvement skill, documented galaxy data and application data loading patterns, added auto-reflect rules to AGENTS.md |
 | 1.20 | 2026-04-16 | Galaxy camera fix: Fixed black square clipping, dust cloud position mismatch, added fog, increased camera far plane to 10000, OrbitControls maxDistance to 5000 |
+| 1.22 | 2026-04-16 | PerformanceMonitor fix: Simplified to plain JSX children |
+| 1.23 | 2026-04-16 | Mouse sensitivity & reset fix: Dynamic OrbitControls target, resetCameraToGalaxy(), seeded random for stable positions |
+| 1.24 | 2026-04-16 | IDE Projects: Added AI sync debug panel with detection status, paths, and database state visibility |
 
 ---
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-04-16 (v1.24)
 **Maintained By:** AI Development Team
