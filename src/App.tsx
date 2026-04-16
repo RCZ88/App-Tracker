@@ -5,7 +5,8 @@ import confetti from 'canvas-confetti';
 import {
   Home, Monitor, Globe, Code2, BarChart3, Settings, Play, Pause, Clock,
   Download, Trash2, Award, Zap, Users, Info, Database, CheckCircle, XCircle, AlertTriangle,
-  Shield, ShieldAlert, ToggleLeft, ToggleRight, PieChart, CreditCard, Target
+  Shield, ShieldAlert, ToggleLeft, ToggleRight, PieChart, CreditCard, Target,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import OrbitSystem from './components/OrbitSystem';
 import SettingsPage from './pages/SettingsPage';
@@ -13,6 +14,7 @@ import StatsPage from './pages/StatsPage';
 import BrowserActivityPage from './pages/BrowserActivityPage';
 import ProductivityPage from './pages/ProductivityPage';
 import DatabasePage from './pages/DatabasePage';
+import IDEProjectsPage from './pages/IDEProjectsPage';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -79,6 +81,28 @@ declare global {
       updateCategoriesFromOverrides: (appOverrides: Record<string, string>, domainOverrides: Record<string, string>) => Promise<{ success: boolean; updatedCount: number; error?: string }>;
       // File operations
       saveFile: (options: { content: string; filename: string; fileType: string }) => Promise<{ success: boolean; path?: string; message?: string }>;
+      // IDE Projects
+      detectIDEs: () => Promise<any[]>;
+      getIDEs: () => Promise<any[]>;
+      getExtensions: (ideId?: string) => Promise<any[]>;
+      scanTools: () => Promise<any[]>;
+      getTools: (category?: string) => Promise<any[]>;
+      getToolCategories: () => Promise<{ category: string }[]>;
+      addProject: (data: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string }) => Promise<{ success: boolean; id?: string; name?: string; message?: string }>;
+      getProjects: () => Promise<any[]>;
+      getProjectTools: (projectId: string) => Promise<any[]>;
+      removeProject: (projectId: string) => Promise<{ success: boolean }>;
+      getAIUsageSummary: (period?: string) => Promise<any>;
+      getCommitStats: (projectId?: string, period?: string) => Promise<any>;
+      getIDEProjectsOverview: () => Promise<any>;
+      syncAIUsage: () => Promise<{ success: boolean; [key: string]: number | boolean | string }>;
+      debugAIAgents: () => Promise<Record<string, { detected: boolean; paths: string[] }>>;
+      // Git & DORA Metrics
+      syncCommits: (projectId: string, repoPath?: string) => Promise<{ success: boolean; count: number }>;
+      syncGitHubCommits: (projectId: string, owner: string, repo: string, token?: string) => Promise<{ success: boolean; count: number }>;
+      getDORAMetrics: (projectId: string, period?: 'week' | 'month') => Promise<any>;
+      getCommitHistory: (projectId: string, limit?: number) => Promise<any[]>;
+      getContributorStats: (projectId: string) => Promise<any>;
     };
   }
 }
@@ -132,6 +156,23 @@ const DEFAULT_TIER_ASSIGNMENTS = {
   productive: ['IDE', 'AI Tools', 'Developer Tools', 'Education', 'Productivity', 'Tools'],
   neutral: ['Communication', 'Design', 'Search Engine', 'News', 'Uncategorized', 'Other'],
   distracting: ['Entertainment', 'Social Media', 'Shopping']
+};
+
+// Website category to app category mapping for productivity calculation
+const WEBSITE_CATEGORY_MAP: Record<string, string> = {
+  'Developer Tools': 'Tools',
+  'AI Tools': 'AI Tools',
+  'Social Media': 'Social Media',
+  'Entertainment': 'Entertainment',
+  'News': 'News',
+  'Shopping': 'Shopping',
+  'Productivity': 'Productivity',
+  'Design': 'Design',
+  'Search Engine': 'Productivity',
+  'Communication': 'Communication',
+  'Education': 'Education',
+  'Uncategorized': 'Uncategorized',
+  'Other': 'Other'
 };
 
 const SIMULATED_APPS = Object.keys(APP_CATEGORIES);
@@ -205,7 +246,7 @@ function App() {
   // State used by loadInitialData effect
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('today');
   const [allLogs, setAllLogs] = useState<ActivityLog[]>([]); // ALL logs - never changes (for heatmap)
-
+  
   // Computed filtered logs from allLogs based on selectedPeriod (replaces logs state)
   const filteredLogs = useMemo(() => {
     const now = new Date();
@@ -219,12 +260,12 @@ function App() {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return allLogs.filter(log => log.timestamp >= weekAgo);
     } else if (selectedPeriod === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return allLogs.filter(log => log.timestamp >= monthAgo);
+      // Month shows ALL available data (not just last 30 days)
+      return allLogs;
     }
     return allLogs; // 'all'
   }, [allLogs, selectedPeriod]);
-
+  
   // Sync logs state with filteredLogs whenever filteredLogs changes
   useEffect(() => {
     setLogs(filteredLogs);
@@ -260,6 +301,14 @@ function App() {
         // Set BOTH to all data - heatmap needs allLogs, display will filter
         setAllLogs(formattedLogs);
         setLogs(formattedLogs);
+        
+        // Debug: Log timestamp range
+        if (formattedLogs.length > 0) {
+          const dates = formattedLogs.map(l => l.timestamp.getTime());
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          console.log('[DeskFlow] Loaded logs:', formattedLogs.length, '| Date range:', minDate.toLocaleDateString(), 'to', maxDate.toLocaleDateString());
+        }
         console.log('[DeskFlow] Loaded logs:', formattedLogs.length, 'entries', formattedLogs.map(l => l.app).filter((v, i, a) => a.indexOf(v) === i));
       } catch (err) {
         console.error('[DeskFlow] Failed to load logs:', err);
@@ -358,14 +407,35 @@ function App() {
     return colorMap;
   }, [logs]);
 
-  // Load category overrides from localStorage (re-reads when settings are saved)
-  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>(() => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const saved = localStorage.getItem('deskflow-app-category-overrides');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
+  // Load category overrides from localStorage AND categoryConfig on mount
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const loadOverrides = async () => {
+      const overrides: Record<string, string> = {};
+      
+      // First load from localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('deskflow-app-category-overrides');
+          if (saved) Object.assign(overrides, JSON.parse(saved));
+        } catch { /* ignore */ }
+      }
+      
+      // Also load from categoryConfig for persistence across restarts
+      if (window.deskflowAPI?.getCategoryConfig) {
+        try {
+          const config = await window.deskflowAPI.getCategoryConfig();
+          if (config?.appCategoryMap) {
+            Object.assign(overrides, config.appCategoryMap);
+          }
+        } catch { /* ignore */ }
+      }
+      
+      setCategoryOverrides(overrides);
+    };
+    loadOverrides();
+  }, []);
 
   // Reload category overrides when settings page saves
   useEffect(() => {
@@ -410,13 +480,19 @@ function App() {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       filtered = allLogs.filter(log => log.timestamp >= weekAgo);
     } else if (selectedPeriod === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = allLogs.filter(log => log.timestamp >= monthAgo);
+      // Month shows ALL available data (not just last 30 days)
+      filtered = allLogs;
     }
 
-    // Only exclude browser-tracked logs (website data tracked separately)
-    // All other apps including browsers are included in app stats
-    const appLogs = filtered.filter(log => !log.is_browser_tracking);
+    // Include apps (including browsers like Chrome, Edge, Firefox) but exclude actual websites
+    // Browser apps should be included, website tracking (is_browser_tracking) should be excluded
+    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
+    const appLogs = filtered.filter(log => {
+      // Exclude actual website tracking data
+      if (log.is_browser_tracking) return false;
+      // Include everything else including browser apps
+      return true;
+    });
 
     // Apply category overrides
     const getCategory = (app: string, defaultCategory: string) => {
@@ -444,7 +520,6 @@ function App() {
       avg_session_ms: data.sessions > 0 ? data.total_ms / data.sessions : 0
     }));
 
-    console.log('[DeskFlow] computedAppStats:', stats.length, 'apps', stats.map(s => s.app));
     return stats.sort((a, b) => b.total_ms - a.total_ms);
   }, [allLogs, selectedPeriod, categoryOverrides]);
 
@@ -479,7 +554,6 @@ function App() {
       avg_session_ms: data.sessions > 0 ? data.total_ms / data.sessions : 0
     }));
 
-    console.log('[DeskFlow] allTimeAppStats:', stats.length, 'apps');
     return stats.sort((a, b) => b.total_ms - a.total_ms);
   }, [allLogs, categoryOverrides]);
 
@@ -531,6 +605,7 @@ function App() {
   const [aiSummary, setAiSummary] = useState('');
   const [hoveredCell, setHoveredCell] = useState<{ day: number; hour: number; value: number } | null>(null);
   const [vizMode, setVizMode] = useState<'heatmap' | 'solar'>('heatmap');
+  const [weekOffset, setWeekOffset] = useState(0);
   const [lastActivity, setLastActivity] = useState<number>(() => Date.now());
   const [isIdle, setIsIdle] = useState(false);
   const [idleThreshold, setIdleThreshold] = useState(5); // minutes
@@ -586,17 +661,22 @@ function App() {
     loadDbTables();
   }, []);
 
-  // Generate heatmap from ALL logs data (always shows last 7 days regardless of filter)
-  // FIX: Split each session's duration across the hours it actually spans
-  // (not just dumping the whole duration into the start hour)
+  // Generate heatmap from ALL logs data
+  // Supports week navigation via weekOffset (0 = current week, -1 = previous week, etc.)
   const heatmap = useMemo(() => {
     const now = new Date();
+    
+    // Calculate the start of the target week based on weekOffset
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+    const targetWeekStart = new Date(currentWeekStart.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
+    const targetWeekEnd = new Date(targetWeekStart.getTime() + (7 * 24 * 60 * 60 * 1000));
 
-    // Initialize heatmap cells for last 7 days
-    const cellMap = new Map<string, number>(); // "day-hour" → seconds
+    // Initialize heatmap cells for the target week
+    const cellMap = new Map<string, number>();
     for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - dayOffset);
+      const date = new Date(targetWeekStart);
+      date.setDate(date.getDate() + dayOffset);
       const day = date.getDay();
       for (let hour = 0; hour < 24; hour++) {
         cellMap.set(`${day}-${hour}`, 0);
@@ -605,56 +685,41 @@ function App() {
 
     // For each log, split its duration across the hours it spans
     for (const log of allLogs) {
-      const sessionStart = new Date(log.timestamp).getTime(); // ms
-      const sessionEnd = sessionStart + (log.duration * 1000); // ms (duration is in seconds)
-      const sessionDay = new Date(sessionStart).getDate();
-      const sessionMonth = new Date(sessionStart).getMonth();
-      const sessionYear = new Date(sessionStart).getFullYear();
+      const sessionStart = new Date(log.timestamp).getTime();
+      const sessionEnd = sessionStart + (log.duration * 1000);
 
-      // Iterate through each hour this session touches
+      // Skip logs outside the target week
+      if (sessionStart < targetWeekStart || sessionStart >= targetWeekEnd) continue;
+
       let currentMs = sessionStart;
       while (currentMs < sessionEnd) {
         const currentHour = new Date(currentMs).getHours();
-        const currentDay = new Date(currentMs).getDate();
-        const currentMonth = new Date(currentMs).getMonth();
-        const currentYear = new Date(currentMs).getFullYear();
+        const currentDate = new Date(currentMs);
+        const currentDay = currentDate.getDay();
+        const hourStart = currentDate.getTime();
+        const hourEnd = hourStart + 3600000;
 
-        // Only count if within the 7-day window
-        const dayOffset = Math.floor((now.getTime() - new Date(currentYear, currentMonth, currentDay).getTime()) / (1000 * 60 * 60 * 24));
-        if (dayOffset >= 0 && dayOffset < 7) {
-          const dayOfWeek = new Date(currentYear, currentMonth, currentDay).getDay();
-
-          // Calculate how much of this session falls in the current hour
-          const hourStart = new Date(currentYear, currentMonth, currentDay, currentHour).getTime();
-          const hourEnd = hourStart + 3600000; // 1 hour in ms
+        if (currentDate >= targetWeekStart && currentDate < targetWeekEnd) {
           const segmentStart = Math.max(currentMs, hourStart);
           const segmentEnd = Math.min(sessionEnd, hourEnd);
           const segmentSeconds = Math.max(0, (segmentEnd - segmentStart) / 1000);
 
           if (segmentSeconds > 0) {
-            const key = `${dayOfWeek}-${currentHour}`;
-            // Cap each cell at 1 hour (3600 seconds) to prevent overflow
+            const key = `${currentDay}-${currentHour}`;
             const currentValue = cellMap.get(key) || 0;
             cellMap.set(key, Math.min(currentValue + segmentSeconds, 3600));
           }
         }
 
-        // Move to next hour boundary
-        const hourStart = new Date(
-          new Date(currentMs).getFullYear(),
-          new Date(currentMs).getMonth(),
-          new Date(currentMs).getDate(),
-          new Date(currentMs).getHours()
-        ).getTime();
-        currentMs = hourStart + 3600000;
+        currentMs = hourEnd;
       }
     }
 
     // Convert map back to array
     const heatmapData: HeatmapCell[] = [];
     for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - dayOffset);
+      const date = new Date(targetWeekStart);
+      date.setDate(date.getDate() + dayOffset);
       const day = date.getDay();
       for (let hour = 0; hour < 24; hour++) {
         heatmapData.push({ day, hour, value: cellMap.get(`${day}-${hour}`) || 0 });
@@ -662,7 +727,19 @@ function App() {
     }
 
     return heatmapData;
-  }, [allLogs]);
+  }, [allLogs, weekOffset]);
+  
+  // Get the date range label for the current heatmap week
+  const heatmapWeekLabel = useMemo(() => {
+    const now = new Date();
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+    const targetWeekStart = new Date(currentWeekStart.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
+    const targetWeekEnd = new Date(targetWeekStart.getTime() + (6 * 24 * 60 * 60 * 1000));
+    
+    const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${formatDate(targetWeekStart)} - ${formatDate(targetWeekEnd)}`;
+  }, [weekOffset]);
 
   // Compute background apps from logs (apps used but not currently active)
   const backgroundApps = useMemo(() => {
@@ -906,8 +983,8 @@ function App() {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       filtered = allLogs.filter(log => log.timestamp >= weekAgo);
     } else if (period === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = allLogs.filter(log => log.timestamp >= monthAgo);
+      // Month shows ALL available data (not just last 30 days)
+      filtered = allLogs;
     }
     // 'all' uses allLogs as-is
 
@@ -924,15 +1001,52 @@ function App() {
   // Focus = productive categories only, Total = all categories
   const [timeMode, setTimeMode] = useState<'focus' | 'total'>('focus');
 
-  // Compute time by category
+  // Compute time by category - includes both desktop apps AND websites
   const timeByCategory = useMemo(() => {
     const categoryTime: Record<string, number> = {};
+    
+    // Desktop apps
     filteredLogs.forEach(log => {
       const cat = log.category || 'Uncategorized';
       categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
     });
+    
+    // Websites - map to app categories for productivity calculation
+    browserLogs.forEach(log => {
+      const domain = (log as any).domain || 'Unknown';
+      const websiteCategory = (log as any).category || 'Uncategorized';
+      const mappedCategory = WEBSITE_CATEGORY_MAP[websiteCategory] || 'Other';
+      categoryTime[mappedCategory] = (categoryTime[mappedCategory] || 0) + log.duration;
+    });
+    
     return categoryTime;
-  }, [filteredLogs]);
+  }, [filteredLogs, browserLogs]);
+
+  // Compute productivity score - same algorithm as ProductivityPage
+  const TIER_WEIGHTS = { productive: 1.0, neutral: 0.5, distracting: 0 };
+  const productivityScore = useMemo(() => {
+    let productiveSec = 0;
+    let neutralSec = 0;
+    let distractingSec = 0;
+
+    Object.entries(timeByCategory).forEach(([category, duration]) => {
+      if (tierAssignments?.productive.includes(category)) {
+        productiveSec += duration;
+      } else if (tierAssignments?.distracting.includes(category)) {
+        distractingSec += duration;
+      } else {
+        neutralSec += duration;
+      }
+    });
+
+    const total = productiveSec + neutralSec + distractingSec;
+    if (total === 0) return 0;
+
+    const weighted = (productiveSec * TIER_WEIGHTS.productive) + 
+                    (neutralSec * TIER_WEIGHTS.neutral) + 
+                    (distractingSec * TIER_WEIGHTS.distracting);
+    return (weighted / total) * 100;
+  }, [timeByCategory, tierAssignments]);
 
   // Compute focus time (only productive categories) vs total time (all categories)
   const focusAndTotalTime = useMemo(() => {
@@ -949,7 +1063,7 @@ function App() {
 
     return { focus: productiveTime, total: totalTime };
   }, [timeByCategory, tierAssignments]);
-
+  
   // Compute breakdown for display (apps vs websites)
   const timeBreakdown = useMemo(() => {
     const appsTime = filteredLogs.filter(l => !l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
@@ -964,9 +1078,13 @@ function App() {
 
   // Aggregate for charts (floor all durations to remove decimals)
   // Filter by Focus/Total mode - Focus = only productive categories
+  // Excludes browser tracking (is_browser_tracking) to match Stats page behavior
   const getAppDistribution = () => {
     const grouped: Record<string, number> = {};
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
+      // Exclude browser tracking data (website visits) - only count desktop apps
+      if (log.is_browser_tracking) return;
+      
       // Filter by mode: Focus only includes productive categories
       if (timeMode === 'focus') {
         const category = log.category || 'Uncategorized';
@@ -1616,7 +1734,7 @@ function App() {
                     </div>
                     <div className="glass rounded-3xl p-6">
                       <Award className="w-5 h-5 text-zinc-400" />
-                      <div className="text-3xl font-semibold text-indigo-400 mt-2">{focusAndTotalTime.total > 0 ? `${Math.floor((focusAndTotalTime.focus / focusAndTotalTime.total) * 100)}%` : '--'}</div>
+                      <div className="text-3xl font-semibold text-indigo-400 mt-2">{Math.round(productivityScore)}%</div>
                       <div className="text-sm text-zinc-400">Productivity</div>
                     </div>
                     <div className="glass rounded-3xl p-6">
@@ -1634,34 +1752,65 @@ function App() {
                   <div className="glass rounded-3xl p-8 w-full">
                     <div className="flex items-center justify-between mb-4">
                       <div className="text-xl font-semibold">Activity Visualization</div>
-                      <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-1">
-                        <button
-                          onClick={() => setVizMode('heatmap')}
-                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                            vizMode === 'heatmap' 
-                              ? 'bg-emerald-500/20 text-emerald-400' 
-                              : 'text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          Heatmap
-                        </button>
-                        <button
-                          onClick={() => setVizMode('solar')}
-                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 ${
-                            vizMode === 'solar' 
-                              ? 'bg-indigo-500/20 text-indigo-400' 
-                              : 'text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          <Globe className="w-3.5 h-3.5" />
-                          Planetary
-                        </button>
+                      <div className="flex items-center gap-3">
+                        {vizMode === 'heatmap' && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setWeekOffset(w => w - 1)}
+                              className="p-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 text-zinc-400 hover:text-white transition"
+                              title="Previous week"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm text-zinc-400 min-w-[120px] text-center">{heatmapWeekLabel}</span>
+                            <button
+                              onClick={() => setWeekOffset(w => w + 1)}
+                              className="p-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 text-zinc-400 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Next week"
+                              disabled={weekOffset >= 0}
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                            {weekOffset !== 0 && (
+                              <button
+                                onClick={() => setWeekOffset(0)}
+                                className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs transition"
+                              >
+                                Today
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-1">
+                          <button
+                            onClick={() => setVizMode('heatmap')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                              vizMode === 'heatmap' 
+                                ? 'bg-emerald-500/20 text-emerald-400' 
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            Heatmap
+                          </button>
+                          <button
+                            onClick={() => setVizMode('solar')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 ${
+                              vizMode === 'solar' 
+                                ? 'bg-indigo-500/20 text-indigo-400' 
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            Planetary
+                          </button>
+                        </div>
                       </div>
                     </div>
                     {vizMode === 'heatmap' ? renderHeatmap() : (
                       <div className="h-[600px] rounded-2xl overflow-hidden border border-zinc-800">
                         <OrbitSystem 
-                          logs={logs}
+                          logs={filteredLogs.filter(l => !l.is_browser_tracking)}
+                          websiteLogs={browserLogs}
                           appColors={appColors}
                           categoryOverrides={categoryOverrides}
                         />
@@ -1673,11 +1822,11 @@ function App() {
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} />} />
               {/* Productivity Page */}
-              <Route path="/productivity" element={<ProductivityPage logs={logs} />} />
+              <Route path="/productivity" element={<ProductivityPage logs={logs} browserLogs={browserLogs} appStats={computedAppStats} selectedPeriod={selectedPeriod} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* Browser Page */}
-              <Route path="/browser" element={<BrowserActivityPage logs={browserLogs} categoryStats={browserCategoryStats} />} />
+              <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} />} />
               {/* IDE Page */}
-              <Route path="/ide" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">🚧</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">IDE project tracking is coming soon</div></div></div>} />
+              <Route path="/ide" element={<IDEProjectsPage />} />
               {/* Reports/Insights Page */}
               <Route path="/reports" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">🚧</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Insights and reports are coming soon</div></div></div>} />
               {/* Database Page */}
@@ -1685,7 +1834,7 @@ function App() {
               {/* Pricing Page */}
               <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">🚧</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
               {/* Settings Page */}
-              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} />} />
+              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} />} />
             </Routes>
           </AnimatePresence>
 

@@ -99,6 +99,128 @@ const distance = semiLatusRectum / (1 + eccentricity * Math.cos(angle + longitud
 
 ---
 
+## 🎯 Data Mismatch Debugging Pattern (CRITICAL)
+
+**When data doesn't match between components, use this workflow:**
+
+### Step 1: Find the Source of Truth
+- Identify a component that shows CORRECT data
+- That component is your reference
+
+### Step 2: Trace Data Flow FROM Source
+```
+StatsPage (correct) → computedAppStats → worked correctly
+OrbitSystem (wrong) → filteredLogs → was wrong
+```
+
+### Step 3: Compare the Two Paths
+Look for WHERE the data diverges:
+```javascript
+// Source of truth (StatsPage)
+const appLogs = filtered.filter(log => {
+  if (log.is_browser_tracking) return false;  // ← Filter exists
+  return true;
+});
+
+// Broken component (OrbitSystem received)
+<OrbitSystem logs={filteredLogs} />  // ← No filter at source
+```
+
+### Step 4: Fix at the Divergence Point
+```javascript
+// Wrong: Trying to fix downstream
+<OrbitSystem logs={filteredLogs} />
+
+// Right: Fix at the source
+<OrbitSystem logs={filteredLogs.filter(l => !l.is_browser_tracking)} />
+```
+
+### Key Lessons
+1. **Don't fix downstream** - Fix at where data diverges
+2. **Compare with working implementation** - Find what worked, trace it
+3. **Trust data flow, not assumptions** - Verify what data actually contains
+4. **Minimal fixes** - One line at the right place vs complex downstream fixes
+
+### When to Apply
+- Data totals don't match
+- Different number of items
+- Missing or extra entries
+- Different values for same item
+
+---
+
+## 🧮 Data Computation Pattern (CRITICAL)
+
+**When data computation is wrong or inconsistent between components:**
+
+### The Problem
+Data gets computed in MULTIPLE places with DIFFERENT logic, leading to inconsistencies.
+
+### Step 1: Find Where Data is Computed
+```typescript
+// Component A - StatsPage.tsx (computing locally)
+const stats = useMemo(() => { ... }, [logs]);
+
+// Component B - App.tsx (computing globally)
+const computedAppStats = useMemo(() => { ... }, [allLogs]);
+```
+
+### Step 2: Compare Computations
+| Location | Logic | Result |
+|----------|-------|--------|
+| StatsPage | Complex, local | Wrong |
+| App.tsx | Clean, centralized | Correct |
+
+### Step 3: Apply Single Source of Truth
+```typescript
+// WRONG: Computing in child component
+function StatsPage({ logs }) {
+  const stats = useMemo(() => computeStats(logs), [logs]);
+  // ...
+}
+
+// RIGHT: Pass computed data as props
+function App() {
+  const computedAppStats = useMemo(() => computeStats(allLogs), [allLogs]);
+  return <StatsPage appStats={computedAppStats} />;
+}
+
+function StatsPage({ appStats }) {
+  // Just display, don't compute
+  return <div>{appStats.map(...)}</div>;
+}
+```
+
+### Key Lessons
+1. **Compute ONCE at highest level** - Usually App.tsx for global data
+2. **Pass down as props** - Child components display, don't compute
+3. **Remove redundant computations** - Delete local useMemo hooks
+4. **Share computed data** - If two components need same data, compute once
+
+### When to Apply
+- Child component computing what parent already computed
+- Same computation logic duplicated
+- Data inconsistent between similar views
+- Performance issues from duplicate computations
+
+### Signs You're Computing Twice
+```typescript
+// Red flag 1: Component receives logs AND computes stats
+function Component({ logs }) {
+  const stats = useMemo(() => computeFromLogs(logs), [logs]);
+  // ...
+}
+
+// Red flag 2: Multiple components computing same thing
+// StatsPage.tsx computes stats
+// ProductivityPage.tsx computes similar stats
+// Dashboard.tsx computes yet another version
+
+// Solution: Centralize in App.tsx, pass as props
+```
+
+---
+
 ## 🛠️ Debugging Tools
 
 ### Console Logging
@@ -192,13 +314,46 @@ npx tsc src/main.ts src/preload.ts \
 
 ---
 
+## 🤖 AI-Specific Issues & Fixes
+
+### "x is not a function" / "Callback is not defined"
+**Problem:** When calling props callbacks like `onCategoryOverridesChange(...)`
+
+**What NOT to do:**
+- ❌ Call directly: `onCategoryOverridesChange(value)` - will throw if undefined
+- ❌ Use optional chaining with await: `await window.deskflowAPI?.method()` - returns undefined, not promise
+- ❌ Multiple nested try-catch blocks - makes debugging harder
+
+**What TO do:**
+- ✅ Check type first: `if (typeof onCallback === 'function') { onCallback(value); }`
+- ✅ Wrap in try-catch: `try { onCallback(value); } catch (e) { /* ignore */ }`
+
+**Why it fails:**
+- Props may not be passed (undefined)
+- Optional chaining (`?.`) returns undefined, not a caught error
+- React may unmount between check and call
+- TypeScript types may not match runtime
+
+### Promise/Async Issues
+**Problem:** `Uncaught (in promise) TypeError`
+
+**Fix:**
+- Always wrap async calls in try-catch
+- Don't use `await` with optional chaining: `await window.api?.method()` can fail silently
+- Check if result exists before using: `if (result) { ... }`
+
+---
+
 ## 🔄 Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-04-04 | Initial creation |
+| 1.1 | 2026-04-16 | Added callback/promise fix patterns |
+| 1.2 | 2026-04-16 | Added Data Mismatch Debugging Pattern |
+| 1.3 | 2026-04-16 | Added Data Computation Pattern (Single Source of Truth) |
 
 ---
 
-**Last Updated:** 2026-04-04
+**Last Updated:** 2026-04-16
 **Maintained By:** AI Development Team

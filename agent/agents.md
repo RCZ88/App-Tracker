@@ -32,6 +32,94 @@
 5. **Verify build** - Run `npm run build` and ensure nothing is broken
 6. **Clean up** - Remove debug code, comments, temporary files
 7. **Notify user** - Run `python complete.py --speak "[task description]" --project "[project name]"` to notify user task is complete (if complete.py exists)
+8. **Auto-Reflect** - See section below for when to trigger reflection
+
+---
+
+## 🔄 Auto-Reflect After User Approval
+
+### What is Auto-Reflect?
+The Reflect skill (`agent/skills/agent-reflect/`) analyzes your approach and extracts lessons learned. It prevents repeating the same mistakes across sessions.
+
+### When to Trigger Auto-Reflect (MANDATORY)
+
+You MUST trigger reflection after ANY of these scenarios:
+
+| Scenario | Trigger Phrase | Why |
+|----------|----------------|-----|
+| **User approves fix after failed attempts** | "reflect" | Analyze WHY previous attempts failed |
+| **Issue took longer than expected** | "reflect" | Identify time-wasting patterns |
+| **User says "finally" or expresses frustration** | "reflect" | Capture the pain point |
+| **You used a debugging pattern that worked** | "reflect" | Document for future |
+| **User corrects your approach mid-task** | "reflect" | Learn the right approach |
+
+### How to Trigger Reflection
+
+After user approval (or when scenario applies), say:
+```
+"reflect"
+```
+
+This will analyze the conversation and:
+1. Detect correction signals ("never", "always", "wrong")
+2. Compare working vs non-working approaches
+3. Document lessons learned
+4. Update debugging patterns if new ones discovered
+
+### Required Reflection After Failed Attempts
+
+**CRITICAL RULE:** When user says something like:
+- "Finally" / "It works now"
+- "I asked [other agent] to fix this many times and they couldn't"
+- "This should have been simple"
+- Any indication of frustration after multiple failed attempts
+
+**You MUST:**
+1. Ask: "Would you like me to reflect on what went wrong so future agents learn from this?"
+2. If yes: Run the reflect analysis
+3. Document the root cause in `agent/skills/agent-reflect/logs/`
+4. Update `agent/debugging.md` with new patterns if discovered
+
+### Reflection Triggers Checklist
+
+After user approval, ask yourself:
+- [ ] Did this take multiple attempts?
+- [ ] Did previous approaches fail? Why?
+- [ ] What was different about the successful approach?
+- [ ] Should future agents know about this pattern?
+- [ ] Was there a simple fix that was overlooked?
+
+If ANY answer is yes → Trigger reflection
+
+### What Gets Documented
+
+1. **What previous attempts did** (so future agents know what NOT to do)
+2. **What was the actual root cause**
+3. **What approach finally worked**
+4. **Why it worked** (the key insight)
+5. **New debugging patterns** to add to `debugging.md`
+
+### Example Reflection Entry
+
+```markdown
+# Reflection: [Issue Name]
+
+**Date:** YYYY-MM-DD
+**Attempts:** N before success
+**What Failed:**
+- Attempt 1: [why it failed]
+- Attempt 2: [why it failed]
+
+**Root Cause:** [actual problem]
+
+**What Worked:** [the fix]
+
+**Key Insight:** [the lesson]
+
+**Pattern Added:** [if any new debugging pattern]
+```
+
+---
 
 ---
 
@@ -241,6 +329,7 @@ python complete.py --speak "[message]" --project "[project name]"
 | Code patterns | `patterns.md` |
 | Debugging help | `debugging.md` |
 | Term definitions | `glossary.md` |
+| Self-improvement | `skills/agent-reflect/` |
 
 ---
 
@@ -252,6 +341,7 @@ python complete.py --speak "[message]" --project "[project name]"
 | 1.1 | 2026-04-05 | Added mandatory documentation update rules, state.md entry format, file update matrix |
 | 1.2 | 2026-04-12 | Added critical rule: Only USER can mark issues as Fixed; AI only reports attempted fixes |
 | 1.3 | 2026-04-12 | Added complete.py notification system for task completion and user attention |
+| 1.4 | 2026-04-16 | Added Auto-Reflect section - mandatory reflection after user approval, especially after failed attempts |
 
 ---
 

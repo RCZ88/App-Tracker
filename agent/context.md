@@ -186,8 +186,9 @@ active-win → main.ts → IPC → App.tsx → logs state
 | 1.0 | 2026-04-04 | Initial creation |
 | 1.7 | 2026-04-09 | Added Focus/Total pie chart sync, website category change, Apply to Historical toggle, automatic database aggregation |
 | 1.8 | 2026-04-13 | Settings page redesign: combined Category tab, carousel + search, visual indicators, fixed save |
+| 1.12 | 2026-04-15 | UI/UX Quality Fixes: App colors persistence, console.log spam removal, pie chart consistency |
 
 ---
 
-**Last Updated:** 2026-04-13
+**Last Updated:** 2026-04-15
 **Maintained By:** AI Development Team

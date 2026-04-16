@@ -132,6 +132,132 @@ function GalaxyDustCloud() {
   );
 }
 
+// Website Galaxy Dust Cloud - Electric Nebula style with dispersed particles
+// Different from Apps galaxy (spiral) - more cloud-like and wispy
+function WebsiteGalaxyDustCloud() {
+  const pointsRef = useRef<THREE.Points>(null!);
+  const particleCount = 6000;
+
+  const maxRadius = 280;
+
+  // Generate nebula-style particle positions - more dispersed, no spiral structure
+  const positions = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+      // Use spherical distribution with gaussian-like falloff
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+
+      // Create a more concentrated core with wispy outer regions
+      const r = maxRadius * Math.pow(Math.random(), 0.6); // Concentrated core
+      const r2 = maxRadius * (0.7 + Math.random() * 0.5); // Wispy outer
+
+      // Mix between core and outer distribution
+      const useOuter = Math.random() > 0.4;
+      const finalR = useOuter ? r2 : r;
+
+      // Spherical coordinates with slight distortion
+      const distortion = 1 + Math.random() * 0.3;
+      const x = finalR * Math.sin(phi) * Math.cos(theta) * distortion;
+      const y = (Math.random() - 0.5) * maxRadius * 0.6; // Wider vertical spread
+      const z = finalR * Math.sin(phi) * Math.sin(theta) * distortion;
+
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+    }
+    return pos;
+  }, []);
+
+  // Electric Nebula color palette - cyan, violet, with pale glows
+  const colors = useMemo(() => {
+    const col = new Float32Array(particleCount * 3);
+    const colorPalette = [
+      // Deep space colors
+      '#0b0f1e', '#12182e', '#1a2340',
+      // Violet plasma
+      '#4a1a8c', '#6a11cb', '#8b2fc9',
+      // Cyan beam
+      '#0077b6', '#00b4d8', '#00c6ff',
+      // Pale glow
+      '#90e0ef', '#caf0f8', '#e6f7ff',
+    ];
+
+    for (let i = 0; i < particleCount; i++) {
+      const x = positions[i * 3];
+      const z = positions[i * 3 + 2];
+      const r = Math.sqrt(x * x + z * z);
+      const normalizedR = Math.min(r / maxRadius, 1);
+
+      // Color distribution - more cyan/violet in outer regions
+      let colorIndex: number;
+      if (normalizedR < 0.2) {
+        // Inner core - pale glow
+        colorIndex = 10 + Math.random() * 2;
+      } else if (normalizedR < 0.5) {
+        // Mid region - cyan/violet
+        colorIndex = 5 + Math.random() * 4;
+      } else {
+        // Outer region - more violet and pale
+        colorIndex = 2 + Math.random() * 6;
+      }
+
+      const finalIndex = Math.floor(Math.min(colorIndex, colorPalette.length - 1));
+      const color = new THREE.Color(colorPalette[finalIndex]);
+
+      // Brighter in outer regions for ethereal effect
+      const brightness = 0.6 + normalizedR * 0.4;
+      col[i * 3] = color.r * brightness;
+      col[i * 3 + 1] = color.g * brightness;
+      col[i * 3 + 2] = color.b * brightness;
+    }
+    return col;
+  }, [positions]);
+
+  // Slower, more ethereal animation
+  useFrame((state) => {
+    if (pointsRef.current) {
+      const t = state.clock.elapsedTime;
+      // Very slow rotation for ethereal feel
+      pointsRef.current.rotation.y += 0.000008;
+      pointsRef.current.rotation.x = Math.sin(t * 0.05) * 0.02;
+      // Gentle floating motion
+      pointsRef.current.position.y = Math.sin(t * 0.08) * 0.5;
+    }
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={particleCount}
+          array={positions}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          count={particleCount}
+          array={colors}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        vertexColors
+        transparent
+        opacity={0.75}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        size={2.5} // Slightly larger particles for cloud effect
+      />
+    </points>
+  );
+}
+
 // Animation speed settings
 type AnimationSpeed = 'slow' | 'normal' | 'instant';
 const ANIMATION_DURATIONS: Record<AnimationSpeed, number> = {
@@ -145,8 +271,10 @@ const getStoredCategory = (): string => {
   if (typeof window === 'undefined') return 'Other';
   return localStorage.getItem('deskflow-last-category') || 'Other';
 };
-const setStoredCategory = (cat: string) => {
-  if (typeof window !== 'undefined') localStorage.setItem('deskflow-last-category', cat);
+const setStoredCategory = (cat: string, type: 'apps' | 'websites' = 'apps') => {
+  const key = `deskflow-last-category-${type}`;
+  console.log('[StorageDebug] Saving category to localStorage:', cat, 'key:', key);
+  if (typeof window !== 'undefined') localStorage.setItem(key, cat);
 };
 const getStoredAnimationSpeed = (): AnimationSpeed => {
   if (typeof window === 'undefined') return 'normal';
@@ -208,8 +336,8 @@ interface OrbitSystemProps {
   websiteCategoryOverrides?: Record<string, string>;
 }
 
-// FPS Counter component for performance monitoring
-function FPSCounter({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) {
+// FPS Counter component for performance monitoring - uses DOM ref to avoid React re-renders
+function FPSCounter({ fpsDisplayRef }: { fpsDisplayRef: React.RefObject<HTMLDivElement | null> }) {
   const frameCount = useRef(0);
   const lastTime = useRef(performance.now());
   
@@ -220,7 +348,11 @@ function FPSCounter({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) {
     
     if (delta >= 1000) {
       const fps = Math.round((frameCount.current * 1000) / delta);
-      onFpsUpdate(fps);
+      if (fpsDisplayRef.current) {
+        fpsDisplayRef.current.textContent = `${fps} FPS`;
+        const frameTime = Math.round(1000 / fps);
+        fpsDisplayRef.current.setAttribute('data-frame-time', `${frameTime}ms`);
+      }
       frameCount.current = 0;
       lastTime.current = now;
     }
@@ -348,7 +480,7 @@ function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>,
   const baseRadius = 5;
   const minSpacing = 2.0; // Minimum distance between orbits
 
-  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+  for (let idx = 0; idx < sortedApps.length; idx++) {
     const [appName, appLogs] = sortedApps[idx];
 
     const catInfo = APP_CATEGORIES[appName] || { cat: 'Other', color: '#64748b' };
@@ -1204,13 +1336,13 @@ function TexturedPlanet({
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
-    // Self-rotation
+    // Self-rotation (increased from 0.3 to 2 multiplier for visible rotation)
     const rotSpeed = data.rotationSpeed || 1.5;
-    meshRef.current.rotation.y += (isPaused ? 0 : delta * rotSpeed * 0.3);
+    meshRef.current.rotation.y += (isPaused ? 0 : delta * rotSpeed * 2);
 
-    // Orbital motion
+    // Orbital motion (increased from 0.15 to 2 multiplier for smooth orbits)
     const dt = isPaused ? 0 : delta * speedMultiplier;
-    angleRef.current += dt * data.speed * 0.15;
+    angleRef.current += dt * data.speed * 2;
     const angle = angleRef.current;
 
     const eccentricity = data.eccentricity || 0.1;
@@ -1542,16 +1674,18 @@ function PlanetDetailPanel({ planet, onClose }: { planet: PlanetData | null; onC
   );
 }
 
-// Camera Position Tracker - updates parent state with camera position
-function CameraTracker({ onPositionUpdate }: { onPositionUpdate: (pos: [number, number, number]) => void }) {
+// Camera Position Tracker - uses ref instead of state to avoid re-renders
+function CameraTracker({ cameraPosRef }: { cameraPosRef: React.MutableRefObject<[number, number, number]> }) {
   useFrame(({ camera }) => {
-    onPositionUpdate([camera.position.x, camera.position.y, camera.position.z]);
+    cameraPosRef.current = [camera.position.x, camera.position.y, camera.position.z];
   });
   return null;
 }
 
 // Main Scene Component
 function SolarSystemScene({ planets, isPaused, speed, onPlanetClick, controlsRef, onPlanetPositionUpdate, category = 'Other', sunSize }: { planets: PlanetData[]; isPaused: boolean; speed: number; onPlanetClick: (data: PlanetData) => void; controlsRef: any; onPlanetPositionUpdate?: (name: string, position: THREE.Vector3) => void; category?: string; sunSize?: number }) {
+  console.log('[SolarSystemScene] Rendering with category:', category);
+  console.log('[SolarSystemScene] Planets:', planets?.map(p => p.name), 'categories:', planets?.map(p => p.category));
   return (
     <>
       <Sun category={category} size={sunSize} />
@@ -1649,7 +1783,7 @@ function computePlanetsFromStats(
   // Count apps per category for color assignment
   const categoryCount: Record<string, number> = {};
 
-  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+  for (let idx = 0; idx < sortedApps.length; idx++) {
     const app = sortedApps[idx];
     const appName = app.appName;
     const category = app.category || 'Other';
@@ -1749,23 +1883,23 @@ function computeSolarSystems(
       });
 }
 
-// Website category map - maps website categories to visual configs
+// Website category map - maps website categories to visual configs (Electric Nebula theme)
 const WEBSITE_SUN_CONFIGS: Record<string, { color: string; emissive: string; sizeRange: [number, number] }> = {
-  'Social Media': { color: '#ec4899', emissive: '#db2777', sizeRange: [1.5, 2] },
-  'Entertainment': { color: '#f43f5e', emissive: '#dc2626', sizeRange: [1.5, 2] },
-  'Productivity': { color: '#10b981', emissive: '#059669', sizeRange: [1.5, 2] },
-  'Search Engine': { color: '#3b82f6', emissive: '#2563eb', sizeRange: [1.5, 2] },
-  'News': { color: '#8b5cf6', emissive: '#7c3aed', sizeRange: [1.5, 2] },
-  'Shopping': { color: '#f59e0b', emissive: '#d97706', sizeRange: [1.5, 2] },
-  'Communication': { color: '#06b6d4', emissive: '#0891b2', sizeRange: [1.5, 2] },
-  'Education': { color: '#22d3ee', emissive: '#06b6d4', sizeRange: [1.5, 2] },
-  'Developer Tools': { color: '#6366f1', emissive: '#4f46e5', sizeRange: [1.5, 2] },
-  'Uncategorized': { color: '#64748b', emissive: '#475569', sizeRange: [1.5, 2] },
-  'Other': { color: '#94a3b8', emissive: '#64748b', sizeRange: [1.5, 2] },
+  'Social Media': { color: '#ff00ff', emissive: '#cc00cc', sizeRange: [1.5, 2] },
+  'Entertainment': { color: '#ff44aa', emissive: '#cc3388', sizeRange: [1.5, 2] },
+  'Productivity': { color: '#00ffaa', emissive: '#00cc88', sizeRange: [1.5, 2] },
+  'Search Engine': { color: '#00ccff', emissive: '#0099cc', sizeRange: [1.5, 2] },
+  'News': { color: '#aa66ff', emissive: '#8844cc', sizeRange: [1.5, 2] },
+  'Shopping': { color: '#ffaa00', emissive: '#cc8800', sizeRange: [1.5, 2] },
+  'Communication': { color: '#00ffff', emissive: '#00cccc', sizeRange: [1.5, 2] },
+  'Education': { color: '#66ffff', emissive: '#44cccc', sizeRange: [1.5, 2] },
+  'Developer Tools': { color: '#8866ff', emissive: '#6644cc', sizeRange: [1.5, 2] },
+  'Uncategorized': { color: '#88aacc', emissive: '#6688aa', sizeRange: [1.5, 2] },
+  'Other': { color: '#aabbcc', emissive: '#8899aa', sizeRange: [1.5, 2] },
 };
 
-// Default website sun config
-const DEFAULT_WEBSITE_SUN_CONFIG = { color: '#fbbf24', emissive: '#f59e0b', sizeRange: [1.5, 2] as [number, number] };
+// Default website sun config - cyan/violet
+const DEFAULT_WEBSITE_SUN_CONFIG = { color: '#00c6ff', emissive: '#0099cc', sizeRange: [1.5, 2] as [number, number] };
 
 // Website category list
 const WEBSITE_CATEGORY_LIST = ['Social Media', 'Entertainment', 'Productivity', 'Search Engine', 'News', 'Shopping', 'Communication', 'Education', 'Developer Tools', 'Uncategorized', 'Other'];
@@ -1807,7 +1941,7 @@ function computeWebsitePlanets(
 
   const categoryCount: Record<string, number> = {};
 
-  for (let idx = 0; idx < sortedApps.length && idx < 20; idx++) {
+  for (let idx = 0; idx < sortedApps.length; idx++) {
     const [domainName, domainLogs] = sortedApps[idx];
 
     const category = websiteCategoryOverrides?.[domainName] || domainLogs[0]?.category || 'Uncategorized';
@@ -1953,9 +2087,9 @@ function GalaxyView({
   const groupRef = useRef<THREE.Group>(null!);
   
   // Apps galaxy position: (0, 0, 0)
-  // Websites galaxy position: (300, 0, 0)
+  // Websites galaxy position: (3250, 0, 0) - 5x galaxy widths apart
   const APPS_GALAXY_POS: [number, number, number] = [0, 0, 0];
-  const WEBSITES_GALAXY_POS: [number, number, number] = [300, 0, 0];
+  const WEBSITES_GALAXY_POS: [number, number, number] = [3250, 0, 0];
   
   // Generate trail positions
   const appTrailPositions = useMemo(() => 
@@ -2174,12 +2308,11 @@ function CategoryDropdown({
   const categories = getCategoryListFromSettings();
   
   return (
-    <div className="absolute top-4 left-4 z-20">
+    <div className="relative z-20">
       <button
         onClick={onToggle}
         className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
       >
-        <Globe className="w-4 h-4" />
         <span className="text-zinc-300">{currentCategory}</span>
         {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
@@ -2313,23 +2446,31 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   const [textureRefreshKey, setTextureRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<'galaxy' | 'solarSystem'>('galaxy');
   const [galaxyType, setGalaxyType] = useState<'apps' | 'websites'>('apps');
-  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 100, 200]);
-  const [currentCategory, setCurrentCategory] = useState<string>(() => {
+  const cameraPosRef = useRef<[number, number, number]>([0, 100, 200]);
+  const fpsDisplayRef = useRef<HTMLDivElement | null>(null);
+  const [currentCategory, setCurrentCategory] = useState<string>('Other');
+  
+  // Load saved category on mount after galaxyType is determined
+  useEffect(() => {
+    const key = `deskflow-last-category-${galaxyType}`;
     try {
-      return localStorage.getItem('deskflow-last-category') || 'Other';
-    } catch { return 'Other'; }
-  });
+      const stored = localStorage.getItem(key);
+      console.log('[InitDebug] Loading category, key:', key, 'stored:', stored);
+      if (stored) setCurrentCategory(stored);
+    } catch { /* ignore */ }
+  }, [galaxyType]);
   const [selectedSystem, setSelectedSystem] = useState<{ category: string; planets: PlanetData[]; totalTime: number; sunSize: number } | null>(null);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [legendExpanded, setLegendExpanded] = useState(false);
   const [showPerf, setShowPerf] = useState(false);
-  const [fps, setFps] = useState(0);
+  const [perfExpanded, setPerfExpanded] = useState(false);
   const [animationSpeed] = useState<AnimationSpeed>(() => {
     try {
       return (localStorage.getItem('deskflow-animation-speed') as AnimationSpeed) || 'normal';
     } catch { return 'normal'; }
   });
   const controlsRef = useRef<any>(null);
+  const galaxyTypeRef = useRef(galaxyType);
   
   // App galaxy solar systems
   const appSolarSystems = useMemo(() => {
@@ -2341,21 +2482,49 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     return computeWebsiteSolarSystems(websiteLogs || [], websiteColors, websiteCategoryOverrides);
   }, [websiteLogs, websiteColors, websiteCategoryOverrides]);
   
-  // Determine galaxy type based on camera position
+  // Determine galaxy type based on camera position - runs less frequently using interval
+  // Also animates camera to center of new galaxy when switching
   useEffect(() => {
-    // Apps galaxy center is at x=0, Websites galaxy center is at x=300
-    // If camera is closer to x=300, show websites galaxy
-    const threshold = 150; // Halfway between galaxies
-    const newGalaxyType = cameraPosition[0] > threshold ? 'websites' : 'apps';
-    if (newGalaxyType !== galaxyType) {
-      setGalaxyType(newGalaxyType);
-      // Reset view mode to galaxy when switching galaxies
-      if (viewMode === 'solarSystem') {
-        setViewMode('galaxy');
-        setSelectedPlanet(null);
+    const interval = setInterval(() => {
+      // Threshold is middle between apps galaxy (0) and websites galaxy (3250)
+      const threshold = 1625;
+      const newGalaxyType = cameraPosRef.current[0] > threshold ? 'websites' : 'apps';
+      if (newGalaxyType !== galaxyTypeRef.current) {
+        galaxyTypeRef.current = newGalaxyType;
+        setGalaxyType(newGalaxyType);
+        if (viewMode === 'solarSystem') {
+          setViewMode('galaxy');
+          setSelectedPlanet(null);
+        }
+        // Animate camera to center of new galaxy
+        if (controlsRef.current && animationSpeed !== 'instant') {
+          const duration = ANIMATION_DURATIONS[animationSpeed];
+          const targetX = newGalaxyType === 'websites' ? 3250 : 0;
+          const targetPos = new THREE.Vector3(targetX, 100, 200);
+          const lookAtPos = new THREE.Vector3(targetX, 0, 0);
+          
+          const startPos = controlsRef.current.object.position.clone();
+          const startTarget = controlsRef.current.target.clone();
+          const startTime = Date.now();
+          
+          const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            
+            controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
+            controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
+            
+            if (t < 1) {
+              requestAnimationFrame(animate);
+            }
+          };
+          animate();
+        }
       }
-    }
-  }, [cameraPosition]);
+    }, 500); // Check every 500ms instead of every frame
+    return () => clearInterval(interval);
+  }, [viewMode, animationSpeed]);
   
   // Current galaxy solar systems based on type
   const solarSystems = galaxyType === 'apps' ? appSolarSystems : websiteSolarSystems;
@@ -2389,7 +2558,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   const handleEnterSystem = () => {
     if (selectedSystem) {
       setCurrentCategory(selectedSystem.category);
-      setStoredCategory(selectedSystem.category);
+      setStoredCategory(selectedSystem.category, galaxyType);
       setViewMode('solarSystem');
       setSelectedSystem(null);
       setLegendExpanded(true);
@@ -2416,12 +2585,15 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   
   // Handle category selection from dropdown
   const handleCategorySelect = (cat: string) => {
+    console.log('[CategoryDebug] handleCategorySelect called with:', cat);
+    console.log('[CategoryDebug] currentCategory before:', currentCategory);
     setCurrentCategory(cat);
-    setStoredCategory(cat);
+    setStoredCategory(cat, galaxyType);
     setViewMode('solarSystem');
     setSelectedSystem(null);
     setCategoryDropdownOpen(false);
     if (controlsRef.current) controlsRef.current.reset();
+    console.log('[CategoryDebug] currentCategory after:', cat);
   };
 
   // Track current planet positions for camera navigation
@@ -2435,7 +2607,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   // Called when user clicks a legend item — fly camera to that planet
   const focusOnPlanet = (planet: PlanetData) => {
     setCurrentCategory(planet.category);
-    setStoredCategory(planet.category);
+    setStoredCategory(planet.category, galaxyType);
     setViewMode('solarSystem');
     setSelectedPlanet(planet);
     
@@ -2499,47 +2671,96 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
 
   return (
     <div className="relative w-full rounded-none overflow-visible">
-      {/* Control buttons - top left */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-        <button
-          onClick={handleZoomOut}
-          className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
-        >
-          <Globe className="w-4 h-4" />
-          Galaxy
-        </button>
+      {/* Galaxy type indicator - shows which galaxy user is viewing */}
+      <div className="absolute top-4 left-4 z-20">
+        <div className={`text-xs font-semibold tracking-wider px-3 py-1.5 rounded-lg border ${
+          galaxyType === 'apps' 
+            ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' 
+            : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+        }`}>
+          {galaxyType === 'apps' ? 'APPS GALAXY' : 'WEBSITES GALAXY'}
+        </div>
+      </div>
+      
+      {/* Control buttons - below galaxy indicator */}
+      <div className="absolute top-16 left-4 z-20 flex flex-col gap-2">
+        {/* Top row: Galaxy + Category buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleZoomOut}
+            className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
+          >
+            <Globe className="w-4 h-4" />
+            Galaxy
+          </button>
+          <CategoryDropdown 
+            currentCategory={currentCategory}
+            onSelect={handleCategorySelect}
+            isExpanded={categoryDropdownOpen}
+            onToggle={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+          />
+        </div>
+        
+        {/* Perf toggle button */}
         <button
           onClick={() => setShowPerf(!showPerf)}
-          className={`glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium transition ${
+          className={`glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium transition self-start ${
             showPerf ? 'text-emerald-400 bg-emerald-500/20' : 'hover:text-white'
           }`}
         >
           <Activity className="w-4 h-4" />
-          {fps > 0 ? `${fps} FPS` : 'Perf'}
+          Perf
         </button>
       </div>
       
-      {/* FPS display overlay */}
-      {showPerf && fps > 0 && (
-        <div className="absolute top-20 left-4 z-20">
-          <div className="glass rounded-xl px-3 py-2 text-xs font-mono">
-            <div className="flex items-center gap-2">
-              <Activity className="w-3 h-3 text-emerald-400" />
-              <span className={fps >= 50 ? 'text-emerald-400' : fps >= 30 ? 'text-amber-400' : 'text-red-400'}>
-                {fps} FPS
-              </span>
+      {/* FPS Stats panel - below Perf button when expanded - uses ref instead of state */}
+      {showPerf && (
+        <div className="absolute top-[110px] left-4 z-20 w-[180px]">
+          <div className="glass rounded-xl px-3 py-2 text-xs font-mono space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-3 h-3 text-emerald-400" />
+                <span ref={fpsDisplayRef} className="text-emerald-400">
+                  -- FPS
+                </span>
+              </div>
+              <button
+                onClick={() => setPerfExpanded(!perfExpanded)}
+                className="text-zinc-500 hover:text-white transition"
+              >
+                {perfExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
             </div>
+            
+            {/* Expanded stats */}
+            {perfExpanded && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="pt-2 mt-2 border-t border-zinc-700 space-y-1"
+              >
+                <div className="flex justify-between text-zinc-400">
+                  <span>GPU</span>
+                  <span className="text-zinc-300">--</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>Memory</span>
+                  <span className="text-zinc-300">--</span>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>Frame Time</span>
+                  <span ref={(el) => {
+                    if (el && fpsDisplayRef.current) {
+                      const frameTime = fpsDisplayRef.current.getAttribute('data-frame-time') || '--ms';
+                      el.textContent = frameTime;
+                    }
+                  }}>--ms</span>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
-      )}
-      
-      {/* Category dropdown - visible in both galaxy and solar system views */}
-      <CategoryDropdown 
-        currentCategory={currentCategory}
-        onSelect={handleCategorySelect}
-        isExpanded={categoryDropdownOpen}
-        onToggle={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-      />
+)}
       
       <div className="w-full h-[600px] bg-transparent">
         {(() => {
@@ -2587,12 +2808,17 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                     <ChromaticAberration offset={[0.0005, 0.0005]} blendFunction={BlendFunction.NORMAL} />
                   </EffectComposer>
                   
-                  {/* FPS Counter */}
-                  {showPerf && <FPSCounter onFpsUpdate={setFps} />}
+                  {/* FPS Counter - uses ref instead of state to avoid re-renders */}
+                  {showPerf && <FPSCounter fpsDisplayRef={fpsDisplayRef} />}
                   
                 {viewMode === 'galaxy' ? (
                   <>
+                    {/* Apps Galaxy - Spiral dust cloud at origin */}
                     <GalaxyDustCloud />
+                    {/* Websites Galaxy - Nebula dust cloud at x=650 */}
+                    <group position={[650, 0, 0]}>
+                      <WebsiteGalaxyDustCloud />
+                    </group>
                     <GalaxyView 
                       appSolarSystems={appSolarSystems}
                       websiteSolarSystems={websiteSolarSystems}
@@ -2603,7 +2829,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                       onSelectSystem={handleSelectSystem} 
                       viewMode={viewMode}
                     />
-                    <CameraTracker onPositionUpdate={setCameraPosition} />
+                    <CameraTracker cameraPosRef={cameraPosRef} />
                     <Stars radius={500} depth={100} count={3000} factor={4} fade speed={0.1} saturation={0.3} />
                     <OrbitControls 
                       enablePan={true} 
@@ -2615,17 +2841,17 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                     />
                   </>
                 ) : (
-            <SolarSystemScene
-              planets={planets}
-              isPaused={isPaused}
-              speed={speed}
-              onPlanetClick={handlePlanetClick}
-              controlsRef={controlsRef}
-              onPlanetPositionUpdate={handlePlanetPositionUpdate}
-              category={currentCategory}
-              sunSize={currentSunSize}
-            />
-          )}
+                  <SolarSystemScene
+                    planets={planets}
+                    isPaused={isPaused}
+                    speed={speed}
+                    onPlanetClick={handlePlanetClick}
+                    controlsRef={controlsRef}
+                    onPlanetPositionUpdate={handlePlanetPositionUpdate}
+                    category={currentCategory}
+                    sunSize={currentSunSize}
+                  />
+                )}
                 </PerformanceMonitor>
               </Canvas>
             );

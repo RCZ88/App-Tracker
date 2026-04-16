@@ -6,13 +6,207 @@
 
 ## 📊 Current Status
 
-**Version:** 1.11
-**Last Updated:** 2026-04-14
+**Version:** 1.19
+**Last Updated:** 2026-04-16
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-16 — Reflection: Application Data Loading (v1.19)
+
+**What Changed:**
+1. ✅ Documented reflection on application data loading fix
+2. ✅ Created `agent/skills/agent-reflect/logs/application-data-loading-2026-04-16.md`
+3. ✅ Updated `agent/debugging.md` with "Data Computation Pattern"
+4. ✅ Added AGENTS.md v1.4 with Auto-Reflect rules
+
+**Root Cause of Data Loading Issues:**
+- StatsPage was computing its own stats from `logs` prop with buggy logic
+- App.tsx already had `computedAppStats` that was correct
+- Two different computations = inconsistent results
+- Solution: Use centralized computation, pass as props
+
+**Key Lessons:**
+1. **Single Source of Truth** - Compute once at App.tsx level
+2. **Props over Local Computation** - Pass computed data down
+3. **Remove Redundancy** - Delete duplicate useMemo hooks
+4. **Child components display, don't compute**
+
+**Reflections Documented:**
+- Galaxy data mismatch: `agent/skills/agent-reflect/logs/galaxy-data-mismatch-2026-04-16.md`
+- Application data loading: `agent/skills/agent-reflect/logs/application-data-loading-2026-04-16.md`
+- Auto-reflect rules: `agent/AGENTS.md` v1.4
+
+**Patterns Added to debugging.md:**
+- Data Mismatch Debugging Pattern
+- Data Computation Pattern (Single Source of Truth)
+
+**Result:** 
+- Future agents will know to:
+  - Trace from source of truth for data issues
+  - Use centralized computation instead of local
+  - Reflect after user approval, especially after failed attempts
+
+---
+
+### 2026-04-16 — Galaxy Data & Two-Galaxy Visual Improvements (v1.18)
+
+**What Changed:**
+1. ✅ Fixed OrbitSystem data source - added `.filter(l => !l.is_browser_tracking)` to exclude website tracking
+2. ✅ Removed 20-app limit in galaxy - now shows all apps
+3. ✅ Increased galaxy distance - websites at x=3250 (5x the distance)
+4. ✅ Added `websiteLogs` prop to OrbitSystem - websites in separate galaxy
+5. ✅ Created WebsiteGalaxyDustCloud - nebula-style with cyan/violet colors
+6. ✅ Updated camera threshold to 1625 (middle between galaxies)
+7. ✅ Added galaxy type indicator UI - shows "APPS GALAXY" or "WEBSITES GALAXY"
+
+**Root Cause (CRITICAL LESSON):**
+- Previous attempts FAILED because they tried to fix inside OrbitSystem.tsx
+- The fix was ONE LINE at the source: App.tsx line 1810
+- StatsPage worked correctly - it used `computedAppStats` which filtered `is_browser_tracking`
+- OrbitSystem received `filteredLogs` which did NOT filter browser tracking
+- This is a "Data Mismatch Debugging Pattern" - always trace FROM source of truth
+
+**Files Modified:**
+- `src/App.tsx` - Added filter: `logs={filteredLogs.filter(l => !l.is_browser_tracking)}`
+- `src/components/OrbitSystem.tsx` - Removed 3x `idx < 20` limits, updated galaxy positions to 3250
+
+**Reflection Documented:**
+- `agent/skills/agent-reflect/logs/galaxy-data-mismatch-2026-04-16.md`
+- `agent/debugging.md` - Added "Data Mismatch Debugging Pattern" section
+
+**Result:** 
+- Galaxy shows 33 apps matching Applications page (was showing 20 with wrong data)
+- Time totals now correct: 55h vs previous 50m
+- Two distinct galaxies far apart
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-16 — Category Override Not Reloading (v1.15)
+
+**What Changed:**
+1. ✅ Added `onCategoryOverridesChange` callback to SettingsPageProps
+2. ✅ Added callback in `saveChanges()` to notify parent component of category changes
+3. ✅ Now calls `setCategoryOverrides()` immediately when Save is clicked
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Added `onCategoryOverridesChange` prop, updated saveChanges
+- `src/App.tsx` - Added `onCategoryOverridesChange={setCategoryOverrides}` to SettingsPage
+
+**Why:**
+- Category overrides were being saved to localStorage but the state wasn't being updated in parent component
+- App.tsx's categoryOverrides state wasn't being refreshed when Save was clicked
+
+**Result:** When you click Save after changing categories, the app immediately uses the new categories
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-16 — Category Override Load/Save to Config File (v1.17)
+
+**What Changed:**
+1. ✅ SettingsPage now loads overrides from BOTH localStorage AND categoryConfig file
+2. ✅ App.tsx now loads overrides from BOTH localStorage AND categoryConfig file  
+3. ✅ Save now properly calls setAppCategory for Forward mode (new logs)
+4. ✅ Added getCategoryConfig API to preload.ts for loading
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - useEffect to load from localStorage + categoryConfig
+- `src/App.tsx` - useEffect to load from localStorage + categoryConfig
+- `src/pages/SettingsPage.tsx` - saveChanges calls setAppCategory/setDomainCategory in both modes
+
+**Why:**
+- Settings was only loading from localStorage, missing entries saved in previous sessions
+- categoryConfig file is the persistence layer - must read from it
+- categorizeApp() reads from categoryConfig.appCategoryMap - not localStorage
+
+**Result:** 
+- Category overrides load properly from previous sessions
+- Changes persist across app restarts
+- New logs get correct category
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-16 — Settings Page Issues Verification (v1.14)
+
+**What Changed:**
+1. ✅ Verified Issue 3: AlertTriangle - Already imported (was fixed)
+2. ✅ Verified Issue 4: Duplicate Category Section - Only ONE exists (verified correct)
+3. ✅ Verified Issue 5: Category Persistence - Already saves to localStorage correctly
+4. ✅ Verified Issue 6: Real-time Update - Already updates immediately without Save
+5. ✅ Verified Issue 7: Sync Button - Data Sync Mode is different feature (not confusing)
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Reviewed imports, rendering logic, saveChanges function
+
+**Why:**
+- User prompt asked to verify/fix Settings page issues
+- Found all features already working as intended
+- Build passes successfully
+
+**Result:** All Settings features verified working - no code changes needed
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-15 — Data Consistency & Visualization Fixes (v1.13)
+
+**What Changed:**
+1. ✅ Fixed Issue 1: Period Switching - 'Month' now shows ALL data (not just 30 days)
+2. ✅ Fixed Issue 2: Activity Visualization Data Mismatch - now excludes browser tracking data to match StatsPage
+3. ✅ Fixed Issue 8: Productivity Score Mismatch - ProductivityPage now receives browserLogs from App.tsx for consistent calculation
+4. ✅ Added Issue 9: Heatmap Week Navigation - LEFT/RIGHT arrows to navigate between weeks
+
+**Files Modified:**
+- `src/App.tsx` - Changed 'month' filter to show all data, added weekOffset state and heatmapWeekLabel, added navigation buttons
+- `src/pages/ProductivityPage.tsx` - Now receives and uses browserLogs prop from App.tsx
+
+**Why:**
+- Period switching: 'Month' was showing same data as 'Week' when user had <30 days
+- Activity Viz: Was including browser tracking data (websites) while Stats excluded it
+- Productivity: Dashboard and ProductivityPage were using different data sources
+- Heatmap: Needed navigation to view historical weeks
+
+**Result:** 
+- Week shows ~7 days, Month shows ALL data
+- Activity Viz matches Stats page app count
+- Dashboard and Productivity page show same productivity %
+- Heatmap has working week navigation
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-15 — UI/UX Quality Fixes (v1.12)
+
+**What Changed:**
+1. ✅ Fixed Issue 10: App colors now persist correctly in SettingsPage - now loads from localStorage on init
+2. ✅ Fixed Issue 11: Removed console.log spam - removed 10+ debug logs from App.tsx
+3. ✅ Fixed Issue 12: Made ProductivityPage pie chart consistent - borderColor now matches Dashboard (#0a0a0a)
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - localAppColors now reads from localStorage on init
+- `src/App.tsx` - Removed [Debug] console.logs from getTotalTime, computedAppStats, allTimeAppStats, filteredLogs
+- `src/pages/ProductivityPage.tsx` - Pie chart borderColor now consistent with Dashboard
+
+**Why:**
+- App colors: SettingsPage was initializing from prop instead of reading saved colors from localStorage
+- Console spam: Multiple debug logs were firing on every render, flooding the console
+- Pie chart: ProductivityPage had different borderColor per segment while Dashboard uses single color
+
+**Result:** App colors persist, console is no longer flooded, pie charts are consistent
+
+**Build:** ✅ Successful
+
+---
 
 ### 2026-04-14 — OrbitSystem Data Loading Fix (v1.11)
 
@@ -726,8 +920,13 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.6 | 2026-04-09 | Customizable productivity & category system: persistent config file, conservative smart detection (YouTube/Reddit/Twitter), configurable tier assignments, Uncategorized category |
 | 1.7 | 2026-04-09 | Focus/Total pie chart sync, website category change on Browser Activity page, Apply to Historical Data toggle, automatic database aggregation |
 | 1.7.1 | 2026-04-10 | Real-time data refresh: 30-second polling for app stats, productivity trend, and browser activity; day change detection for automatic data reload |
+| 1.11 | 2026-04-14 | Fixed Top Bar Total, OrbitSystem, getTotalTime to filter browser-tracked and browser apps |
+| 1.12 | 2026-04-15 | UI/UX Quality Fixes: App colors persistence, console.log spam removal, pie chart consistency |
+| 1.14 | 2026-04-16 | Settings page issues verification: All features verified working |
+| 1.18 | 2026-04-16 | Galaxy data fix: OrbitSystem now uses filteredLogs, two-galaxy with different visuals (spiral apps, nebula websites), smooth camera transitions, dashboard productivity includes websites |
+| 1.19 | 2026-04-16 | Reflection documentation: Created universal self-improvement skill, documented galaxy data and application data loading patterns, added auto-reflect rules to AGENTS.md |
 
 ---
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-16
 **Maintained By:** AI Development Team
