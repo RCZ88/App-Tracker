@@ -124,6 +124,700 @@ const DEFAULT_DOMAIN_CATEGORIES = {
     'google.com': 'Search Engine', 'bing.com': 'Search Engine', 'duckduckgo.com': 'Search Engine',
     'yahoo.com': 'Search Engine'
 };
+
+// ============================================
+// AI AGENT PLUGIN SYSTEM
+// Generalized tracking for AI coding assistants
+// ============================================
+
+interface ParsedSession {
+    sessionId: string;
+    timestamp: Date;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    reasoningTokens?: number;
+    model?: string;
+    provider?: string;
+    durationMs?: number;
+    projectPath?: string;
+}
+
+interface AIAgentPlugin {
+    id: string;
+    name: string;
+    color: string;
+    detect(): Promise<boolean>;
+    getStoragePaths(): string[];
+    parse(filePath: string): Promise<ParsedSession[]>;
+    parseDir(dirPath: string): Promise<ParsedSession[]>;
+    extractTokensFromRow?: (row: any) => { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+    parseSQLite?: (dbPath: string) => Promise<ParsedSession[]>;
+    parseJson?: (filePath: string) => Promise<ParsedSession[]>;
+}
+
+const MODEL_PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+    'claude-opus-4': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+    'claude-sonnet-4-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    'claude-sonnet-4': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    'claude-haiku-3-5': { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+    'claude-haiku-3': { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+    'gpt-5': { input: 5, output: 15, cacheRead: 0.125, cacheWrite: 0.55 },
+    'gpt-4o': { input: 2.5, output: 10, cacheRead: 0.525, cacheWrite: 10.5 },
+    'o3': { input: 10, output: 40, cacheRead: 0, cacheWrite: 0 },
+    'gemini-2-5-pro': { input: 1.25, output: 5, cacheRead: 0.16, cacheWrite: 5 },
+    'gemini-2-5-flash': { input: 0.075, output: 0.3, cacheRead: 0.01, cacheWrite: 0.15 },
+    'default': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
+};
+
+function getModelPricing(model?: string): { input: number; output: number; cacheRead: number; cacheWrite: number } {
+    if (!model) return MODEL_PRICING['default'];
+    const key = Object.keys(MODEL_PRICING).find(k => model.toLowerCase().includes(k.toLowerCase()));
+    return MODEL_PRICING[key || 'default'];
+}
+
+function calculateCost(session: ParsedSession): number {
+    const pricing = getModelPricing(session.model);
+    let cost = 0;
+    cost += (session.inputTokens / 1_000_000) * pricing.input;
+    cost += (session.outputTokens / 1_000_000) * pricing.output;
+    if (session.cacheReadTokens) cost += (session.cacheReadTokens / 1_000_000) * pricing.cacheRead;
+    if (session.cacheWriteTokens) cost += (session.cacheWriteTokens / 1_000_000) * pricing.cacheWrite;
+    return Math.round(cost * 10000) / 10000;
+}
+
+function extractTokensFromOpenCodeRow(row: any): { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number } {
+    return {
+        inputTokens: row.input_tokens || row.inputTokens || row.prompt_tokens || 0,
+        outputTokens: row.output_tokens || row.outputTokens || row.completion_tokens || 0,
+        cacheReadTokens: row.cache_read_tokens || row.cacheReadTokens,
+        cacheWriteTokens: row.cache_write_tokens || row.cacheWriteTokens,
+    };
+}
+
+// Claude Code Plugin
+const ClaudeCodePlugin: AIAgentPlugin = {
+    id: 'claude-code',
+    name: 'Claude Code',
+    color: '#f97316',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const path = require('path');
+        const projectsPath = path.join(homedir, '.claude', 'projects');
+        return fs_1.default.existsSync(projectsPath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        const path = require('path');
+        return [path.join(homedir, '.claude', 'projects')];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+            const lines = content.split('\n').filter(Boolean);
+            console.log(`[Claude Code] Parsing ${lines.length} lines from ${filePath}`);
+
+            for (const line of lines) {
+                try {
+                    const entry = JSON.parse(line);
+                    // Look for any usage data - be flexible
+                    const usage = entry.usage || entry.tokenUsage || entry.tokens;
+                    const inputTokens = usage?.input_tokens || usage?.input || entry.input_tokens || entry.prompt_tokens || 0;
+                    const outputTokens = usage?.output_tokens || usage?.output || entry.output_tokens || entry.completion_tokens || 0;
+
+                    if (inputTokens > 0 || outputTokens > 0) {
+                        sessions.push({
+                            sessionId: entry.sessionId || entry.id || filePath,
+                            timestamp: new Date(entry.timestamp || entry.created_at || Date.now()),
+                            inputTokens,
+                            outputTokens,
+                            cacheReadTokens: entry.cache_read_input_tokens || entry.cacheReadTokens,
+                            cacheWriteTokens: entry.cache_creation_input_tokens || entry.cacheWriteTokens,
+                            model: entry.model || entry.model_version,
+                            provider: 'anthropic',
+                        });
+                        console.log(`[Claude Code] Found session: ${inputTokens} in / ${outputTokens} out`);
+                    }
+                } catch (e) {}
+            }
+            console.log(`[Claude Code] Total sessions found: ${sessions.length}`);
+        } catch (e) {
+            console.error(`[Claude Code] Parse error: ${e.message}`);
+        }
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const projectDirs = fs_1.default.readdirSync(dirPath);
+            for (const projectDir of projectDirs) {
+                const projectPath = path_1.default.join(dirPath, projectDir);
+                if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
+
+                const files = fs_1.default.readdirSync(projectPath);
+                for (const file of files) {
+                    if (!file.endsWith('.jsonl')) continue;
+                    const sessionsFromFile = await this.parse(path_1.default.join(projectPath, file));
+                    sessions.push(...sessionsFromFile);
+                }
+            }
+        } catch {}
+        return sessions;
+    }
+};
+
+// OpenCode Plugin
+const OpenCodePlugin: AIAgentPlugin = {
+    id: 'opencode',
+    name: 'OpenCode',
+    color: '#3b82f6',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const dbPath = require('path').join(homedir, '.local', 'share', 'opencode', 'opencode.db');
+        const storagePath = require('path').join(homedir, '.local', 'share', 'opencode', 'storage', 'message');
+        return fs_1.default.existsSync(dbPath) || fs_1.default.existsSync(storagePath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        return [
+            path_1.default.join(homedir, '.local', 'share', 'opencode'),
+        ];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        // Handle SQLite database
+        if (filePath.endsWith('.db')) {
+            return this.parseSQLite ? this.parseSQLite(filePath) : Promise.resolve([]);
+        }
+        // Handle JSON files
+        return this.parseJson ? this.parseJson(filePath) : Promise.resolve([]);
+    },
+
+    async parseSQLite(dbPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const Database = require('better-sqlite3');
+            const db = new Database(dbPath, { readonly: true });
+
+            // Try to find message/token tables
+            const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
+            const tableNames = tables.map(t => t.name);
+
+            // Look for message tables
+            const messageTable = tableNames.find(t => t.toLowerCase().includes('message'));
+            if (messageTable) {
+                const messages = db.prepare(`SELECT * FROM ${messageTable} LIMIT 1000`).all() as any[];
+
+                for (const msg of messages) {
+                    // Try to find token usage in various columns
+                    const tokens = extractTokensFromOpenCodeRow(msg);
+                    if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
+                        sessions.push({
+                            sessionId: msg.id || msg.session_id || String(Date.now()),
+                            timestamp: new Date(msg.created_at || msg.timestamp || Date.now()),
+                            ...tokens,
+                            provider: 'openai',
+                        });
+                    }
+                }
+            }
+
+            db.close();
+        } catch {}
+        return sessions;
+    },
+
+    async parseJson(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+            console.log(`[OpenCode] Parsing ${filePath}`);
+
+            // Handle JSONL
+            if (filePath.endsWith('.jsonl')) {
+                const lines = content.split('\n').filter(Boolean);
+                for (const line of lines) {
+                    try {
+                        const entry = JSON.parse(line);
+                        const tokens = extractTokensFromOpenCodeRow(entry);
+                        if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
+                            sessions.push({
+                                sessionId: entry.id || entry.sessionId || String(Date.now()),
+                                timestamp: new Date(entry.timestamp || entry.created_at || Date.now()),
+                                ...tokens,
+                                model: entry.model || entry.model_version,
+                                provider: entry.provider || 'openai',
+                            });
+                        }
+                    } catch (e) {}
+                }
+            } else {
+                // Handle JSON array or object
+                try {
+                    const data = JSON.parse(content);
+                    const items = Array.isArray(data) ? data : [data];
+                    for (const item of items) {
+                        const tokens = extractTokensFromOpenCodeRow(item);
+                        if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
+                            sessions.push({
+                                sessionId: item.id || item.sessionId || String(Date.now()),
+                                timestamp: new Date(item.timestamp || item.created_at || Date.now()),
+                                ...tokens,
+                                model: item.model || item.model_version,
+                                provider: item.provider || 'openai',
+                            });
+                        }
+                    }
+                } catch {}
+            }
+            console.log(`[OpenCode] Found ${sessions.length} sessions in ${filePath}`);
+        } catch (e) {
+            console.error(`[OpenCode] Parse error: ${e.message}`);
+        }
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            // Check for SQLite database
+            const dbPath = path_1.default.join(dirPath, 'opencode.db');
+            if (fs_1.default.existsSync(dbPath)) {
+                const fromDb = await this.parse(dbPath);
+                sessions.push(...fromDb);
+            }
+
+            // Check for message storage
+            const storagePath = path_1.default.join(dirPath, 'storage', 'message');
+            if (fs_1.default.existsSync(storagePath)) {
+                const files = fs_1.default.readdirSync(storagePath);
+                for (const file of files) {
+                    if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+                        const fromFile = await this.parse(path_1.default.join(storagePath, file));
+                        sessions.push(...fromFile);
+                    }
+                }
+            }
+
+            // Check legacy storage
+            const legacyPath = path_1.default.join(dirPath, 'storage');
+            if (fs_1.default.existsSync(legacyPath)) {
+                const files = fs_1.default.readdirSync(legacyPath);
+                for (const file of files) {
+                    if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+                        const fromLegacy = await this.parse(path_1.default.join(legacyPath, file));
+                        sessions.push(...fromLegacy);
+                    }
+                }
+            }
+        } catch {}
+        return sessions;
+    }
+};
+
+// Gemini CLI Plugin
+const GeminiPlugin: AIAgentPlugin = {
+    id: 'gemini',
+    name: 'Gemini CLI',
+    color: '#22c55e',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const historyPath = path_1.default.join(homedir, '.gemini', 'history');
+        return fs_1.default.existsSync(historyPath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        return [path_1.default.join(homedir, '.gemini', 'history')];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+
+            if (filePath.endsWith('.jsonl')) {
+                const lines = content.split('\n').filter(Boolean);
+                for (const line of lines) {
+                    try {
+                        const entry = JSON.parse(line);
+                        if (entry.usage || entry.tokens || entry.tokenUsage) {
+                            sessions.push({
+                                sessionId: entry.id || String(Date.now()),
+                                timestamp: new Date(entry.timestamp || Date.now()),
+                                inputTokens: entry.input_token_count || entry.usage?.input_tokens || entry.tokens?.input || 0,
+                                outputTokens: entry.output_token_count || entry.usage?.output_tokens || entry.tokens?.output || 0,
+                                model: entry.model_version || entry.model,
+                                provider: 'google',
+                            });
+                        }
+                    } catch {}
+                }
+            }
+        } catch {}
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const files = fs_1.default.readdirSync(dirPath);
+            for (const file of files) {
+                if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+                    const fromFile = await this.parse(path_1.default.join(dirPath, file));
+                    sessions.push(...fromFile);
+                }
+            }
+        } catch {}
+        return sessions;
+    }
+};
+
+// Codex CLI Plugin
+const CodexPlugin: AIAgentPlugin = {
+    id: 'codex',
+    name: 'Codex CLI',
+    color: '#10b981',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const sessionsPath = path_1.default.join(homedir, '.codex', 'sessions');
+        return fs_1.default.existsSync(sessionsPath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        return [path_1.default.join(homedir, '.codex', 'sessions')];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            if (!filePath.endsWith('.jsonl')) return sessions;
+
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+            const lines = content.split('\n').filter(Boolean);
+
+            for (const line of lines) {
+                try {
+                    const entry = JSON.parse(line);
+                    if (entry.usage || entry.tokens) {
+                        sessions.push({
+                            sessionId: entry.id || String(Date.now()),
+                            timestamp: new Date(entry.timestamp || Date.now()),
+                            inputTokens: entry.input_tokens || entry.tokens?.input || 0,
+                            outputTokens: entry.output_tokens || entry.tokens?.output || 0,
+                            cacheReadTokens: entry.cached_token_count || entry.cache_read,
+                            reasoningTokens: entry.reasoning_token_count,
+                            model: entry.model,
+                            provider: 'openai',
+                        });
+                    }
+                } catch {}
+            }
+        } catch {}
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const walkDir = async (dir: string) => {
+                const items = fs_1.default.readdirSync(dir);
+                for (const item of items) {
+                    const fullPath = path_1.default.join(dir, item);
+                    const stat = fs_1.default.statSync(fullPath);
+                    if (stat.isDirectory()) {
+                        await walkDir(fullPath);
+                    } else if (item.endsWith('.jsonl')) {
+                        const parsed = await this.parse(fullPath);
+                        sessions.push(...parsed);
+                    }
+                }
+            };
+            await walkDir(dirPath);
+        } catch {}
+        return sessions;
+    }
+};
+
+// Qwen CLI Plugin
+const QwenPlugin: AIAgentPlugin = {
+    id: 'qwen',
+    name: 'Qwen CLI',
+    color: '#f59e0b',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const projectsPath = path_1.default.join(homedir, '.qwen', 'projects');
+        return fs_1.default.existsSync(projectsPath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        return [path_1.default.join(homedir, '.qwen', 'projects')];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+
+            if (filePath.endsWith('.jsonl')) {
+                const lines = content.split('\n').filter(Boolean);
+                for (const line of lines) {
+                    try {
+                        const entry = JSON.parse(line);
+                        sessions.push({
+                            sessionId: entry.id || String(Date.now()),
+                            timestamp: new Date(entry.timestamp || Date.now()),
+                            inputTokens: entry.tokens_in || entry.input_tokens || 0,
+                            outputTokens: entry.tokens_out || entry.output_tokens || 0,
+                            model: entry.model,
+                            provider: 'alibaba',
+                        });
+                    } catch {}
+                }
+            }
+        } catch {}
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            const projectDirs = fs_1.default.readdirSync(dirPath);
+            for (const projectDir of projectDirs) {
+                const projectPath = path_1.default.join(dirPath, projectDir);
+                if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
+
+                const historyPath = path_1.default.join(projectPath, 'history');
+                if (fs_1.default.existsSync(historyPath)) {
+                    const files = fs_1.default.readdirSync(historyPath);
+                    for (const file of files) {
+                        if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+                            const fromFile = await this.parse(path_1.default.join(historyPath, file));
+                            sessions.push(...fromFile);
+                        }
+                    }
+                }
+            }
+        } catch {}
+        return sessions;
+    }
+};
+
+// Aider Plugin
+const AiderPlugin: AIAgentPlugin = {
+    id: 'aider',
+    name: 'Aider',
+    color: '#ec4899',
+
+    async detect(): Promise<boolean> {
+        const homedir = require('os').homedir();
+        const analyticsPath = path_1.default.join(homedir, '.oobo', 'aider-analytics.jsonl');
+        return fs_1.default.existsSync(analyticsPath);
+    },
+
+    getStoragePaths(): string[] {
+        const homedir = require('os').homedir();
+        return [
+            path_1.default.join(homedir, '.oobo', 'aider-analytics.jsonl'),
+        ];
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            if (!fs_1.default.existsSync(filePath)) return sessions;
+
+            const content = fs_1.default.readFileSync(filePath, 'utf8');
+            const lines = content.split('\n').filter(Boolean);
+
+            for (const line of lines) {
+                try {
+                    const entry = JSON.parse(line);
+                    if (entry.event === 'message_send' || entry.event === 'api_call') {
+                        sessions.push({
+                            sessionId: entry.session_id || String(Date.now()),
+                            timestamp: new Date(entry.timestamp || Date.now()),
+                            inputTokens: entry.prompt_tokens || entry.input_tokens || 0,
+                            outputTokens: entry.completion_tokens || entry.output_tokens || 0,
+                            model: entry.model,
+                            provider: entry.provider || 'openai',
+                        });
+                    }
+                } catch {}
+            }
+        } catch {}
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        return this.parse(dirPath);
+    }
+};
+
+// Cursor AI Plugin (VS Code extension-based)
+const CursorPlugin: AIAgentPlugin = {
+    id: 'cursor',
+    name: 'Cursor AI',
+    color: '#a855f7',
+
+    async detect(): Promise<boolean> {
+        let cursorStatePath: string;
+
+        if (process.platform === 'win32') {
+            cursorStatePath = path_1.default.join(process.env.APPDATA || '', 'Cursor', 'User', 'globalStorage', 'state.vscdb');
+        } else {
+            const homedir = require('os').homedir();
+            cursorStatePath = path_1.default.join(homedir, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb');
+        }
+
+        return fs_1.default.existsSync(cursorStatePath);
+    },
+
+    getStoragePaths(): string[] {
+        if (process.platform === 'win32') {
+            return [path_1.default.join(process.env.APPDATA || '', 'Cursor', 'User', 'globalStorage', 'state.vscdb')];
+        } else {
+            const homedir = require('os').homedir();
+            return [path_1.default.join(homedir, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb')];
+        }
+    },
+
+    async parse(filePath: string): Promise<ParsedSession[]> {
+        const sessions: ParsedSession[] = [];
+        try {
+            if (!filePath.endsWith('.vscdb')) return sessions;
+
+            const Database = require('better-sqlite3');
+            const cursorDb = new Database(filePath, { readonly: true });
+
+            // Try to read AI service data from ItemTable
+            const aiData = cursorDb.prepare("SELECT key, value FROM ItemTable WHERE key LIKE 'aiService.%'").all() as any[];
+
+            for (const row of aiData) {
+                try {
+                    const value = JSON.parse(row.value);
+                    if (value && typeof value === 'object') {
+                        const inputTokens = value.inputTokens || value.input_tokens || value.promptTokens || 0;
+                        const outputTokens = value.outputTokens || value.output_tokens || value.completionTokens || 0;
+
+                        if (inputTokens > 0 || outputTokens > 0) {
+                            sessions.push({
+                                sessionId: row.key || String(Date.now()),
+                                timestamp: new Date(),
+                                inputTokens,
+                                outputTokens,
+                                model: value.model || 'cursor',
+                                provider: 'cursor',
+                            });
+                        }
+                    }
+                } catch {}
+            }
+
+            cursorDb.close();
+        } catch {}
+        return sessions;
+    },
+
+    async parseDir(dirPath: string): Promise<ParsedSession[]> {
+        return this.parse(dirPath);
+    }
+};
+
+// Register all plugins
+const AI_AGENT_PLUGINS: AIAgentPlugin[] = [
+    ClaudeCodePlugin,
+    CursorPlugin,
+    OpenCodePlugin,
+    GeminiPlugin,
+    CodexPlugin,
+    QwenPlugin,
+    AiderPlugin,
+];
+
+// Unified sync function using plugins
+async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
+    const results: Record<string, number> = {};
+
+    for (const plugin of AI_AGENT_PLUGINS) {
+        try {
+            const isDetected = await plugin.detect();
+            console.log(`[DeskFlow] ${plugin.name} detected: ${isDetected}`);
+
+            if (!isDetected) continue;
+
+            const paths = plugin.getStoragePaths();
+            console.log(`[DeskFlow] ${plugin.name} paths:`, paths);
+
+            for (const pluginPath of paths) {
+                if (!fs_1.default.existsSync(pluginPath)) {
+                    console.log(`[DeskFlow] ${plugin.name} path not found: ${pluginPath}`);
+                    continue;
+                }
+
+                const stat = fs_1.default.statSync(pluginPath);
+                console.log(`[DeskFlow] ${plugin.name} path exists: ${pluginPath}, isDir: ${stat.isDirectory()}`);
+
+                let sessions: ParsedSession[] = [];
+
+                if (stat.isDirectory()) {
+                    sessions = await plugin.parseDir(pluginPath);
+                } else {
+                    sessions = await plugin.parse(pluginPath);
+                }
+
+                console.log(`[DeskFlow] ${plugin.name} parsed ${sessions.length} sessions`);
+
+                for (const session of sessions) {
+                    const id = `${plugin.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    const date = session.timestamp.toISOString().split('T')[0];
+                    const cost = calculateCost(session);
+
+                    try {
+                        db!.prepare(`
+                            INSERT OR IGNORE INTO ai_usage (id, tool, date, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, model)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `).run(
+                            id,
+                            plugin.id,
+                            date,
+                            session.inputTokens,
+                            session.outputTokens,
+                            session.cacheWriteTokens || 0,
+                            session.cacheReadTokens || 0,
+                            cost,
+                            session.model || null
+                        );
+                        results[plugin.id] = (results[plugin.id] || 0) + 1;
+                    } catch (dbErr: any) {
+                        if (!dbErr.message.includes('UNIQUE constraint')) {
+                            console.error(`[DeskFlow] ${plugin.name} DB insert error:`, dbErr.message);
+                        }
+                    }
+                }
+            }
+
+            console.log(`[DeskFlow] ${plugin.name}: synced ${results[plugin.id] || 0} usage records`);
+        } catch (err: any) {
+            console.error(`[DeskFlow] ${plugin.name} sync error:`, err.message);
+        }
+    }
+
+    return results;
+}
 let categoryConfig = {
     version: 1,
     appCategoryMap: {},
@@ -318,6 +1012,136 @@ function initializeStorage() {
         UNIQUE(date, domain)
       )
     `);
+
+        // ========== IDE Projects Tables ==========
+        // IDE installations
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS ides (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        version TEXT,
+        install_path TEXT,
+        last_opened DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+        // Extensions for each IDE
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS extensions (
+        id TEXT PRIMARY KEY,
+        ide_id TEXT REFERENCES ides(id),
+        publisher TEXT,
+        name TEXT NOT NULL,
+        version TEXT,
+        enabled INTEGER DEFAULT 1,
+        install_date DATETIME
+      )
+    `);
+
+        // Detected development tools
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS tools (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        version TEXT,
+        install_path TEXT,
+        detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        detection_method TEXT
+      )
+    `);
+
+        // Tracked projects
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        repository_url TEXT,
+        vcs_type TEXT,
+        primary_language TEXT,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_activity_at DATETIME
+      )
+    `);
+
+        // Project-Tool relationship
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS project_tools (
+        project_id TEXT REFERENCES projects(id),
+        tool_id TEXT REFERENCES tools(id),
+        PRIMARY KEY (project_id, tool_id)
+      )
+    `);
+
+        // AI Usage tracking
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_usage (
+        id TEXT PRIMARY KEY,
+        project_id TEXT REFERENCES projects(id),
+        tool TEXT NOT NULL,
+        date DATE NOT NULL,
+        input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0,
+        cache_write_tokens INTEGER DEFAULT 0,
+        cache_read_tokens INTEGER DEFAULT 0,
+        cost_usd REAL DEFAULT 0,
+        model TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+        db.exec('CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage(date)');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_ai_usage_tool ON ai_usage(tool)');
+
+        // Commit metrics
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS commits (
+        id TEXT PRIMARY KEY,
+        project_id TEXT REFERENCES projects(id),
+        sha TEXT NOT NULL,
+        author TEXT,
+        author_email TEXT,
+        date DATETIME NOT NULL,
+        message TEXT,
+        additions INTEGER DEFAULT 0,
+        deletions INTEGER DEFAULT 0,
+        files_changed INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+        db.exec('CREATE INDEX IF NOT EXISTS idx_commits_project ON commits(project_id)');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_commits_date ON commits(date)');
+
+        // AI attribution for commits
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_attribution (
+        commit_id TEXT PRIMARY KEY REFERENCES commits(id),
+        tool TEXT,
+        lines_ai_added INTEGER DEFAULT 0,
+        lines_ai_deleted INTEGER DEFAULT 0,
+        lines_human_added INTEGER DEFAULT 0
+      )
+    `);
+
+        // DORA metrics
+        db.exec(`
+      CREATE TABLE IF NOT EXISTS dora_metrics (
+        id TEXT PRIMARY KEY,
+        project_id TEXT REFERENCES projects(id),
+        period TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        deployment_frequency REAL,
+        lead_time_hours REAL,
+        change_failure_rate REAL,
+        mean_time_to_recovery_hours REAL,
+        level TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+        db.exec('CREATE INDEX IF NOT EXISTS idx_dora_project ON dora_metrics(project_id)');
+
         console.log('[DeskFlow] ✅ SQLite database initialized at', dbPath);
         storageError = null;
     }
@@ -450,16 +1274,22 @@ function updateAggregates(timestamp, app, category, duration_ms, domain, is_brow
     }
 }
 function getLogs(limit?: number): any[] {
+    console.log('[DeskFlow getLogs] Called with limit:', limit);
     if (useJson) {
+        console.log('[DeskFlow getLogs] Returning jsonLogs:', jsonLogs.length);
         return limit ? jsonLogs.slice(0, limit) : jsonLogs;
     }
     try {
         if (limit) {
             const stmt = db.prepare(`SELECT * FROM logs ORDER BY id DESC LIMIT ${limit}`);
-            return stmt.all();
+            const results = stmt.all();
+            console.log('[DeskFlow getLogs] SQLite with limit:', results.length);
+            return results;
         }
         const stmt = db.prepare('SELECT * FROM logs ORDER BY id DESC');
-        return stmt.all();
+        const results = stmt.all();
+        console.log('[DeskFlow getLogs] SQLite all logs:', results.length);
+        return results;
     }
     catch (err) {
         console.error('[DeskFlow] SQLite select failed:', err);
@@ -754,33 +1584,43 @@ let mainWindow = null;
 let tray = null;
 let startMinimized = false;
 function createTray() {
-    // Create a simple tray icon programmatically (16x16 blue dot)
-    // This works on all platforms without needing an icon file
-    const size = 16;
-    const canvas = Buffer.alloc(size * size * 4);
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const idx = (y * size + x) * 4;
-            // Create a blue circle icon
-            const cx = x - size / 2 + 0.5;
-            const cy = y - size / 2 + 0.5;
-            const dist = Math.sqrt(cx * cx + cy * cy);
-            if (dist < 6) {
-                // Blue color (#3b82f6)
-                canvas[idx] = 0x3b;     // R
-                canvas[idx + 1] = 0x82; // G
-                canvas[idx + 2] = 0xf6; // B
-                canvas[idx + 3] = 255; // A
-            } else {
-                // Transparent
-                canvas[idx] = 0;
-                canvas[idx + 1] = 0;
-                canvas[idx + 2] = 0;
-                canvas[idx + 3] = 0;
+    // Use the custom icon for the tray
+    const iconPath = path_1.default.join(__dirname, '../public/deskflow-icon.png');
+    let trayIcon;
+    
+    try {
+        trayIcon = electron_1.nativeImage.createFromPath(iconPath);
+        // Resize for tray (16x16)
+        if (!trayIcon.isEmpty()) {
+            trayIcon = trayIcon.resize({ width: 16, height: 16 });
+        }
+    } catch (e) {
+        console.warn('[DeskFlow] Failed to load tray icon, using fallback');
+        // Fallback: create a simple icon programmatically
+        const size = 16;
+        const canvas = Buffer.alloc(size * size * 4);
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const idx = (y * size + x) * 4;
+                const cx = x - size / 2 + 0.5;
+                const cy = y - size / 2 + 0.5;
+                const dist = Math.sqrt(cx * cx + cy * cy);
+                if (dist < 6) {
+                    canvas[idx] = 0x3b;
+                    canvas[idx + 1] = 0x82;
+                    canvas[idx + 2] = 0xf6;
+                    canvas[idx + 3] = 255;
+                } else {
+                    canvas[idx] = 0;
+                    canvas[idx + 1] = 0;
+                    canvas[idx + 2] = 0;
+                    canvas[idx + 3] = 0;
+                }
             }
         }
+        trayIcon = electron_1.nativeImage.createFromBuffer(canvas, { width: size, height: size });
     }
-    const trayIcon = electron_1.nativeImage.createFromBuffer(canvas, { width: size, height: size });
+    
     tray = new electron_1.Tray(trayIcon);
     const contextMenu = electron_1.Menu.buildFromTemplate([
         {
@@ -832,6 +1672,7 @@ function createWindow() {
         height: 900,
         minWidth: 1024,
         minHeight: 700,
+        icon: path_1.default.join(__dirname, '../public/deskflow-icon.png'),
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -1759,6 +2600,7 @@ electron_1.ipcMain.handle('deep-clean-and-rebuild', () => {
         if (useJson) {
             return { success: false, message: 'JSON mode - use clear-data instead' };
         }
+
         // Clear all raw logs
         const logsCleared = db.prepare(`DELETE FROM logs`).run();
         // Clear aggregate tables
@@ -1777,6 +2619,868 @@ electron_1.ipcMain.handle('deep-clean-and-rebuild', () => {
     catch (err) {
         console.error('[DeskFlow] deep-clean error:', err);
         return { success: false, message: err.message };
+    }
+});
+
+// ========== IDE Projects IPC Handlers ==========
+
+// Detect installed IDEs
+electron_1.ipcMain.handle('detect-ides', async () => {
+    const { execSync } = require('child_process');
+    const ides = [];
+
+    // Detect VS Code
+    try {
+        const vscodePath = process.platform === 'win32'
+            ? execSync('where code 2>nul', { encoding: 'utf8' }).trim().split('\n')[0]
+            : execSync('which code', { encoding: 'utf8' }).trim();
+
+        let version = '';
+        try {
+            version = execSync('code --version 2>/dev/null', { encoding: 'utf8' }).trim().split('\n')[0];
+        } catch {}
+
+        ides.push({
+            id: 'vscode',
+            name: 'VS Code',
+            version,
+            installPath: vscodePath,
+            detectedAt: new Date().toISOString()
+        });
+
+        // Get VS Code extensions
+        try {
+            const extOutput = execSync('code --list-extensions', { encoding: 'utf8' });
+            const extensions = extOutput.trim().split('\n').filter(Boolean).map(ext => {
+                const [publisher, ...nameParts] = ext.split('.');
+                return {
+                    id: ext,
+                    ideId: 'vscode',
+                    publisher,
+                    name: nameParts.join('.'),
+                    enabled: true
+                };
+            });
+
+            // Store extensions in DB
+            if (!useJson && db) {
+                for (const ext of extensions) {
+                    try {
+                        db.prepare(`
+                            INSERT OR REPLACE INTO extensions (id, ide_id, publisher, name, enabled)
+                            VALUES (?, ?, ?, ?, ?)
+                        `).run(ext.id, ext.ideId, ext.publisher, ext.name, ext.enabled ? 1 : 0);
+                    } catch {}
+                }
+            }
+        } catch {}
+    } catch {}
+
+    // Detect Cursor IDE
+    const cursorPaths = process.platform === 'win32'
+        ? ['%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe', '%APPDATA%\\Cursor\\User']
+        : ['/Applications/Cursor.app', path_1.default.join(require('os').homedir(), 'Library/Application Support/Cursor')];
+
+    for (const cursorPath of cursorPaths) {
+        try {
+            const expandedPath = process.platform === 'win32'
+                ? execSync(`echo ${cursorPath}`, { encoding: 'utf8' }).trim()
+                : cursorPath;
+
+            if (fs_1.default.existsSync(expandedPath)) {
+                let version = '';
+                try {
+                    version = execSync('cursor --version 2>/dev/null', { encoding: 'utf8' }).trim();
+                } catch {}
+
+                ides.push({
+                    id: 'cursor',
+                    name: 'Cursor',
+                    version,
+                    installPath: expandedPath,
+                    detectedAt: new Date().toISOString()
+                });
+                break;
+            }
+        } catch {}
+    }
+
+    // Store IDEs in DB
+    if (!useJson && db) {
+        for (const ide of ides) {
+            try {
+                db.prepare(`
+                    INSERT OR REPLACE INTO ides (id, name, version, install_path, last_opened)
+                    VALUES (?, ?, ?, ?, ?)
+                `).run(ide.id, ide.name, ide.version || null, ide.installPath || null, new Date().toISOString());
+            } catch {}
+        }
+    }
+
+    console.log('[DeskFlow] IDEs detected:', ides.map(i => i.name).join(', '));
+    return ides;
+});
+
+// Get stored IDEs
+electron_1.ipcMain.handle('get-ides', () => {
+    if (useJson) return [];
+    try {
+        return db.prepare('SELECT * FROM ides ORDER BY name').all();
+    } catch {
+        return [];
+    }
+});
+
+// Get extensions for an IDE
+electron_1.ipcMain.handle('get-extensions', (event, ideId) => {
+    if (useJson) return [];
+    try {
+        if (ideId) {
+            return db.prepare('SELECT * FROM extensions WHERE ide_id = ? ORDER BY name').all(ideId);
+        }
+        return db.prepare('SELECT * FROM extensions ORDER BY ide_id, name').all();
+    } catch {
+        return [];
+    }
+});
+
+// Scan for development tools
+electron_1.ipcMain.handle('scan-tools', async () => {
+    const { execSync } = require('child_process');
+    const tools = [];
+
+    // Common development tools to detect
+    const TOOL_CATEGORIES = {
+        versionControl: ['git', 'hg', 'svn'],
+        runtimes: ['node', 'python', 'python3', 'ruby', 'go', 'java', 'rustc'],
+        packageManagers: ['npm', 'yarn', 'pnpm', 'pip', 'pip3', 'cargo', 'brew', 'bundle'],
+        containers: ['docker', 'podman', 'kubectl', 'helm'],
+        buildTools: ['make', 'cmake', 'maven', 'gradle', 'webpack', 'vite'],
+        databases: ['psql', 'mysql', 'mongosh', 'redis-cli'],
+        cloud: ['aws', 'gcloud', 'az', 'terraform', 'ansible']
+    };
+
+    const detectCommand = process.platform === 'win32' ? 'where' : 'which';
+
+    for (const [category, cmds] of Object.entries(TOOL_CATEGORIES)) {
+        for (const cmd of cmds) {
+            try {
+                const result = execSync(`${detectCommand} ${cmd} 2>nul`, { encoding: 'utf8' }).trim();
+                if (result) {
+                    let version = '';
+                    try {
+                        version = execSync(`${cmd} --version 2>nul`, { encoding: 'utf8' }).trim().split('\n')[0];
+                    } catch {}
+
+                    tools.push({
+                        id: `${cmd}-${Date.now()}`,
+                        name: cmd,
+                        category,
+                        version: version || null,
+                        installPath: result.split('\n')[0],
+                        detectedAt: new Date().toISOString(),
+                        detectionMethod: 'path'
+                    });
+                }
+            } catch {}
+        }
+    }
+
+    // Detect npm global packages
+    try {
+        const npmOutput = execSync('npm list -g --depth=0 --json 2>nul', { encoding: 'utf8' });
+        const npmData = JSON.parse(npmOutput);
+        const globalDeps = npmData.dependencies || {};
+        for (const [name, info] of Object.entries(globalDeps)) {
+            tools.push({
+                id: `npm-${name}`,
+                name,
+                category: 'npm-package',
+                version: (info as any).version,
+                installPath: (info as any).path,
+                detectedAt: new Date().toISOString(),
+                detectionMethod: 'package-manager'
+            });
+        }
+    } catch {}
+
+    // Store tools in DB
+    if (!useJson && db) {
+        for (const tool of tools) {
+            try {
+                db.prepare(`
+                    INSERT OR REPLACE INTO tools (id, name, category, version, install_path, detected_at, detection_method)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(tool.id, tool.name, tool.category, tool.version, tool.installPath, tool.detectedAt, tool.detectionMethod);
+            } catch {}
+        }
+    }
+
+    console.log('[DeskFlow] Tools scanned:', tools.length, 'detected');
+    return tools;
+});
+
+// Get stored tools
+electron_1.ipcMain.handle('get-tools', (event, category) => {
+    if (useJson) return [];
+    try {
+        if (category) {
+            return db.prepare('SELECT * FROM tools WHERE category = ? ORDER BY name').all(category);
+        }
+        return db.prepare('SELECT * FROM tools ORDER BY category, name').all();
+    } catch {
+        return [];
+    }
+});
+
+// Get tool categories
+electron_1.ipcMain.handle('get-tool-categories', () => {
+    if (useJson) return [];
+    try {
+        return db.prepare('SELECT DISTINCT category FROM tools ORDER BY category').all();
+    } catch {
+        return [];
+    }
+});
+
+// Add a project to track
+electron_1.ipcMain.handle('add-project', (event, projectData) => {
+    if (useJson) return { success: false, message: 'Projects require SQLite' };
+
+    const { name, path, repositoryUrl, vcsType, primaryLanguage } = projectData;
+    const id = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    try {
+        db.prepare(`
+            INSERT INTO projects (id, name, path, repository_url, vcs_type, primary_language, last_activity_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(id, name, path, repositoryUrl || null, vcsType || null, primaryLanguage || null, new Date().toISOString());
+
+        // Scan for project-specific tools
+        scanProjectTools(id, path);
+
+        console.log('[DeskFlow] Project added:', name);
+        return { success: true, id, name };
+    } catch (err: any) {
+        console.error('[DeskFlow] Failed to add project:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Scan for tools in a project
+function scanProjectTools(projectId: string, projectPath: string) {
+    if (useJson || !db) return;
+    const { execSync } = require('child_process');
+    const pathModule = require('path');
+
+    const projectTools: string[] = [];
+
+    // Detect by package.json
+    const pkgPath = pathModule.join(projectPath, 'package.json');
+    if (fs_1.default.existsSync(pkgPath)) {
+        try {
+            const pkg = JSON.parse(fs_1.default.readFileSync(pkgPath, 'utf8'));
+            const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+            const toolMap: Record<string, string> = {
+                'eslint': 'linter',
+                'prettier': 'formatter',
+                'typescript': 'type-checker',
+                'jest': 'test-runner',
+                'vitest': 'test-runner',
+                'webpack': 'bundler',
+                'vite': 'bundler',
+                'rollup': 'bundler',
+                'esbuild': 'bundler'
+            };
+
+            for (const [dep, category] of Object.entries(toolMap)) {
+                if (allDeps[dep]) {
+                    projectTools.push(dep);
+                    const toolId = `proj-${dep}-${Date.now()}`;
+                    try {
+                        db!.prepare(`
+                            INSERT OR IGNORE INTO tools (id, name, category, version, detected_at, detection_method)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        `).run(toolId, dep, category, allDeps[dep], new Date().toISOString(), 'project');
+
+                        db!.prepare(`
+                            INSERT OR IGNORE INTO project_tools (project_id, tool_id)
+                            VALUES (?, ?)
+                        `).run(projectId, toolId);
+                    } catch {}
+                }
+            }
+        } catch {}
+    }
+
+    // Detect by pyproject.toml
+    const pyprojectPath = pathModule.join(projectPath, 'pyproject.toml');
+    if (fs_1.default.existsSync(pyprojectPath)) {
+        try {
+            const content = fs_1.default.readFileSync(pyprojectPath, 'utf8');
+            const pythonTools: Record<string, string> = {
+                'ruff': 'linter',
+                'black': 'formatter',
+                'pytest': 'test-runner',
+                'mypy': 'type-checker'
+            };
+
+            for (const [tool, category] of Object.entries(pythonTools)) {
+                if (content.includes(tool)) {
+                    projectTools.push(tool);
+                    const toolId = `proj-${tool}-${Date.now()}`;
+                    try {
+                        db!.prepare(`
+                            INSERT OR IGNORE INTO tools (id, name, category, detected_at, detection_method)
+                            VALUES (?, ?, ?, ?, ?)
+                        `).run(toolId, tool, category, new Date().toISOString(), 'project');
+
+                        db!.prepare(`
+                            INSERT OR IGNORE INTO project_tools (project_id, tool_id)
+                            VALUES (?, ?)
+                        `).run(projectId, toolId);
+                    } catch {}
+                }
+            }
+        } catch {}
+    }
+
+    console.log('[DeskFlow] Project tools detected:', projectTools.join(', '));
+}
+
+// Get all projects
+electron_1.ipcMain.handle('get-projects', () => {
+    if (useJson) return [];
+    try {
+        return db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC').all();
+    } catch {
+        return [];
+    }
+});
+
+// Get tools for a specific project
+electron_1.ipcMain.handle('get-project-tools', (event, projectId) => {
+    if (useJson) return [];
+    try {
+        return db.prepare(`
+            SELECT t.* FROM tools t
+            JOIN project_tools pt ON t.id = pt.tool_id
+            WHERE pt.project_id = ?
+            ORDER BY t.category, t.name
+        `).all(projectId);
+    } catch {
+        return [];
+    }
+});
+
+// Remove a project
+electron_1.ipcMain.handle('remove-project', (event, projectId) => {
+    if (useJson) return { success: false };
+
+    try {
+        db.prepare('DELETE FROM project_tools WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM commits WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM ai_usage WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM dora_metrics WHERE project_id = ?').run(projectId);
+        db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+
+        console.log('[DeskFlow] Project removed:', projectId);
+        return { success: true };
+    } catch (err: any) {
+        return { success: false, message: err.message };
+    }
+});
+
+// Get AI usage summary
+electron_1.ipcMain.handle('get-ai-usage-summary', (event, period = 'week') => {
+    if (useJson) return { totalTokens: 0, totalCost: 0, byTool: {} };
+
+    try {
+        let dateFilter = '';
+        const now = new Date();
+
+        if (period === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            dateFilter = `WHERE date >= '${weekAgo.toISOString().split('T')[0]}'`;
+        } else if (period === 'month') {
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            dateFilter = `WHERE date >= '${monthAgo.toISOString().split('T')[0]}'`;
+        }
+
+        const summary = db.prepare(`
+            SELECT
+                tool,
+                SUM(input_tokens + output_tokens) as total_tokens,
+                SUM(cost_usd) as total_cost,
+                COUNT(*) as session_count
+            FROM ai_usage
+            ${dateFilter}
+            GROUP BY tool
+        `).all();
+
+        const byTool: Record<string, any> = {};
+        let totalTokens = 0;
+        let totalCost = 0;
+
+        for (const row of summary) {
+            byTool[row.tool] = {
+                tokens: row.total_tokens,
+                cost: row.total_cost,
+                sessions: row.session_count
+            };
+            totalTokens += row.total_tokens;
+            totalCost += row.total_cost;
+        }
+
+        return { totalTokens, totalCost, byTool, period };
+    } catch {
+        return { totalTokens: 0, totalCost: 0, byTool: {} };
+    }
+});
+
+// Get commit statistics
+electron_1.ipcMain.handle('get-commit-stats', (event, projectId, period = 'week') => {
+    if (useJson) return { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 };
+
+    try {
+        let dateFilter = '';
+        let projectFilter = '';
+
+        if (projectId) {
+            projectFilter = `project_id = '${projectId}'`;
+        }
+
+        const now = new Date();
+        if (period === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            dateFilter = `date >= '${weekAgo.toISOString()}'`;
+        } else if (period === 'month') {
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            dateFilter = `date >= '${monthAgo.toISOString()}'`;
+        }
+
+        const whereClause = [projectFilter, dateFilter].filter(Boolean).join(' AND ');
+
+        const stats = db.prepare(`
+            SELECT
+                COUNT(*) as total_commits,
+                COALESCE(SUM(additions), 0) as total_additions,
+                COALESCE(SUM(deletions), 0) as total_deletions,
+                COALESCE(SUM(files_changed), 0) as total_files
+            FROM commits
+            ${whereClause ? 'WHERE ' + whereClause : ''}
+        `).get();
+
+        return stats;
+    } catch {
+        return { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 };
+    }
+});
+
+// Get IDE Projects overview for dashboard
+electron_1.ipcMain.handle('get-ide-projects-overview', () => {
+    if (useJson) {
+        return {
+            ides: [],
+            tools: [],
+            projects: [],
+            aiUsage: { totalTokens: 0, totalCost: 0, byTool: {} },
+            commits: { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 }
+        };
+    }
+
+    try {
+        const ides = db.prepare('SELECT * FROM ides ORDER BY name').all();
+        const tools = db.prepare('SELECT * FROM tools ORDER BY category, name').all();
+        const projects = db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC LIMIT 10').all();
+        const aiUsage = db.prepare(`
+            SELECT tool, SUM(input_tokens + output_tokens) as tokens, SUM(cost_usd) as cost
+            FROM ai_usage
+            WHERE date >= date('now', '-30 days')
+            GROUP BY tool
+        `).all();
+        const commits = db.prepare(`
+            SELECT COUNT(*) as count, SUM(additions) as additions, SUM(deletions) as deletions
+            FROM commits
+            WHERE date >= datetime('now', '-30 days')
+        `).get();
+
+        const byTool: Record<string, any> = {};
+        let totalTokens = 0;
+        let totalCost = 0;
+
+        for (const row of aiUsage) {
+            byTool[row.tool] = { tokens: row.tokens, cost: row.cost };
+            totalTokens += row.tokens;
+            totalCost += row.cost;
+        }
+
+        return {
+            ides,
+            tools,
+            projects,
+            aiUsage: { totalTokens, totalCost, byTool },
+            commits: {
+                totalCommits: commits?.count || 0,
+                totalAdditions: commits?.additions || 0,
+                totalDeletions: commits?.deletions || 0
+            }
+        };
+    } catch (err) {
+        console.error('[DeskFlow] IDE Projects overview error:', err);
+        return {
+            ides: [],
+            tools: [],
+            projects: [],
+            aiUsage: { totalTokens: 0, totalCost: 0, byTool: {} },
+            commits: { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 }
+        };
+    }
+});
+
+// Sync AI usage using the plugin system
+electron_1.ipcMain.handle('sync-ai-usage', async () => {
+    if (useJson) return { success: false, message: 'AI sync requires SQLite' };
+
+    const results = await syncAllAIAgents(db);
+
+    return { success: true, ...results };
+});
+
+// Debug: Check which AI agents are detected
+electron_1.ipcMain.handle('debug-ai-agents', async () => {
+    const agentStatus: Record<string, { detected: boolean; paths: string[]; sampleFiles?: string[] }> = {};
+
+    for (const plugin of AI_AGENT_PLUGINS) {
+        try {
+            const isDetected = await plugin.detect();
+            const paths = plugin.getStoragePaths();
+            const sampleFiles: string[] = [];
+
+            // Check if paths exist and list some files
+            for (const p of paths) {
+                if (fs_1.default.existsSync(p)) {
+                    if (fs_1.default.statSync(p).isDirectory()) {
+                        try {
+                            const files = fs_1.default.readdirSync(p).slice(0, 5);
+                            for (const f of files) {
+                                const fullPath = path_1.default.join(p, f);
+                                const stat = fs_1.default.statSync(fullPath);
+                                if (stat.isFile()) {
+                                    sampleFiles.push(f);
+                                } else if (stat.isDirectory()) {
+                                    sampleFiles.push(`${f}/ (dir)`);
+                                    try {
+                                        const subFiles = fs_1.default.readdirSync(fullPath).slice(0, 3);
+                                        for (const sf of subFiles) {
+                                            sampleFiles.push(`  └── ${sf}`);
+                                        }
+                                    } catch {}
+                                }
+                            }
+                        } catch {}
+                    } else {
+                        sampleFiles.push(path_1.default.basename(p));
+                    }
+                }
+            }
+
+            agentStatus[plugin.id] = { detected: isDetected, paths, sampleFiles };
+        } catch (err: any) {
+            agentStatus[plugin.id] = { detected: false, paths: [err.message], sampleFiles: [] };
+        }
+    }
+
+    // Also check database state
+    let dbState = null;
+    if (!useJson && db) {
+        try {
+            const count = db.prepare('SELECT COUNT(*) as count FROM ai_usage').get() as { count: number };
+            const totalTokens = db.prepare('SELECT SUM(input_tokens + output_tokens) as total FROM ai_usage').get() as { total: number };
+            const byTool = db.prepare('SELECT tool, COUNT(*) as count FROM ai_usage GROUP BY tool').all() as { tool: string; count: number }[];
+            dbState = { totalRecords: count.count, totalTokens: totalTokens.total || 0, byTool };
+        } catch (err: any) {
+            dbState = { error: err.message };
+        }
+    }
+
+    return { agents: agentStatus, database: dbState };
+});
+
+// Sync commits from a local Git repository
+electron_1.ipcMain.handle('sync-commits', async (event, projectId: string, repoPath: string) => {
+    if (useJson) return { success: false, message: 'Commit sync requires SQLite' };
+
+    const results = { commits: 0, errors: [] as string[] };
+
+    try {
+        const { execSync } = require('child_process');
+
+        // Get commit log from git
+        let gitOutput: string;
+        try {
+            gitOutput = execSync(`git log --format="%H|%an|%ae|%ai|%s" -n 500`, {
+                cwd: repoPath,
+                encoding: 'utf8',
+                maxBuffer: 10 * 1024 * 1024
+            });
+        } catch (gitErr: any) {
+            return { success: false, message: `Not a git repository or no commits: ${gitErr.message}` };
+        }
+
+        const lines = gitOutput.trim().split('\n').filter(Boolean);
+
+        for (const line of lines) {
+            const [sha, author, authorEmail, date, message] = line.split('|');
+
+            // Get diff stats for this commit
+            let additions = 0;
+            let deletions = 0;
+            let filesChanged = 0;
+
+            try {
+                const statsOutput = execSync(`git show --stat --format="" ${sha}`, {
+                    cwd: repoPath,
+                    encoding: 'utf8'
+                });
+
+                const statLines = statsOutput.trim().split('\n');
+                filesChanged = statLines.length;
+
+                for (const statLine of statLines) {
+                    const match = statLine.match(/\+\s*(\d+)/);
+                    if (match) additions += parseInt(match[1], 10);
+                    const delMatch = statLine.match(/-\s*(\d+)/);
+                    if (delMatch) deletions += parseInt(delMatch[1], 10);
+                }
+            } catch {}
+
+            const id = `commit-${sha}`;
+            const commitDate = new Date(date).toISOString();
+
+            try {
+                db!.prepare(`
+                    INSERT OR REPLACE INTO commits (id, project_id, sha, author, author_email, date, message, additions, deletions, files_changed)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(id, projectId, sha, author, authorEmail, commitDate, message, additions, deletions, filesChanged);
+
+                results.commits++;
+            } catch (dbErr: any) {
+                if (!dbErr.message.includes('UNIQUE constraint')) {
+                    console.error('[DeskFlow] Commit DB error:', dbErr.message);
+                }
+            }
+        }
+
+        // Update project's last_activity_at
+        db!.prepare(`UPDATE projects SET last_activity_at = ? WHERE id = ?`)
+            .run(new Date().toISOString(), projectId);
+
+        console.log(`[DeskFlow] Synced ${results.commits} commits from ${repoPath}`);
+        return { success: true, ...results };
+
+    } catch (err: any) {
+        console.error('[DeskFlow] Commit sync error:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Sync commits from GitHub API
+electron_1.ipcMain.handle('sync-github-commits', async (event, projectId: string, owner: string, repo: string, token?: string) => {
+    if (useJson) return { success: false, message: 'GitHub sync requires SQLite' };
+
+    const results = { commits: 0, errors: [] as string[] };
+
+    try {
+        const headers: Record<string, string> = {
+            'Accept': 'application/vnd.github.v3+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Fetch recent commits
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`,
+            { headers }
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            return { success: false, message: `GitHub API error: ${response.status} - ${errorText}` };
+        }
+
+        const commits = await response.json() as any[];
+
+        for (const commit of commits) {
+            const sha = commit.sha;
+            const author = commit.commit?.author?.name || 'Unknown';
+            const authorEmail = commit.commit?.author?.email || '';
+            const date = commit.commit?.author?.date || new Date().toISOString();
+            const message = commit.commit?.message?.split('\n')[0] || '';
+            const additions = commit.stats?.additions || 0;
+            const deletions = commit.stats?.deletions || 0;
+            const filesChanged = commit.files?.length || 0;
+
+            const id = `github-${sha}`;
+            const commitDate = new Date(date).toISOString();
+
+            try {
+                db!.prepare(`
+                    INSERT OR REPLACE INTO commits (id, project_id, sha, author, author_email, date, message, additions, deletions, files_changed)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(id, projectId, sha, author, authorEmail, commitDate, message, additions, deletions, filesChanged);
+
+                results.commits++;
+            } catch (dbErr: any) {
+                if (!dbErr.message.includes('UNIQUE constraint')) {
+                    console.error('[DeskFlow] GitHub commit DB error:', dbErr.message);
+                }
+            }
+        }
+
+        console.log(`[DeskFlow] Synced ${results.commits} commits from GitHub ${owner}/${repo}`);
+        return { success: true, ...results };
+
+    } catch (err: any) {
+        console.error('[DeskFlow] GitHub commit sync error:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Get DORA metrics for a project
+electron_1.ipcMain.handle('get-dora-metrics', (event, projectId: string, period: 'week' | 'month' = 'month') => {
+    if (useJson) return null;
+
+    try {
+        const days = period === 'week' ? 7 : 30;
+        const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+        // Get commits in period
+        const commitStats = db!.prepare(`
+            SELECT
+                COUNT(*) as total_commits,
+                SUM(additions) as total_additions,
+                SUM(deletions) as total_deletions,
+                COUNT(DISTINCT DATE(date)) as active_days,
+                MIN(date) as first_commit,
+                MAX(date) as last_commit
+            FROM commits
+            WHERE project_id = ? AND date >= ?
+        `).get(projectId, cutoffDate) as any;
+
+        if (!commitStats || commitStats.total_commits === 0) {
+            return {
+                projectId,
+                period,
+                deploymentFrequency: 0,
+                leadTimeHours: 0,
+                changeFailureRate: 0,
+                meanTimeToRecoveryHours: 0,
+                level: 'low' as const,
+                commitCount: 0,
+                totalLines: 0,
+                activeDays: 0,
+                message: 'No commits found in this period'
+            };
+        }
+
+        // Estimate deployment frequency (commits that look like deploys)
+        // For now, count commits to main/master as "deployments"
+        const deployments = db!.prepare(`
+            SELECT COUNT(*) as count FROM commits
+            WHERE project_id = ? AND date >= ?
+            AND (message LIKE '%deploy%' OR message LIKE '%release%' OR message LIKE '%publish%')
+        `).get(projectId, cutoffDate) as any;
+
+        const deploymentFrequency = (deployments?.count || 0) / days;
+
+        // Calculate lines of code changed
+        const totalLines = (commitStats.total_additions || 0) + (commitStats.total_deletions || 0);
+
+        // Determine DORA level based on deployment frequency
+        let level: 'elite' | 'high' | 'medium' | 'low';
+        if (deploymentFrequency >= 1) {
+            level = 'elite'; // Multiple deploys per day
+        } else if (deploymentFrequency >= 0.1) {
+            level = 'high'; // Weekly to daily
+        } else if (deploymentFrequency >= 0.03) {
+            level = 'medium'; // Monthly
+        } else {
+            level = 'low'; // Less than monthly
+        }
+
+        // Calculate lead time (simplified: average time between commits)
+        let leadTimeHours = 0;
+        if (commitStats.active_days > 1) {
+            leadTimeHours = (days * 24) / commitStats.active_days;
+        }
+
+        // Change failure rate (placeholder - would need incident data)
+        const changeFailureRate = 0; // Would need integration with incident tracking
+
+        // MTTR (placeholder)
+        const meanTimeToRecoveryHours = 0; // Would need integration with incident tracking
+
+        return {
+            projectId,
+            period,
+            deploymentFrequency: Math.round(deploymentFrequency * 100) / 100,
+            leadTimeHours: Math.round(leadTimeHours * 10) / 10,
+            changeFailureRate,
+            meanTimeToRecoveryHours,
+            level,
+            commitCount: commitStats.total_commits,
+            totalLines,
+            activeDays: commitStats.active_days
+        };
+
+    } catch (err) {
+        console.error('[DeskFlow] DORA metrics error:', err);
+        return null;
+    }
+});
+
+// Get commit history for a project
+electron_1.ipcMain.handle('get-commit-history', (event, projectId: string, limit: number = 50) => {
+    if (useJson) return [];
+
+    try {
+        return db!.prepare(`
+            SELECT * FROM commits
+            WHERE project_id = ?
+            ORDER BY date DESC
+            LIMIT ?
+        `).all(projectId, limit);
+    } catch {
+        return [];
+    }
+});
+
+// Get contributor stats for a project
+electron_1.ipcMain.handle('get-contributor-stats', (event, projectId: string) => {
+    if (useJson) return [];
+
+    try {
+        return db!.prepare(`
+            SELECT
+                author,
+                author_email,
+                COUNT(*) as commit_count,
+                SUM(additions) as total_additions,
+                SUM(deletions) as total_deletions,
+                MIN(date) as first_commit,
+                MAX(date) as last_commit
+            FROM commits
+            WHERE project_id = ?
+            GROUP BY author_email
+            ORDER BY commit_count DESC
+        `).all(projectId);
+    } catch {
+        return [];
     }
 });
 // Save file handler for exports - opens file dialog to let user choose location

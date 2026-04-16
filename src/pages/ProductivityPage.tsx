@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Target, TrendingUp, TrendingDown, Clock, Award, Zap,
-  Monitor, Globe, BarChart3, Calendar, ChevronDown, Info,
+  Monitor, Globe, BarChart3, Info,
   PieChart as PieChartIcon, ArrowUp, ArrowDown, Minus
 } from 'lucide-react';
 import { Pie, Bar, Line } from 'react-chartjs-2';
@@ -77,6 +77,14 @@ interface ProductivityPageProps {
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
 }
 
+interface AppStat {
+  app: string;
+  category: string;
+  total_ms: number;
+  sessions: number;
+  avg_session_ms: number;
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) {
@@ -98,52 +106,50 @@ function formatHours(seconds: number): string {
 export default function ProductivityPage({ 
   appStats = [], 
   logs = [],
+  browserLogs: browserLogsProp = [],
   tierAssignments = DEFAULT_TIER_ASSIGNMENTS,
   selectedPeriod = 'week'
 }: ProductivityPageProps) {
-  const [productivityRange, setProductivityRange] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [browserStats, setBrowserStats] = useState<BrowserStat[]>([]);
-  const [browserLogs, setBrowserLogs] = useState<any[]>([]);
-
-  // Fetch browser data - syncs with selectedPeriod from top navigation
-  useEffect(() => {
-    const fetchBrowserData = async () => {
-      if (!window.deskflowAPI) return;
+  // Compute browserStats from browserLogs prop (passed from parent App.tsx)
+  const browserStats = useMemo(() => {
+    const grouped: Record<string, { domain: string; category: string; total_ms: number; sessions: number; avg_session_ms: number }> = {};
+    for (const log of browserLogsProp) {
+      const domain = (log as any).domain || 'Unknown';
+      const category = (log as any).category || 'Uncategorized';
+      const duration_ms = ((log as any).duration || 0) * 1000;
       
-      try {
-        const [categoryStats, logsData] = await Promise.all([
-          window.deskflowAPI.getBrowserCategoryStats(selectedPeriod),
-          window.deskflowAPI.getBrowserLogs(selectedPeriod)
-        ]);
-        
-        setBrowserStats(categoryStats || []);
-        setBrowserLogs(logsData || []);
-      } catch (err) {
-        console.warn('[Productivity] Failed to fetch browser data:', err);
+      if (!grouped[domain]) {
+        grouped[domain] = { domain, category, total_ms: 0, sessions: 0, avg_session_ms: 0 };
       }
-    };
+      grouped[domain].total_ms += duration_ms;
+      grouped[domain].sessions += 1;
+    }
     
-    fetchBrowserData();
-  }, [selectedPeriod]);
+    const stats = Object.values(grouped);
+    for (const stat of stats) {
+      stat.avg_session_ms = stat.sessions > 0 ? stat.total_ms / stat.sessions : 0;
+    }
+    return stats;
+  }, [browserLogsProp]);
 
   // Calculate combined productivity data
   const productivityData = useMemo(() => {
     // Normalize app durations (ms -> seconds)
-    const appItems = appStats.map(a => ({
-      name: a.app,
-      category: a.category,
+    // Fix: appStats from parent has 'app' property, not 'name'
+    const appItems = (appStats || []).map((a: any) => ({
+      name: a.app || 'Unknown',
+      category: a.category || 'Other',
       type: 'app' as const,
-      duration_sec: a.total_ms / 1000
+      duration_sec: (a.total_ms || 0) / 1000
     }));
 
     // Normalize browser durations (ms -> seconds) and map categories
-    const browserItems = browserStats.map(b => ({
-      name: b.domain,
+    const browserItems = (browserStats || []).map((b: any) => ({
+      name: b.domain || 'Unknown',
       category: WEBSITE_CATEGORY_MAP[b.category] || 'Other',
       originalCategory: b.category,
       type: 'website' as const,
-      duration_sec: b.total_ms / 1000
+      duration_sec: (b.total_ms || 0) / 1000
     }));
 
     // Combine all items
@@ -211,7 +217,7 @@ export default function ProductivityPage({
       topDistracting,
       items: allItems
     };
-  }, [appStats, browserStats, logs, browserLogs, tierAssignments]);
+  }, [appStats, browserStats, logs, browserLogsProp, tierAssignments]);
 
   // Calculate daily trend data
   const dailyTrend = useMemo(() => {
@@ -223,7 +229,7 @@ export default function ProductivityPage({
         const hourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour);
         const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
         
-        const hourLogs = [...(logs as any[]), ...(browserLogs as any[])].filter(log => {
+        const hourLogs = [...(logs as any[]), ...(browserLogsProp as any[])].filter(log => {
           const logTime = new Date(log.timestamp || log.start_time);
           return logTime >= hourStart && logTime < hourEnd;
         });
@@ -288,7 +294,7 @@ export default function ProductivityPage({
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
       // Filter logs for this day
-      const dayLogs = [...(logs as any[]), ...(browserLogs as any[])].filter(log => {
+      const dayLogs = [...(logs as any[]), ...(browserLogsProp as any[])].filter(log => {
         const logTime = new Date(log.timestamp || log.start_time);
         return logTime >= dayStart && logTime < dayEnd;
       });
@@ -324,7 +330,7 @@ export default function ProductivityPage({
         isToday: isToday(day)
       };
     });
-  }, [logs, browserLogs, selectedPeriod, tierAssignments]);
+  }, [logs, browserLogsProp, selectedPeriod, tierAssignments]);
 
   // Calculate comparison with previous period
   const comparison = useMemo(() => {
@@ -375,7 +381,7 @@ export default function ProductivityPage({
         productivityData.tiers.distracting.seconds
       ],
       backgroundColor: ['rgba(34, 197, 94, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(239, 68, 68, 0.8)'],
-      borderColor: ['#22c55e', '#3b82f6', '#ef4444'],
+      borderColor: '#0a0a0a',
       borderWidth: 2
     }]
   };
@@ -607,7 +613,9 @@ export default function ProductivityPage({
           </div>
           
           <div className="space-y-3">
-            {productivityData.topProductive.slice(0, 5).map((item, idx) => (
+            {productivityData.topProductive
+              .filter(i => i.type === 'app')
+              .slice(0, 5).map((item, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -616,7 +624,7 @@ export default function ProductivityPage({
                 <div className="text-sm text-zinc-400">{formatDuration(item.duration_sec)}</div>
               </div>
             ))}
-            {productivityData.topProductive.length === 0 && (
+            {productivityData.topProductive.filter(i => i.type === 'app').length === 0 && (
               <div className="text-center py-8 text-zinc-500">
                 <Monitor className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No app data available</p>

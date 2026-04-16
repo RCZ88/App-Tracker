@@ -95,4 +95,41 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
 
   // File operations
   saveFile: (options: { content: string; filename: string; fileType: string }) => ipcRenderer.invoke('save-file', options),
+
+  // ========== IDE Projects ==========
+  // IDE Detection
+  detectIDEs: () => ipcRenderer.invoke('detect-ides'),
+  getIDEs: () => ipcRenderer.invoke('get-ides'),
+  getExtensions: (ideId?: string) => ipcRenderer.invoke('get-extensions', ideId),
+
+  // Tool Detection
+  scanTools: () => ipcRenderer.invoke('scan-tools'),
+  getTools: (category?: string) => ipcRenderer.invoke('get-tools', category),
+  getToolCategories: () => ipcRenderer.invoke('get-tool-categories'),
+
+  // Project Management
+  addProject: (projectData: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string }) =>
+    ipcRenderer.invoke('add-project', projectData),
+  getProjects: () => ipcRenderer.invoke('get-projects'),
+  getProjectTools: (projectId: string) => ipcRenderer.invoke('get-project-tools', projectId),
+  removeProject: (projectId: string) => ipcRenderer.invoke('remove-project', projectId),
+
+  // AI & Git Metrics
+  getAIUsageSummary: (period?: 'week' | 'month') => ipcRenderer.invoke('get-ai-usage-summary', period),
+  getCommitStats: (projectId?: string, period?: 'week' | 'month') => ipcRenderer.invoke('get-commit-stats', projectId, period),
+
+  // Dashboard Overview
+  getIDEProjectsOverview: () => ipcRenderer.invoke('get-ide-projects-overview'),
+
+  // AI Usage Sync
+  syncAIUsage: () => ipcRenderer.invoke('sync-ai-usage'),
+  debugAIAgents: () => ipcRenderer.invoke('debug-ai-agents'),
+
+  // Git & DORA Metrics
+  syncCommits: (projectId: string, repoPath?: string) => ipcRenderer.invoke('sync-commits', projectId, repoPath),
+  syncGitHubCommits: (projectId: string, owner: string, repo: string, token?: string) => 
+    ipcRenderer.invoke('sync-github-commits', projectId, owner, repo, token),
+  getDORAMetrics: (projectId: string, period?: 'week' | 'month') => ipcRenderer.invoke('get-dora-metrics', projectId, period),
+  getCommitHistory: (projectId: string, limit?: number) => ipcRenderer.invoke('get-commit-history', projectId, limit),
+  getContributorStats: (projectId: string) => ipcRenderer.invoke('get-contributor-stats', projectId),
 });

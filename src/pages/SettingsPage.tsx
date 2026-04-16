@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, Database, Clock, Download, Trash2, RefreshCw, 
   ChevronRight, X, Plus, GripVertical, Palette, Check, ChevronDown, Globe,
-  ChevronLeft, Search
+  ChevronLeft, Search, AlertTriangle
 } from 'lucide-react';
 import {
   DndContext,
@@ -46,6 +46,7 @@ interface SettingsPageProps {
   onRequestNavigate: (path: string, hasUnsaved: boolean) => void;
   onHasChangesChange: (hasChanges: boolean) => void;
   onReloadData: () => void;
+  onCategoryOverridesChange?: (overrides: Record<string, string>) => void;
   appColors?: Record<string, string>;
   setAppColors?: (colors: Record<string, string>) => void;
   categoryOrder?: string[];
@@ -294,7 +295,19 @@ export default function SettingsPage({
     return DEFAULT_TIER_ASSIGNMENTS;
   });
   const [hasChanges, setHasChanges] = useState(false);
-  const [localAppColors, setLocalAppColors] = useState<Record<string, string>>(appColors);
+  const [localAppColors, setLocalAppColors] = useState<Record<string, string>>(() => {
+    // Load from localStorage first (in case Settings saved colors while app was closed)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deskflow-planet-colors');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch { /* ignore */ }
+      }
+    }
+    // Fallback to prop
+    return appColors;
+  });
   const [localCategoryOrder, setLocalCategoryOrder] = useState<string[]>(categoryOrder);
   const [autoStartEnabled, setAutoStartEnabled] = useState(autoStartEnabledProp);
   
@@ -368,28 +381,46 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     }
     return 'normal';
   });
-  const [appCategoryOverrides, setAppCategoryOverrides] = useState<Record<string, string>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('deskflow-app-category-overrides');
-      if (saved) {
+  const [appCategoryOverrides, setAppCategoryOverrides] = useState<Record<string, string>>({});
+  const [domainCategoryOverrides, setDomainCategoryOverrides] = useState<Record<string, string>>({});
+
+  // Load overrides from BOTH localStorage AND categoryConfig on mount
+  useEffect(() => {
+    const loadOverrides = async () => {
+      const overrides: Record<string, string> = {};
+      const domainOverrides: Record<string, string> = {};
+      
+      // First load from localStorage
+      if (typeof window !== 'undefined') {
         try {
-          return JSON.parse(saved);
+          const saved = localStorage.getItem('deskflow-app-category-overrides');
+          if (saved) Object.assign(overrides, JSON.parse(saved));
+        } catch { /* ignore */ }
+        try {
+          const saved = localStorage.getItem('deskflow-domain-category-overrides');
+          if (saved) Object.assign(domainOverrides, JSON.parse(saved));
         } catch { /* ignore */ }
       }
-    }
-    return {};
-  });
-  const [domainCategoryOverrides, setDomainCategoryOverrides] = useState<Record<string, string>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('deskflow-domain-category-overrides');
-      if (saved) {
+      
+      // Also load from categoryConfig (for persistence across app restarts)
+      if (window.deskflowAPI?.getCategoryConfig) {
         try {
-          return JSON.parse(saved);
+          const config = await window.deskflowAPI.getCategoryConfig();
+          // Merge appCategoryMap into overrides
+          if (config?.appCategoryMap) {
+            Object.assign(overrides, config.appCategoryMap);
+          }
+          if (config?.domainCategoryMap) {
+            Object.assign(domainOverrides, config.domainCategoryMap);
+          }
         } catch { /* ignore */ }
       }
-    }
-    return {};
-  });
+      
+      setAppCategoryOverrides(overrides);
+      setDomainCategoryOverrides(domainOverrides);
+    };
+    loadOverrides();
+  }, []);
   const [dataSyncMode, setDataSyncMode] = useState<'forward' | 'refactor'>('forward');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
@@ -479,6 +510,64 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     localStorage.setItem('deskflow-app-category-overrides', JSON.stringify(appCategoryOverrides));
     localStorage.setItem('deskflow-domain-category-overrides', JSON.stringify(domainCategoryOverrides));
     localStorage.setItem('deskflow-animation-speed', animationSpeed);
+    
+    // Update database based on sync mode (wrapped in try-catch)
+    try {
+      if (dataSyncMode === 'refactor') {
+        // REFACTOR: Update ALL existing logs in database
+        console.log('[Settings] Refactoring all data to match new categories...');
+        setSyncStatus('syncing');
+        setSyncMessage('Updating all historical data...');
+        
+        const appOverridesNormalized: Record<string, string> = {};
+        const domainOverridesNormalized: Record<string, string> = {};
+        
+        for (const [app, category] of Object.entries(appCategoryOverrides)) {
+          appOverridesNormalized[app.toLowerCase()] = category;
+        }
+        for (const [domain, category] of Object.entries(domainCategoryOverrides)) {
+          domainOverridesNormalized[domain.toLowerCase()] = category;
+        }
+        
+        const result = await window.deskflowAPI?.updateCategoriesFromOverrides(appOverridesNormalized, domainOverridesNormalized);
+        if (result?.success) {
+          setSyncStatus('success');
+          setSyncMessage(`Updated ${result.updatedCount} rows in database`);
+          console.log('[Settings] Refactor complete:', result.updatedCount, 'rows updated');
+        } else {
+          setSyncStatus('error');
+          setSyncMessage(result?.error || 'Database update failed');
+        }
+      } else {
+        // FORWARD: Save overrides to category config so NEW logs get correct category
+        console.log('[Settings] Forward mode: saving category overrides for new logs...');
+        setSyncStatus('success');
+        setSyncMessage('Settings saved');
+      }
+    } catch (err) {
+      console.error('[Settings] Save error:', err);
+      setSyncStatus('error');
+      setSyncMessage('Save failed: ' + (err as Error).message);
+    }
+    
+    // Notify parent component immediately
+    try {
+      if (typeof onCategoryOverridesChange === 'function') {
+        onCategoryOverridesChange(appCategoryOverrides);
+      }
+    } catch (e) {
+      console.error('[Settings] Error notifying parent:', e);
+    }
+    
+    // Also trigger data reload via onReloadData
+    try {
+      if (typeof onReloadData === 'function') {
+        onReloadData();
+      }
+    } catch (e) {
+      console.error('[Settings] Error reloading data:', e);
+    }
+    
     setHasChanges(false);
     onHasChangesChange(false);
   };
