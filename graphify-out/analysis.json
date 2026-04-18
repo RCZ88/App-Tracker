@@ -1,0 +1,277 @@
+{
+  "communities": {
+    "0": [
+      "app",
+      "app_cleancorrupteddata",
+      "app_cleardata",
+      "app_cleartoday",
+      "app_exportdata",
+      "app_formatduration",
+      "app_formattime",
+      "app_generateaisummary",
+      "app_generatedistinctcolors",
+      "app_getappdistribution",
+      "app_getheatcolor",
+      "app_gettotaltime",
+      "app_handleactivity",
+      "app_handlefocus",
+      "app_handlestorage",
+      "app_handlevisibilitychange",
+      "app_hsltohex",
+      "app_loaddata",
+      "app_loaddbtables",
+      "app_loadoverrides",
+      "app_reloadoverrides",
+      "app_switchapp",
+      "app_toggletracking",
+      "ideprojectspage",
+      "ideprojectspage_ideprojectspage",
+      "statspage",
+      "statspage_formatduration",
+      "statspage_statspage"
+    ],
+    "1": [
+      "orbitsystem",
+      "orbitsystem_adjustcolor",
+      "orbitsystem_animatecamera",
+      "orbitsystem_computeplanets",
+      "orbitsystem_focusonplanet",
+      "orbitsystem_for",
+      "orbitsystem_fpscounter",
+      "orbitsystem_galaxydustcloud",
+      "orbitsystem_getcategorycolor",
+      "orbitsystem_getdistinctcolor",
+      "orbitsystem_getsystemposition",
+      "orbitsystem_glcleanup",
+      "orbitsystem_handlecategoryselect",
+      "orbitsystem_handleclosesystem",
+      "orbitsystem_handleentersystem",
+      "orbitsystem_handleinteractionend",
+      "orbitsystem_handleinteractionstart",
+      "orbitsystem_handleplanetclick",
+      "orbitsystem_handleplanetpositionupdate",
+      "orbitsystem_handlerefreshtextures",
+      "orbitsystem_handleselectsystem",
+      "orbitsystem_handlezoomout",
+      "orbitsystem_hashstring",
+      "orbitsystem_hextorgb",
+      "orbitsystem_resetcameratogalaxy",
+      "orbitsystem_seededrandom",
+      "orbitsystem_setstoredanimationspeed"
+    ],
+    "2": [
+      "main",
+      "main_addide",
+      "main_createtray",
+      "main_createwindow",
+      "main_execasync",
+      "main_execpromise",
+      "main_execsyncsafe",
+      "main_expandpath",
+      "main_findexe",
+      "main_getbrowsercategorystats",
+      "main_getbrowserdomainstats",
+      "main_getbrowserlogs",
+      "main_getlogs",
+      "main_getstats",
+      "main_haschatssubdir",
+      "main_initializestorage",
+      "main_loadpreferences",
+      "main_pathexists",
+      "main_savepreferences",
+      "main_scanprojecttools",
+      "main_stopbrowsersessionflushtimer",
+      "main_updateallaggregates"
+    ],
+    "3": [
+      "background",
+      "background_checkbrowserfocus",
+      "background_extractdomain",
+      "background_healthcheck",
+      "background_loadstate",
+      "background_logprevioussession",
+      "background_onstartup",
+      "background_periodicsync",
+      "background_sanitizeurl",
+      "background_savestate",
+      "background_sendtodeskflow",
+      "background_shouldexclude",
+      "background_startfocuscheckpolling",
+      "background_updateactivetab"
+    ],
+    "4": [
+      "complete",
+      "complete_beep",
+      "complete_main",
+      "complete_rationale_16",
+      "complete_rationale_43",
+      "complete_speak"
+    ],
+    "5": [
+      "graphify_maintain",
+      "graphify_maintain_rationale_120",
+      "graphify_maintain_rationale_209",
+      "graphify_maintain_rebuild_code_fix",
+      "graphify_maintain_sync_to_vault",
+      "graphify_maintain_validate_report"
+    ],
+    "6": [
+      "productivitypage",
+      "productivitypage_filteritems",
+      "productivitypage_formatduration",
+      "productivitypage_formathours",
+      "productivitypage_getcategorycolor",
+      "productivitypage_toggledomain"
+    ],
+    "7": [
+      "main_categorizeapp",
+      "main_categorizedomain",
+      "main_loadcategoryconfig",
+      "main_pollforeground",
+      "main_savecategoryconfig"
+    ],
+    "8": [
+      "browseractivitypage",
+      "browseractivitypage_formatduration",
+      "browseractivitypage_handlecategorychange",
+      "browseractivitypage_starteditcategory",
+      "browseractivitypage_toggleexpanded"
+    ],
+    "9": [
+      "settingspage",
+      "settingspage_activeid",
+      "settingspage_async",
+      "settingspage_colorpicker",
+      "settingspage_fetchdomainstats"
+    ],
+    "10": [
+      "main_addlog",
+      "main_handlebrowserdata",
+      "main_savejsonlogs",
+      "main_updateaggregates"
+    ],
+    "11": [
+      "databasepage",
+      "databasepage_databasepage",
+      "databasepage_formatcellvalue",
+      "databasepage_formatduration"
+    ],
+    "12": [
+      "main_calculatecost",
+      "main_getmodelpricing",
+      "main_syncallaiagents"
+    ],
+    "13": [
+      "graphify_pipeline",
+      "graphify_pipeline_rationale_1"
+    ],
+    "14": [
+      "main_calculateproductivityscore",
+      "main_gettierforcategory"
+    ],
+    "15": [
+      "main_startbrowsersessionflushtimer",
+      "main_startbrowsertrackingserver"
+    ],
+    "16": [
+      "preload",
+      "preload_handler"
+    ],
+    "17": [
+      "electron_vite_config"
+    ],
+    "18": [
+      "eslint_config"
+    ],
+    "19": [
+      "vite_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.07,
+    "1": 0.09,
+    "2": 0.09,
+    "3": 0.34,
+    "4": 0.47,
+    "5": 0.33,
+    "6": 0.33,
+    "7": 0.4,
+    "8": 0.4,
+    "9": 0.4,
+    "10": 0.67,
+    "11": 0.67,
+    "12": 0.67,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0
+  },
+  "gods": [
+    {
+      "id": "background_updateactivetab",
+      "label": "updateActiveTab()",
+      "edges": 7
+    },
+    {
+      "id": "background_onstartup",
+      "label": "onStartup()",
+      "edges": 7
+    },
+    {
+      "id": "background_savestate",
+      "label": "saveState()",
+      "edges": 6
+    },
+    {
+      "id": "background_logprevioussession",
+      "label": "logPreviousSession()",
+      "edges": 5
+    },
+    {
+      "id": "background_sanitizeurl",
+      "label": "sanitizeUrl()",
+      "edges": 4
+    },
+    {
+      "id": "background_periodicsync",
+      "label": "periodicSync()",
+      "edges": 4
+    },
+    {
+      "id": "main_savecategoryconfig",
+      "label": "saveCategoryConfig()",
+      "edges": 4
+    },
+    {
+      "id": "main_addlog",
+      "label": "addLog()",
+      "edges": 4
+    },
+    {
+      "id": "main_handlebrowserdata",
+      "label": "handleBrowserData()",
+      "edges": 4
+    },
+    {
+      "id": "complete_beep",
+      "label": "beep()",
+      "edges": 3
+    }
+  ],
+  "surprises": [
+    {
+      "source": "pollForeground()",
+      "target": "addLog()",
+      "source_files": [
+        "src\\main.ts",
+        "src\\main.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "note": "Bridges community 10 \u2192 community 7"
+    }
+  ]
+}

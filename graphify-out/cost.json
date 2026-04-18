@@ -1,0 +1,53 @@
+{
+  "runs": [
+    {
+      "date": "2026-04-17T01:18:47.781158+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": {
+        "code": [],
+        "document": [
+          "agent\\agents.md",
+          "agent\\constraints.md",
+          "agent\\context.md",
+          "agent\\data.md",
+          "agent\\debugging.md",
+          "agent\\exact-bug.md",
+          "agent\\glossary.md",
+          "agent\\patterns.md",
+          "agent\\PROBLEMS.md",
+          "agent\\prompt.md",
+          "agent\\prompts.md",
+          "agent\\quick-prompt.md",
+          "agent\\qwen.md",
+          "agent\\README.md",
+          "agent\\RESTORE_PROMPT.md",
+          "agent\\ROOT-CAUSE.md",
+          "agent\\skills.md",
+          "agent\\state.md",
+          "agent\\transfer-prompt.md"
+        ],
+        "paper": [],
+        "image": [
+          "agent\\playwright\\applications-fixed.png",
+          "agent\\playwright\\categories-with-drag.png",
+          "agent\\playwright\\colors-after-change.png",
+          "agent\\playwright\\colors-tab-detail.png",
+          "agent\\playwright\\colors-tab-no-change.png",
+          "agent\\playwright\\current-page.png",
+          "agent\\playwright\\general-tab-with-save.png",
+          "agent\\playwright\\productivity-error.png",
+          "agent\\playwright\\productivity-fixed.png",
+          "agent\\playwright\\productivity-full.png",
+          "agent\\playwright\\productivity-page.png",
+          "agent\\playwright\\settings-apps-tab.png",
+          "agent\\playwright\\settings-categories-tab.png",
+          "agent\\playwright\\settings-colors-tab.png",
+          "agent\\playwright\\settings-general-tab.png"
+        ]
+      }
+    }
+  ],
+  "total_input_tokens": 0,
+  "total_output_tokens": 0
+}

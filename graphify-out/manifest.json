@@ -1,0 +1,20 @@
+{
+  "complete.py": 1775998364.7316508,
+  "electron.vite.config.ts": 1775065592.7392416,
+  "eslint.config.js": 1775034391.2093718,
+  "vite.config.ts": 1776535594.531164,
+  "agent\\docs\\graphify\\graphify-pipeline.py": 1776408537.6155658,
+  "agent\\skills\\maintain-context\\graphify_maintain.py": 1776523320.9388125,
+  "browser-extension\\background.js": 1775756203.328049,
+  "src\\App.tsx": 1776539970.7439795,
+  "src\\main.ts": 1776533815.32629,
+  "src\\main.tsx": 1776533815.3283174,
+  "src\\preload.ts": 1776533815.3369863,
+  "src\\components\\OrbitSystem.tsx": 1776533815.3252895,
+  "src\\pages\\BrowserActivityPage.tsx": 1776533815.329991,
+  "src\\pages\\DatabasePage.tsx": 1776225252.6669252,
+  "src\\pages\\IDEProjectsPage.tsx": 1776534762.1815224,
+  "src\\pages\\ProductivityPage.tsx": 1776541373.8599029,
+  "src\\pages\\SettingsPage.tsx": 1776540948.9273639,
+  "src\\pages\\StatsPage.tsx": 1776538927.9636412
+}

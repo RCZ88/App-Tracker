@@ -1,0 +1,20 @@
+{
+  "0": "App State Management",
+  "1": "OrbitSystem Visualization",
+  "2": "Electron Main Process",
+  "3": "Browser Extension Background",
+  "4": "Notification System",
+  "5": "Category Management",
+  "6": "Browser Activity Page",
+  "7": "Settings Page",
+  "8": "Data Logging and Aggregation",
+  "9": "Database Page",
+  "10": "AI Pricing Integration",
+  "11": "Graphify Pipeline",
+  "12": "Browser Tracking Server",
+  "13": "Productivity Scoring",
+  "14": "Vite Config",
+  "15": "ESLint Config",
+  "16": "Build Configuration",
+  "17": "Preload Bridge"
+}
