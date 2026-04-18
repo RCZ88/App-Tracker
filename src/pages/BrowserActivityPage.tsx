@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Globe, BarChart3, Clock, TrendingUp, AlertCircle, RefreshCw, X, ChevronRight, Activity } from 'lucide-react';
 import { Pie, Bar } from 'react-chartjs-2';
 import { format } from 'date-fns';
@@ -60,6 +59,9 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedDomainDetail, setSelectedDomainDetail] = useState<any>(null);
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  
+  // Ref to track if component is still mounted - prevents state updates after unmount
+  const isMountedRef = useRef(true);
 
   const toggleExpanded = (domain: string) => {
     setExpandedDomains(prev => {
@@ -97,10 +99,13 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
   }, [browserLogs]);
 
   const fetchData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     setLoading(true);
     setError(null);
     try {
       if (!window.deskflowAPI) {
+        if (!isMountedRef.current) return;
         setError('DeskFlow API not available');
         setLoading(false);
         return;
@@ -112,20 +117,28 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
         window.deskflowAPI!.getBrowserLogs(selectedPeriod)
       ]);
 
+      if (!isMountedRef.current) return;
       setDomainStats(domains || []);
       setCategoryStats(categories || []);
       setBrowserLogs(logs || []);
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('[BrowserActivity] Error fetching data:', err);
       setError(err.message || 'Failed to load browser data');
     } finally {
+      if (!isMountedRef.current) return;
       setLoading(false);
     }
   }, [selectedPeriod]);
 
   // Fetch data on mount and when period changes
   useEffect(() => {
+    isMountedRef.current = true;
     fetchData();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchData]);
 
   const handleCategoryChange = async (domain: string, category: string) => {
@@ -221,24 +234,20 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
 
   if (loading) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center justify-center h-96"
       >
         <div className="text-center">
           <RefreshCw className="mx-auto w-12 h-12 mb-4 text-zinc-500 animate-spin" />
           <div className="text-zinc-400">Loading browser activity...</div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center justify-center h-96"
       >
         <div className="text-center">
@@ -252,7 +261,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
             Retry
           </button>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
@@ -261,9 +270,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
   const totalSessions = domainStats.reduce((sum, d) => sum + d.sessions, 0);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="space-y-8"
     >
       {/* Header */}
@@ -358,11 +365,8 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
             {aggregatedLogs.slice(0, 6).map((item, idx) => {
               const isExpanded = expandedDomains.has(item.domain);
               return (
-                <motion.div
+                <div
                   key={item.domain}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.02 }}
                   className="bg-zinc-900/50 rounded-xl hover:bg-zinc-800/50 transition"
                 >
                   <div 
@@ -417,7 +421,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
                       </div>
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -436,11 +440,8 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {domainStats.map((d, i) => (
-              <motion.div
+              <div
                 key={d.domain}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
                 className="bg-zinc-900/50 rounded-2xl p-4 border border-zinc-800/50 hover:border-zinc-700 cursor-pointer transition"
                 onClick={() => setSelectedDomainDetail(d)}
               >
@@ -472,23 +473,19 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
                     <span className="font-mono text-emerald-400">{d.sessions}</span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}
       </div>
 
       {/* Domain Detail Modal */}
-      <AnimatePresence>
-        {selectedDomainDetail && (
+      {selectedDomainDetail && (
           <div
             className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 p-8"
             onClick={() => setSelectedDomainDetail(null)}
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            <div
               className="glass rounded-3xl p-8 w-full max-w-3xl max-h-[85vh] overflow-y-auto"
               onClick={e => e.stopPropagation()}
             >
@@ -531,10 +528,9 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

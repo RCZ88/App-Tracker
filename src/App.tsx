@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -8,13 +8,55 @@ import {
   Shield, ShieldAlert, ToggleLeft, ToggleRight, PieChart, CreditCard, Target,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
-import OrbitSystem from './components/OrbitSystem';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 import BrowserActivityPage from './pages/BrowserActivityPage';
 import ProductivityPage from './pages/ProductivityPage';
 import DatabasePage from './pages/DatabasePage';
 import IDEProjectsPage from './pages/IDEProjectsPage';
+
+// Lazy load OrbitSystem - it's heavy and should only load when needed
+const OrbitSystem = lazy(() => import('./components/OrbitSystem').then(module => ({ default: module.default })));
+
+interface ActivityLog {
+  id: number;
+  timestamp: Date;
+  app: string;
+  category: string;
+  duration: number;
+  title?: string;
+  project?: string;
+  is_browser_tracking?: boolean;
+}
+
+const OrbitSystemWrapper = memo(function OrbitSystemWrapper({
+  logs,
+  browserLogs,
+  appColors,
+  categoryOverrides,
+}: {
+  logs: ActivityLog[];
+  browserLogs: ActivityLog[];
+  appColors?: Record<string, string>;
+  categoryOverrides?: Record<string, string>;
+}) {
+  return (
+    <Suspense fallback={<div className="h-[600px] flex items-center justify-center"><div className="text-zinc-400">Loading 3D visualization...</div></div>}>
+      <OrbitSystem 
+        logs={logs} 
+        websiteLogs={browserLogs}
+        appColors={appColors}
+        categoryOverrides={categoryOverrides}
+      />
+    </Suspense>
+  );
+}, (prevProps, nextProps) => {
+  // Custom memoization: return true to skip re-render if props haven't changed
+  return prevProps.logs === nextProps.logs && 
+         prevProps.browserLogs === nextProps.browserLogs &&
+         prevProps.appColors === nextProps.appColors &&
+         prevProps.categoryOverrides === nextProps.categoryOverrides;
+});
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -81,6 +123,7 @@ declare global {
       updateCategoriesFromOverrides: (appOverrides: Record<string, string>, domainOverrides: Record<string, string>) => Promise<{ success: boolean; updatedCount: number; error?: string }>;
       // File operations
       saveFile: (options: { content: string; filename: string; fileType: string }) => Promise<{ success: boolean; path?: string; message?: string }>;
+      pickFolder: () => Promise<{ success: boolean; path: string | null }>;
       // IDE Projects
       detectIDEs: () => Promise<any[]>;
       getIDEs: () => Promise<any[]>;
@@ -88,14 +131,16 @@ declare global {
       scanTools: () => Promise<any[]>;
       getTools: (category?: string) => Promise<any[]>;
       getToolCategories: () => Promise<{ category: string }[]>;
-      addProject: (data: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string }) => Promise<{ success: boolean; id?: string; name?: string; message?: string }>;
+      addProject: (data: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string; defaultIde?: string }) => Promise<{ success: boolean; id?: string; name?: string; message?: string }>;
       getProjects: () => Promise<any[]>;
       getProjectTools: (projectId: string) => Promise<any[]>;
       removeProject: (projectId: string) => Promise<{ success: boolean }>;
+      openProject: (projectId: string, ideId?: string) => Promise<{ success: boolean; ide?: string; message?: string }>;
       getAIUsageSummary: (period?: string) => Promise<any>;
       getCommitStats: (projectId?: string, period?: string) => Promise<any>;
       getIDEProjectsOverview: () => Promise<any>;
       syncAIUsage: () => Promise<{ success: boolean; [key: string]: number | boolean | string }>;
+      onAISyncProgress: (callback: (data: any) => void) => () => void;
       debugAIAgents: () => Promise<Record<string, { detected: boolean; paths: string[] }>>;
       // Git & DORA Metrics
       syncCommits: (projectId: string, repoPath?: string) => Promise<{ success: boolean; count: number }>;
@@ -409,6 +454,7 @@ function App() {
 
   // Load category overrides from localStorage AND categoryConfig on mount
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
+  const [domainKeywordRules, setDomainKeywordRules] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     const loadOverrides = async () => {
@@ -428,6 +474,10 @@ function App() {
           const config = await window.deskflowAPI.getCategoryConfig();
           if (config?.appCategoryMap) {
             Object.assign(overrides, config.appCategoryMap);
+          }
+          // Load domain keyword rules
+          if (config?.domainKeywordRules) {
+            setDomainKeywordRules(config.domainKeywordRules);
           }
         } catch { /* ignore */ }
       }
@@ -557,6 +607,41 @@ function App() {
     return stats.sort((a, b) => b.total_ms - a.total_ms);
   }, [allLogs, categoryOverrides]);
 
+  // Compute ALL TIME website stats from browser logs (for Settings page)
+  const allTimeWebsiteStats = useMemo(() => {
+    // Group browser logs by domain
+    const grouped: Record<string, { total_ms: number; sessions: number; first_seen: string; last_seen: string; category: string; title?: string }> = {};
+    for (const log of browserLogs) {
+      const domain = log.domain || log.app; // domain is the website
+      const category = categoryOverrides[domain?.toLowerCase()] || log.category || 'Other';
+      if (!grouped[domain]) {
+        grouped[domain] = { 
+          total_ms: 0, 
+          sessions: 0, 
+          first_seen: log.timestamp.toISOString(), 
+          last_seen: log.timestamp.toISOString(), 
+          category,
+          title: log.title 
+        };
+      }
+      grouped[domain].total_ms += log.duration * 1000;
+      grouped[domain].sessions += 1;
+      if (log.timestamp.toISOString() < grouped[domain].first_seen) grouped[domain].first_seen = log.timestamp.toISOString();
+      if (log.timestamp.toISOString() > grouped[domain].last_seen) grouped[domain].last_seen = log.timestamp.toISOString();
+      if (log.title) grouped[domain].title = log.title;
+    }
+
+    // Convert to array
+    const stats = Object.entries(grouped).map(([domain, data]) => ({
+      app: domain, // Use 'app' field for consistency with UI
+      domain,
+      ...data,
+      avg_session_ms: data.sessions > 0 ? data.total_ms / data.sessions : 0
+    }));
+
+    return stats.sort((a, b) => b.total_ms - a.total_ms);
+  }, [browserLogs, categoryOverrides]);
+
   // NO separate logs loading - we filter allLogs locally for display
   // allLogs is set once on mount and never changes (preserves heatmap)
 
@@ -661,14 +746,15 @@ function App() {
     loadDbTables();
   }, []);
 
-  // Generate heatmap from ALL logs data
+  // Generate heatmap from ALL logs data + current active session
   // Supports week navigation via weekOffset (0 = current week, -1 = previous week, etc.)
   const heatmap = useMemo(() => {
     const now = new Date();
     
-    // Calculate the start of the target week based on weekOffset
+    // Calculate the start of the target week based on weekOffset (midnight Sunday)
     const currentWeekStart = new Date(now);
     currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+    currentWeekStart.setHours(0, 0, 0, 0);
     const targetWeekStart = new Date(currentWeekStart.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
     const targetWeekEnd = new Date(targetWeekStart.getTime() + (7 * 24 * 60 * 60 * 1000));
 
@@ -683,36 +769,41 @@ function App() {
       }
     }
 
-    // For each log, split its duration across the hours it spans
-    for (const log of allLogs) {
-      const sessionStart = new Date(log.timestamp).getTime();
-      const sessionEnd = sessionStart + (log.duration * 1000);
-
-      // Skip logs outside the target week
-      if (sessionStart < targetWeekStart || sessionStart >= targetWeekEnd) continue;
-
-      let currentMs = sessionStart;
-      while (currentMs < sessionEnd) {
-        const currentHour = new Date(currentMs).getHours();
+    // Helper to add a session's duration to the heatmap cells
+    const addSession = (startMs: number, durationSec: number) => {
+      const endMs = startMs + durationSec * 1000;
+      if (startMs >= targetWeekEnd || endMs < targetWeekStart) return;
+      let currentMs = startMs;
+      while (currentMs < endMs) {
         const currentDate = new Date(currentMs);
         const currentDay = currentDate.getDay();
+        const currentHour = currentDate.getHours();
         const hourStart = currentDate.getTime();
         const hourEnd = hourStart + 3600000;
-
         if (currentDate >= targetWeekStart && currentDate < targetWeekEnd) {
           const segmentStart = Math.max(currentMs, hourStart);
-          const segmentEnd = Math.min(sessionEnd, hourEnd);
+          const segmentEnd = Math.min(endMs, hourEnd);
           const segmentSeconds = Math.max(0, (segmentEnd - segmentStart) / 1000);
-
           if (segmentSeconds > 0) {
             const key = `${currentDay}-${currentHour}`;
             const currentValue = cellMap.get(key) || 0;
             cellMap.set(key, Math.min(currentValue + segmentSeconds, 3600));
           }
         }
-
         currentMs = hourEnd;
       }
+    };
+
+    // Add completed sessions from logs
+    for (const log of allLogs) {
+      const sessionStartMs = new Date(log.timestamp).getTime();
+      addSession(sessionStartMs, log.duration);
+    }
+
+    // Add the CURRENT active session (not yet logged to database)
+    if (isTracking && currentApp && elapsedTime > 0 && weekOffset === 0) {
+      const activeStartMs = sessionStart.getTime();
+      addSession(activeStartMs, elapsedTime);
     }
 
     // Convert map back to array
@@ -727,13 +818,14 @@ function App() {
     }
 
     return heatmapData;
-  }, [allLogs, weekOffset]);
+  }, [allLogs, weekOffset, isTracking, currentApp, elapsedTime, sessionStart]);
   
   // Get the date range label for the current heatmap week
   const heatmapWeekLabel = useMemo(() => {
     const now = new Date();
     const currentWeekStart = new Date(now);
     currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+    currentWeekStart.setHours(0, 0, 0, 0);
     const targetWeekStart = new Date(currentWeekStart.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
     const targetWeekEnd = new Date(targetWeekStart.getTime() + (6 * 24 * 60 * 60 * 1000));
     
@@ -788,14 +880,27 @@ function App() {
     return () => clearInterval(pollInterval);
   }, [autoDetect, isTracking, currentApp, elapsedTime, sessionStart]);
 
-  // Live tracking timer with idle detection
+  // Track mount status to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  // Use refs to track latest state values for the activity handler
+  const idleRef = useRef(isIdle);
+  const trackingRef = useRef(isTracking);
+  
+  // Update refs when state changes
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
+    idleRef.current = isIdle;
+    trackingRef.current = isTracking;
+  }, [isIdle, isTracking]);
+  
+  // Set up activity listeners - stable across renders, cleaned up on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    
     // Track actual user activity (mouse/keyboard) - ALWAYS active to detect return from idle
     const handleActivity = () => {
+      if (!isMountedRef.current) return;
       setLastActivity(Date.now());
-      if (isIdle) {
+      if (idleRef.current) {
         // Immediately resume tracking when user returns from idle
         console.log('[DeskFlow] Activity detected - resuming tracking');
         setIsIdle(false);
@@ -812,8 +917,52 @@ function App() {
     window.addEventListener('scroll', handleActivity);
     window.addEventListener('wheel', handleActivity);
 
+    // Also listen for window focus/visibility to catch user returning to app
+    const handleFocus = () => {
+      if (!isMountedRef.current) return;
+      if (idleRef.current) {
+        console.log('[DeskFlow] Window focused - resuming tracking');
+        setIsIdle(false);
+        setIsTracking(true);
+        setSessionStart(new Date());
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!isMountedRef.current) return;
+      if (document.visibilityState === 'visible' && idleRef.current) {
+        console.log('[DeskFlow] Window visible - resuming tracking');
+        setIsIdle(false);
+        setIsTracking(true);
+        setSessionStart(new Date());
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      // Cleanup: remove all activity listeners on unmount
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('mousedown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('wheel', handleActivity);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      isMountedRef.current = false;
+    };
+  }, []); // Empty deps - this runs once on mount and cleans up on unmount
+
+  // Live tracking timer with idle detection - separate from activity listeners
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
     if (isTracking) {
       interval = setInterval(() => {
+        if (!isMountedRef.current) return;
+        
         const now = Date.now();
 
         // Idle check: If no activity for (idleThreshold) minutes, pause
@@ -844,14 +993,8 @@ function App() {
     }
     return () => {
       clearInterval(interval);
-      // Don't remove activity listeners - we need them to detect return from idle
-      // window.removeEventListener('mousemove', handleActivity);
-      // window.removeEventListener('mousedown', handleActivity);
-      // window.removeEventListener('keydown', handleActivity);
-      // window.removeEventListener('touchstart', handleActivity);
-      // window.removeEventListener('scroll', handleActivity);
     };
-  }, [isTracking, lastActivity, elapsedTime, currentApp, sessionStart, idleThreshold, isIdle]);
+  }, [isTracking, lastActivity, elapsedTime, currentApp, sessionStart, idleThreshold]);
 
   // Switch app simulation
   const switchApp = (newApp: string) => {
@@ -965,7 +1108,7 @@ function App() {
         }));
         setAllLogs(formattedLogs);
         setLogs(formattedLogs);
-        console.log(`[DeskFlow] 🧹 Cleaned ${result.deletedCount} corrupted entries`);
+        console.log(`[DeskFlow] Cleaned ${result.deletedCount} corrupted entries`);
         alert(`Cleaned ${result.deletedCount} corrupted entries!`);
       } else {
         alert('No corrupted data found or cleanup failed.');
@@ -1159,9 +1302,9 @@ function App() {
     const topProject = logs.find(l => l.project)?.project || 'DeskFlow';
     const peakHour = '10:30 AM - 12:15 PM';
 
-    const summary = `📊 DeskFlow AI Analysis for ${format(new Date(), 'MMMM dd')}
+    const summary = `Stats DeskFlow AI Analysis for ${format(new Date(), 'MMMM dd')}
 
-🔥 Focus Summary: ${Math.floor(totalMin / 60)}h ${totalMin % 60}m tracked today
+Hot Focus Summary: ${Math.floor(totalMin / 60)}h ${totalMin % 60}m tracked today
    • Coding: ${codingPct}% (${codingTime}min) — Top Project: ${topProject}
    • AI Tools: ${aiPct}% (${aiTime}min) — Smart prompting on Claude & ChatGPT
    • Distractions: ${distPct}% — Minimal YouTube/Entertainment
@@ -1169,13 +1312,13 @@ function App() {
 ⏰ Peak Productivity Window: ${peakHour}
    You averaged 92% focus during this window.
 
-💡 Insights:
+Tip Insights:
    • 87% of IDE time spent on actual editing (vs. idle)
    • You completed 3 major tasks in PyCharm
    • Browser time was 68% productive (docs, GitHub)
    • Productivity Score: ${Math.floor(Math.random() * 15) + 83}/100
 
-📈 Trend: +14% vs. yesterday. Keep it up!`;
+Trend: +14% vs. yesterday. Keep it up!`;
 
     setAiSummary(summary);
     setShowSummary(true);
@@ -1505,12 +1648,12 @@ function App() {
                 {hoveredCell.value === 0
                   ? '⚪ No activity recorded'
                   : hoveredCell.value < 300
-                    ? '🟢 Light usage'
+                    ? 'Light Light usage'
                     : hoveredCell.value < 900
-                      ? '🟡 Moderate usage'
+                      ? 'Medium Moderate usage'
                       : hoveredCell.value < 2700
-                        ? '🟠 Heavy usage'
-                        : '🔥 Full hour'}
+                        ? 'Heavy Heavy usage'
+                        : 'Hot Full hour'}
               </div>
             </motion.div>
           )}
@@ -1649,7 +1792,7 @@ function App() {
 
         {/* Main Scroll Area */}
         <div className="flex-1 overflow-auto p-8">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             <Routes location={location} key={location.pathname}>
               {/* Dashboard */}
               <Route path="/" element={
@@ -1814,9 +1957,9 @@ function App() {
                     </div>
                     {vizMode === 'heatmap' ? renderHeatmap() : (
                       <div className="h-[600px] rounded-2xl overflow-hidden border border-zinc-800">
-                        <OrbitSystem 
+                        <OrbitSystemWrapper 
                           logs={filteredLogs.filter(l => !l.is_browser_tracking)}
-                          websiteLogs={browserLogs}
+                          browserLogs={browserLogs}
                           appColors={appColors}
                           categoryOverrides={categoryOverrides}
                         />
@@ -1828,19 +1971,19 @@ function App() {
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} />} />
               {/* Productivity Page */}
-              <Route path="/productivity" element={<ProductivityPage logs={logs} browserLogs={browserLogs} appStats={computedAppStats} selectedPeriod={selectedPeriod} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
+              <Route path="/productivity" element={<ProductivityPage logs={logs} browserLogs={browserLogs} appStats={computedAppStats} selectedPeriod={selectedPeriod} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} domainKeywordRules={domainKeywordRules} />} />
               {/* Browser Page */}
               <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} />} />
               {/* IDE Page */}
               <Route path="/ide" element={<IDEProjectsPage />} />
               {/* Reports/Insights Page */}
-              <Route path="/reports" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">🚧</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Insights and reports are coming soon</div></div></div>} />
+              <Route path="/reports" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Insights and reports are coming soon</div></div></div>} />
               {/* Database Page */}
               <Route path="/database" element={<DatabasePage />} />
               {/* Pricing Page */}
-              <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">🚧</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
+              <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
               {/* Settings Page */}
-              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} />} />
+              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} />} />
             </Routes>
           </AnimatePresence>
 

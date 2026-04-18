@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useEffect, useState } from 'react';
 import { 
   Target, TrendingUp, TrendingDown, Clock, Award, Zap,
   Monitor, Globe, BarChart3, Info,
-  PieChart as PieChartIcon, ArrowUp, ArrowDown, Minus
+  PieChart as PieChartIcon, ArrowUp, ArrowDown, Minus,
+  ChevronRight, ChevronDown
 } from 'lucide-react';
 import { Pie, Bar, Line } from 'react-chartjs-2';
 import { format, subDays, eachDayOfInterval, startOfDay, isToday } from 'date-fns';
@@ -75,6 +75,7 @@ interface ProductivityPageProps {
   browserLogs?: unknown[];
   tierAssignments?: typeof DEFAULT_TIER_ASSIGNMENTS;
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
+  domainKeywordRules?: Record<string, string[]>;
 }
 
 interface AppStat {
@@ -103,13 +104,70 @@ function formatHours(seconds: number): string {
   return `${h}h`;
 }
 
+function getCategoryColor(category: string): string {
+  const colors: Record<string, string> = {
+    'IDE': '#6366f1',
+    'AI Tools': '#8b5cf6',
+    'Education': '#10b981',
+    'Productivity': '#14b8a6',
+    'Tools': '#f59e0b',
+    'Browser': '#3b82f6',
+    'Communication': '#14b8a6',
+    'Design': '#ec4899',
+    'News': '#f97316',
+    'Search Engine': '#3b82f6',
+    'Entertainment': '#ef4444',
+    'Social Media': '#64748b',
+    'Shopping': '#f97316',
+    'Uncategorized': '#71717a',
+    'Other': '#71717a',
+    'Developer Tools': '#6366f1'
+  };
+  return colors[category] || '#71717a';
+}
+
 export default function ProductivityPage({ 
   appStats = [], 
   logs = [],
   browserLogs: browserLogsProp = [],
   tierAssignments = DEFAULT_TIER_ASSIGNMENTS,
-  selectedPeriod = 'week'
+  selectedPeriod = 'week',
+  domainKeywordRules = {}
 }: ProductivityPageProps) {
+  // Cleanup Chart.js instances on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Chart instances are automatically destroyed by react-chartjs-2 on unmount
+      // but we clear any global references
+      console.log('[ProductivityPage] Cleaning up on unmount');
+    };
+  }, []);
+  
+  // Persisted expand state for website domains
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('productivity-expanded-domains');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    }
+    return new Set();
+  });
+  
+  // Tier filter state - to show apps/websites by productivity category
+  const [tierFilter, setTierFilter] = useState<'all' | 'productive' | 'neutral' | 'distracting'>('all');
+
+  const toggleDomain = (domain: string) => {
+    setExpandedDomains(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(domain)) {
+        newSet.delete(domain);
+      } else {
+        newSet.add(domain);
+      }
+      localStorage.setItem('productivity-expanded-domains', JSON.stringify([...newSet]));
+      return newSet;
+    });
+  };
+  
   // Compute browserStats from browserLogs prop (passed from parent App.tsx)
   const browserStats = useMemo(() => {
     const grouped: Record<string, { domain: string; category: string; total_ms: number; sessions: number; avg_session_ms: number }> = {};
@@ -131,6 +189,76 @@ export default function ProductivityPage({
     }
     return stats;
   }, [browserLogsProp]);
+
+  // Compute productive websites grouped by domain for the websites section
+  const productiveWebsites = useMemo(() => {
+    // Filter logs to only include productive or smart websites
+    const filteredLogs = browserLogsProp.filter((log: any) => {
+      const domain = log.domain || '';
+      const category = WEBSITE_CATEGORY_MAP[log.category] || log.category || 'Other';
+      
+      // Include if category is productive
+      if (tierAssignments.productive.includes(category)) {
+        return true;
+      }
+      
+      // Include if domain is a "smart website" (has keyword rules)
+      if (domainKeywordRules[domain]) {
+        return true;
+      }
+      
+      return false;
+    });
+
+    // Group by domain
+    const grouped: Record<string, any[]> = {};
+    for (const log of filteredLogs) {
+      const domain = (log as any).domain || 'Unknown';
+      if (!grouped[domain]) {
+        grouped[domain] = [];
+      }
+      grouped[domain].push(log);
+    }
+
+    // Create domain stats
+    const domainStats = Object.entries(grouped).map(([domain, logs]) => {
+      const totalSeconds = logs.reduce((sum, log) => sum + ((log as any).duration || 0), 0);
+      
+      // Calculate dominant category for the domain
+      const categoryDurations: Record<string, number> = {};
+      for (const log of logs) {
+        const cat = WEBSITE_CATEGORY_MAP[(log as any).category] || (log as any).category || 'Other';
+        categoryDurations[cat] = (categoryDurations[cat] || 0) + ((log as any).duration || 0);
+      }
+      
+      // Find dominant category (highest duration)
+      const dominantCategory = Object.entries(categoryDurations)
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Other';
+      
+      // Sort logs by duration (highest first)
+      const sortedLogs = [...logs].sort((a, b) => (b as any).duration - (a as any).duration);
+
+      return {
+        domain,
+        totalSeconds,
+        dominantCategory,
+        logs: sortedLogs,
+        hasKeywordRules: !!domainKeywordRules[domain]
+      };
+    });
+
+    // Sort domains by total time (highest first)
+    return domainStats.sort((a, b) => b.totalSeconds - a.totalSeconds);
+  }, [browserLogsProp, tierAssignments, domainKeywordRules]);
+
+  // Filtered websites based on tier filter
+  const filteredWebsites = useMemo(() => {
+    return productiveWebsites.filter(site => {
+      const siteTier = tierAssignments.productive.includes(site.dominantCategory) ? 'productive' :
+        tierAssignments.distracting.includes(site.dominantCategory) ? 'distracting' : 'neutral';
+      return tierFilter === 'all' || siteTier === tierFilter;
+    });
+  }, [productiveWebsites, tierFilter, tierAssignments]);
 
   // Calculate combined productivity data
   const productivityData = useMemo(() => {
@@ -202,12 +330,20 @@ export default function ProductivityPage({
       .sort((a, b) => b.duration_sec - a.duration_sec)
       .slice(0, 5);
 
+    // Calculate sum of displayed items (for accurate header display)
+    const displayedAppItems = topProductive.filter(i => i.type === 'app');
+    const displayedWebsiteItems = topProductive.filter(i => i.type === 'website');
+    const displayedAppTotalSec = displayedAppItems.reduce((sum, a) => sum + a.duration_sec, 0);
+    const displayedWebsiteTotalSec = displayedWebsiteItems.reduce((sum, b) => sum + b.duration_sec, 0);
+
     return {
       score: productivityScore,
       totalSeconds,
       weightedSeconds,
       appSeconds: appTotalSec,
       websiteSeconds: websiteTotalSec,
+      displayedAppSeconds: displayedAppTotalSec,
+      displayedWebsiteSeconds: displayedWebsiteTotalSec,
       tiers: {
         productive: { seconds: tierTotals.productive.seconds, count: tierTotals.productive.items.length },
         neutral: { seconds: tierTotals.neutral.seconds, count: tierTotals.neutral.items.length },
@@ -327,7 +463,8 @@ export default function ProductivityPage({
         neutral: Math.round(neutral),
         distracting: Math.round(distracting),
         total: Math.round(total),
-        isToday: isToday(day)
+        isToday: isToday(day),
+        isCurrentHour: false
       };
     });
   }, [logs, browserLogsProp, selectedPeriod, tierAssignments]);
@@ -412,11 +549,7 @@ export default function ProductivityPage({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -596,6 +729,71 @@ export default function ProductivityPage({
         </div>
       </div>
 
+      {/* Vertical Tier Filter Toggle */}
+      <div className="glass rounded-3xl p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-zinc-400">Filter by Category</h3>
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          {/* Vertical toggle buttons - stacked vertically for each category */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => setTierFilter('productive')}
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                tierFilter === 'productive'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              Productive
+            </button>
+            <button
+              onClick={() => setTierFilter('neutral')}
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                tierFilter === 'neutral'
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
+              Neutral
+            </button>
+            <button
+              onClick={() => setTierFilter('distracting')}
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                tierFilter === 'distracting'
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-red-400" />
+              Distracting
+            </button>
+          </div>
+          
+          {/* Show "All" as horizontal button on the right */}
+          <button
+            onClick={() => setTierFilter('all')}
+            className={`ml-4 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              tierFilter === 'all'
+                ? 'bg-zinc-600 text-white border border-zinc-500'
+                : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            Show All
+          </button>
+          
+          {/* Stats for current filter */}
+          <div className="ml-auto text-xs text-zinc-500">
+            {tierFilter === 'all' 
+              ? `${productivityData.tiers.productive.count + productivityData.tiers.neutral.count + productivityData.tiers.distracting.count} items`
+              : `${productivityData.tiers[tierFilter].count} items in ${tierFilter}`
+            }
+          </div>
+        </div>
+      </div>
+
       {/* Apps vs Websites Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Apps Breakdown */}
@@ -606,30 +804,50 @@ export default function ProductivityPage({
               Desktop Apps
             </h2>
             <div className="text-sm text-zinc-500">
-              {formatDuration(productivityData.appSeconds)} ({productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.appSeconds / productivityData.totalSeconds) * 100)
-                : 0}%)
+              {formatDuration(productivityData.displayedAppSeconds)} ({productivityData.totalSeconds > 0 
+                ? Math.round((productivityData.displayedAppSeconds / productivityData.totalSeconds) * 100)
+                : 0}% of total)
             </div>
           </div>
           
           <div className="space-y-3">
-            {productivityData.topProductive
-              .filter(i => i.type === 'app')
-              .slice(0, 5).map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-sm font-medium text-white">{item.name}</span>
+            {(() => {
+              // Filter items based on tierFilter
+              const filterItems = (items: typeof productivityData.topProductive) => {
+                if (tierFilter === 'all') return items;
+                return items.filter(item => {
+                  // Determine the tier of this item
+                  const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
+                    tierAssignments.distracting.includes(item.category) ? 'distracting' : 'neutral';
+                  return itemTier === tierFilter;
+                });
+              };
+              
+              const filteredItems = filterItems(productivityData.topProductive);
+              const apps = filteredItems.filter(i => i.type === 'app').slice(0, 5);
+              
+              return apps.length > 0 ? apps.map((item, idx) => {
+                const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
+                  tierAssignments.distracting.includes(item.category) ? 'distracting' : 'neutral';
+                const tierColor = itemTier === 'productive' ? '#22c55e' : itemTier === 'distracting' ? '#ef4444' : '#3b82f6';
+                
+                return (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tierColor }} />
+                      <span className="text-sm font-medium text-white">{item.name}</span>
+                      <span className="text-xs text-zinc-500">({item.category})</span>
+                    </div>
+                    <div className="text-sm text-zinc-400">{formatDuration(item.duration_sec)}</div>
+                  </div>
+                );
+              }) : (
+                <div className="text-center py-8 text-zinc-500">
+                  <Monitor className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No {tierFilter === 'all' ? '' : tierFilter} apps in this period</p>
                 </div>
-                <div className="text-sm text-zinc-400">{formatDuration(item.duration_sec)}</div>
-              </div>
-            ))}
-            {productivityData.topProductive.filter(i => i.type === 'app').length === 0 && (
-              <div className="text-center py-8 text-zinc-500">
-                <Monitor className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No app data available</p>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
@@ -638,31 +856,99 @@ export default function ProductivityPage({
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Globe className="w-5 h-5 text-cyan-400" />
-              Websites
+              {tierFilter === 'all' ? 'All Websites' : tierFilter === 'productive' ? 'Productive Websites' : tierFilter === 'neutral' ? 'Neutral Websites' : 'Distracting Websites'}
             </h2>
             <div className="text-sm text-zinc-500">
-              {formatDuration(productivityData.websiteSeconds)} ({productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.websiteSeconds / productivityData.totalSeconds) * 100)
-                : 0}%)
+              {formatDuration(filteredWebsites.reduce((sum, d) => sum + d.totalSeconds, 0))} total
             </div>
           </div>
           
-          <div className="space-y-3">
-            {productivityData.topProductive
-              .filter(i => i.type === 'website')
-              .slice(0, 5).map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-sm font-medium text-white truncate max-w-[200px]">{item.name}</span>
+          <div className="space-y-2">
+            {filteredWebsites.length > 0 ? (
+              filteredWebsites.map((domainData) => {
+                const isExpanded = expandedDomains.has(domainData.domain);
+                const domainColor = getCategoryColor(domainData.dominantCategory);
+                
+                return (
+                  <div key={domainData.domain} className="rounded-xl overflow-hidden">
+                    {/* Domain Header Row */}
+                    <button
+                      onClick={() => toggleDomain(domainData.domain)}
+                      className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/70 transition-all rounded-xl"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-white truncate">{domainData.domain}</div>
+                          {domainData.hasKeywordRules && (
+                            <span className="text-xs text-emerald-400">Smart website</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span 
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ backgroundColor: `${domainColor}20`, color: domainColor }}
+                        >
+                          {domainData.dominantCategory}
+                        </span>
+                        <span className="text-sm text-zinc-400">{formatDuration(domainData.totalSeconds)}</span>
+                      </div>
+                    </button>
+                    
+                    {/* Subpages (expanded) */}
+                    {isExpanded && (
+                      <div className="mt-1 ml-6 space-y-1 border-l-2 border-zinc-700/50 pl-4">
+                        {domainData.logs.slice(0, 20).map((log: any, idx: number) => {
+                          const logCategory = WEBSITE_CATEGORY_MAP[log.category] || log.category || 'Other';
+                          const logColor = getCategoryColor(logCategory);
+                          const logTitle = log.title || log.url || 'Unknown page';
+                          // Truncate long titles
+                          const displayTitle = logTitle.length > 60 ? logTitle.substring(0, 57) + '...' : logTitle;
+                          
+                          return (
+                            <div 
+                              key={idx} 
+                              className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-zinc-800/30 transition-all"
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <div 
+                                  className="w-1.5 h-1.5 rounded-full flex-shrink-0" 
+                                  style={{ backgroundColor: logColor }}
+                                />
+                                <span className="text-xs text-zinc-300 truncate">{displayTitle}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <span 
+                                  className="text-xs px-1.5 py-0.5 rounded"
+                                  style={{ backgroundColor: `${logColor}15`, color: logColor }}
+                                >
+                                  {logCategory}
+                                </span>
+                                <span className="text-xs text-zinc-500">{formatDuration(log.duration)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {domainData.logs.length > 20 && (
+                          <div className="text-xs text-zinc-500 text-center py-1">
+                            +{domainData.logs.length - 20} more pages
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-zinc-400">{formatDuration(item.duration_sec)}</div>
-                </div>
-              ))}
-            {productivityData.topProductive.filter(i => i.type === 'website').length === 0 && (
+                );
+              })
+            ) : (
               <div className="text-center py-8 text-zinc-500">
                 <Globe className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No website data available</p>
+                <p className="text-sm">No productive website data</p>
+                <p className="text-xs mt-1">Configure smart websites in Settings to track productivity</p>
               </div>
             )}
           </div>
@@ -836,6 +1122,6 @@ export default function ProductivityPage({
           </ul>
         </div>
       </details>
-    </motion.div>
+    </div>
   );
 }

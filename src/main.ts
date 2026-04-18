@@ -187,15 +187,6 @@ function calculateCost(session: ParsedSession): number {
     return Math.round(cost * 10000) / 10000;
 }
 
-function extractTokensFromOpenCodeRow(row: any): { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number } {
-    return {
-        inputTokens: row.input_tokens || row.inputTokens || row.prompt_tokens || 0,
-        outputTokens: row.output_tokens || row.outputTokens || row.completion_tokens || 0,
-        cacheReadTokens: row.cache_read_tokens || row.cacheReadTokens,
-        cacheWriteTokens: row.cache_write_tokens || row.cacheWriteTokens,
-    };
-}
-
 // Claude Code Plugin
 const ClaudeCodePlugin: AIAgentPlugin = {
     id: 'claude-code',
@@ -204,15 +195,13 @@ const ClaudeCodePlugin: AIAgentPlugin = {
 
     async detect(): Promise<boolean> {
         const homedir = require('os').homedir();
-        const path = require('path');
-        const projectsPath = path.join(homedir, '.claude', 'projects');
+        const projectsPath = path_1.default.join(homedir, '.claude', 'projects');
         return fs_1.default.existsSync(projectsPath);
     },
 
     getStoragePaths(): string[] {
         const homedir = require('os').homedir();
-        const path = require('path');
-        return [path.join(homedir, '.claude', 'projects')];
+        return [path_1.default.join(homedir, '.claude', 'projects')];
     },
 
     async parse(filePath: string): Promise<ParsedSession[]> {
@@ -220,35 +209,82 @@ const ClaudeCodePlugin: AIAgentPlugin = {
         try {
             const content = fs_1.default.readFileSync(filePath, 'utf8');
             const lines = content.split('\n').filter(Boolean);
-            console.log(`[Claude Code] Parsing ${lines.length} lines from ${filePath}`);
+
+            let totalInput = 0;
+            let totalOutput = 0;
+            let totalCacheRead = 0;
+            let totalCacheWrite = 0;
+            let lastModel = '';
+            let sessionId = '';
+            let timestamp: Date | null = null;
 
             for (const line of lines) {
                 try {
                     const entry = JSON.parse(line);
-                    // Look for any usage data - be flexible
-                    const usage = entry.usage || entry.tokenUsage || entry.tokens;
-                    const inputTokens = usage?.input_tokens || usage?.input || entry.input_tokens || entry.prompt_tokens || 0;
-                    const outputTokens = usage?.output_tokens || usage?.output || entry.output_tokens || entry.completion_tokens || 0;
+
+                    if (!sessionId && entry.sessionId) sessionId = entry.sessionId;
+                    if (!timestamp && entry.timestamp) timestamp = new Date(entry.timestamp);
+                    if (!timestamp && entry.uuid) timestamp = new Date();
+
+                    const entryType = entry.type;
+                    let inputTokens = 0;
+                    let outputTokens = 0;
+                    let cacheRead = 0;
+                    let cacheWrite = 0;
+                    let model = '';
+
+                    if (entryType === 'assistant') {
+                        const message = entry.message || entry;
+                        const usage = message?.usage || message?.tokenUsage;
+                        if (usage) {
+                            inputTokens = usage.input_tokens || usage.inputTokens || 0;
+                            outputTokens = usage.output_tokens || usage.outputTokens || 0;
+                            cacheRead = usage.cache_read_input_tokens || usage.cacheReadTokens || 0;
+                            cacheWrite = usage.cache_creation_input_tokens || usage.cacheWriteTokens || 0;
+                        }
+                        if (message?.model) model = message.model;
+                    } else {
+                        const usage = entry.usage || entry.tokenUsage || entry.tokens;
+                        inputTokens = usage?.input_tokens || usage?.input || entry.input_tokens || entry.prompt_tokens || 0;
+                        outputTokens = usage?.output_tokens || usage?.output || entry.output_tokens || entry.completion_tokens || 0;
+                        cacheRead = usage?.cache_read_input_tokens || entry.cache_read_input_tokens || 0;
+                        cacheWrite = usage?.cache_creation_input_tokens || entry.cache_creation_input_tokens || 0;
+                        model = entry.model || entry.model_version || '';
+                    }
 
                     if (inputTokens > 0 || outputTokens > 0) {
-                        sessions.push({
-                            sessionId: entry.sessionId || entry.id || filePath,
-                            timestamp: new Date(entry.timestamp || entry.created_at || Date.now()),
-                            inputTokens,
-                            outputTokens,
-                            cacheReadTokens: entry.cache_read_input_tokens || entry.cacheReadTokens,
-                            cacheWriteTokens: entry.cache_creation_input_tokens || entry.cacheWriteTokens,
-                            model: entry.model || entry.model_version,
-                            provider: 'anthropic',
-                        });
-                        console.log(`[Claude Code] Found session: ${inputTokens} in / ${outputTokens} out`);
+                        totalInput += inputTokens;
+                        totalOutput += outputTokens;
+                        totalCacheRead += cacheRead;
+                        totalCacheWrite += cacheWrite;
+                        if (model && !lastModel) lastModel = model;
                     }
-                } catch (e) {}
+                } catch {}
             }
-            console.log(`[Claude Code] Total sessions found: ${sessions.length}`);
-        } catch (e) {
-            console.error(`[Claude Code] Parse error: ${e.message}`);
-        }
+
+            if (totalInput > 0 || totalOutput > 0) {
+                const homedir = require('os').homedir();
+                const projectsPrefix = path_1.default.join(homedir, '.claude', 'projects') + path_1.default.sep;
+                let projectPath: string | undefined;
+                if (filePath.startsWith(projectsPrefix)) {
+                    const relativePath = filePath.substring(projectsPrefix.length);
+                    const projectDir = relativePath.split(path_1.default.sep)[0];
+                    projectPath = projectDir;
+                }
+
+                sessions.push({
+                    sessionId: sessionId || path_1.default.basename(filePath, '.jsonl'),
+                    timestamp: timestamp || new Date(),
+                    inputTokens: totalInput,
+                    outputTokens: totalOutput,
+                    cacheReadTokens: totalCacheRead || undefined,
+                    cacheWriteTokens: totalCacheWrite || undefined,
+                    model: lastModel || undefined,
+                    provider: 'anthropic',
+                    projectPath,
+                });
+            }
+        } catch {}
         return sessions;
     },
 
@@ -280,25 +316,23 @@ const OpenCodePlugin: AIAgentPlugin = {
 
     async detect(): Promise<boolean> {
         const homedir = require('os').homedir();
-        const dbPath = require('path').join(homedir, '.local', 'share', 'opencode', 'opencode.db');
-        const storagePath = require('path').join(homedir, '.local', 'share', 'opencode', 'storage', 'message');
-        return fs_1.default.existsSync(dbPath) || fs_1.default.existsSync(storagePath);
+        const dbPath = path_1.default.join(homedir, '.local', 'share', 'opencode', 'opencode.db');
+        return fs_1.default.existsSync(dbPath);
     },
 
     getStoragePaths(): string[] {
         const homedir = require('os').homedir();
         return [
             path_1.default.join(homedir, '.local', 'share', 'opencode'),
+            path_1.default.join(homedir, '.local', 'share', 'opencode', 'storage', 'session_diff'),
         ];
     },
 
     async parse(filePath: string): Promise<ParsedSession[]> {
-        // Handle SQLite database
         if (filePath.endsWith('.db')) {
             return this.parseSQLite ? this.parseSQLite(filePath) : Promise.resolve([]);
         }
-        // Handle JSON files
-        return this.parseJson ? this.parseJson(filePath) : Promise.resolve([]);
+        return Promise.resolve([]);
     },
 
     async parseSQLite(dbPath: string): Promise<ParsedSession[]> {
@@ -307,27 +341,57 @@ const OpenCodePlugin: AIAgentPlugin = {
             const Database = require('better-sqlite3');
             const db = new Database(dbPath, { readonly: true });
 
-            // Try to find message/token tables
-            const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
-            const tableNames = tables.map(t => t.name);
+            const sessionRows = db.prepare("SELECT id, directory, title, time_created, time_updated FROM session").all() as any[];
+            const messageRows = db.prepare("SELECT session_id, data FROM message").all() as any[];
 
-            // Look for message tables
-            const messageTable = tableNames.find(t => t.toLowerCase().includes('message'));
-            if (messageTable) {
-                const messages = db.prepare(`SELECT * FROM ${messageTable} LIMIT 1000`).all() as any[];
+            const sessionMap = new Map<string, { directory?: string; title?: string; time_created?: number }>();
+            for (const s of sessionRows) {
+                sessionMap.set(s.id, { directory: s.directory, title: s.title, time_created: s.time_created });
+            }
 
-                for (const msg of messages) {
-                    // Try to find token usage in various columns
-                    const tokens = extractTokensFromOpenCodeRow(msg);
-                    if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
-                        sessions.push({
-                            sessionId: msg.id || msg.session_id || String(Date.now()),
-                            timestamp: new Date(msg.created_at || msg.timestamp || Date.now()),
-                            ...tokens,
-                            provider: 'openai',
-                        });
+            const grouped = new Map<string, { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; reasoningTokens: number; model?: string; provider?: string; cost: number; count: number }>();
+
+            for (const msg of messageRows) {
+                try {
+                    const data = typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data;
+                    if (!data || !data.tokens) continue;
+
+                    const tokens = data.tokens;
+                    if (!tokens.input && !tokens.output) continue;
+
+                    const sid = msg.session_id;
+                    if (!grouped.has(sid)) {
+                        grouped.set(sid, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, model: data.modelID, provider: data.providerID, cost: 0, count: 0 });
                     }
-                }
+                    const g = grouped.get(sid)!;
+                    g.inputTokens += tokens.input || 0;
+                    g.outputTokens += tokens.output || 0;
+                    g.cacheReadTokens += tokens.cache?.read || 0;
+                    g.cacheWriteTokens += tokens.cache?.write || 0;
+                    g.reasoningTokens += tokens.reasoning || 0;
+                    if (!g.model && data.modelID) g.model = data.modelID;
+                    if (!g.provider && data.providerID) g.provider = data.providerID;
+                    g.cost += data.cost || 0;
+                    g.count++;
+                } catch {}
+            }
+
+            for (const [sid, g] of grouped) {
+                if (g.inputTokens === 0 && g.outputTokens === 0) continue;
+                const sessionInfo = sessionMap.get(sid);
+                sessions.push({
+                    sessionId: sid,
+                    timestamp: sessionInfo?.time_created ? new Date(sessionInfo.time_created) : new Date(),
+                    inputTokens: g.inputTokens,
+                    outputTokens: g.outputTokens,
+                    cacheReadTokens: g.cacheReadTokens || undefined,
+                    cacheWriteTokens: g.cacheWriteTokens || undefined,
+                    reasoningTokens: g.reasoningTokens || undefined,
+                    model: g.model,
+                    provider: g.provider,
+                    durationMs: undefined,
+                    projectPath: sessionInfo?.directory,
+                });
             }
 
             db.close();
@@ -335,88 +399,13 @@ const OpenCodePlugin: AIAgentPlugin = {
         return sessions;
     },
 
-    async parseJson(filePath: string): Promise<ParsedSession[]> {
-        const sessions: ParsedSession[] = [];
-        try {
-            const content = fs_1.default.readFileSync(filePath, 'utf8');
-            console.log(`[OpenCode] Parsing ${filePath}`);
-
-            // Handle JSONL
-            if (filePath.endsWith('.jsonl')) {
-                const lines = content.split('\n').filter(Boolean);
-                for (const line of lines) {
-                    try {
-                        const entry = JSON.parse(line);
-                        const tokens = extractTokensFromOpenCodeRow(entry);
-                        if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
-                            sessions.push({
-                                sessionId: entry.id || entry.sessionId || String(Date.now()),
-                                timestamp: new Date(entry.timestamp || entry.created_at || Date.now()),
-                                ...tokens,
-                                model: entry.model || entry.model_version,
-                                provider: entry.provider || 'openai',
-                            });
-                        }
-                    } catch (e) {}
-                }
-            } else {
-                // Handle JSON array or object
-                try {
-                    const data = JSON.parse(content);
-                    const items = Array.isArray(data) ? data : [data];
-                    for (const item of items) {
-                        const tokens = extractTokensFromOpenCodeRow(item);
-                        if (tokens.inputTokens > 0 || tokens.outputTokens > 0) {
-                            sessions.push({
-                                sessionId: item.id || item.sessionId || String(Date.now()),
-                                timestamp: new Date(item.timestamp || item.created_at || Date.now()),
-                                ...tokens,
-                                model: item.model || item.model_version,
-                                provider: item.provider || 'openai',
-                            });
-                        }
-                    }
-                } catch {}
-            }
-            console.log(`[OpenCode] Found ${sessions.length} sessions in ${filePath}`);
-        } catch (e) {
-            console.error(`[OpenCode] Parse error: ${e.message}`);
-        }
-        return sessions;
-    },
-
     async parseDir(dirPath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
-            // Check for SQLite database
             const dbPath = path_1.default.join(dirPath, 'opencode.db');
             if (fs_1.default.existsSync(dbPath)) {
                 const fromDb = await this.parse(dbPath);
                 sessions.push(...fromDb);
-            }
-
-            // Check for message storage
-            const storagePath = path_1.default.join(dirPath, 'storage', 'message');
-            if (fs_1.default.existsSync(storagePath)) {
-                const files = fs_1.default.readdirSync(storagePath);
-                for (const file of files) {
-                    if (file.endsWith('.json') || file.endsWith('.jsonl')) {
-                        const fromFile = await this.parse(path_1.default.join(storagePath, file));
-                        sessions.push(...fromFile);
-                    }
-                }
-            }
-
-            // Check legacy storage
-            const legacyPath = path_1.default.join(dirPath, 'storage');
-            if (fs_1.default.existsSync(legacyPath)) {
-                const files = fs_1.default.readdirSync(legacyPath);
-                for (const file of files) {
-                    if (file.endsWith('.json') || file.endsWith('.jsonl')) {
-                        const fromLegacy = await this.parse(path_1.default.join(legacyPath, file));
-                        sessions.push(...fromLegacy);
-                    }
-                }
             }
         } catch {}
         return sessions;
@@ -431,13 +420,18 @@ const GeminiPlugin: AIAgentPlugin = {
 
     async detect(): Promise<boolean> {
         const homedir = require('os').homedir();
+        // Check both possible locations: tmp/ and history/
+        const tmpPath = path_1.default.join(homedir, '.gemini', 'tmp');
         const historyPath = path_1.default.join(homedir, '.gemini', 'history');
-        return fs_1.default.existsSync(historyPath);
+        return fs_1.default.existsSync(tmpPath) || fs_1.default.existsSync(historyPath);
     },
 
     getStoragePaths(): string[] {
         const homedir = require('os').homedir();
-        return [path_1.default.join(homedir, '.gemini', 'history')];
+        return [
+            path_1.default.join(homedir, '.gemini', 'tmp'),
+            path_1.default.join(homedir, '.gemini', 'history'),
+        ];
     },
 
     async parse(filePath: string): Promise<ParsedSession[]> {
@@ -450,18 +444,39 @@ const GeminiPlugin: AIAgentPlugin = {
                 for (const line of lines) {
                     try {
                         const entry = JSON.parse(line);
-                        if (entry.usage || entry.tokens || entry.tokenUsage) {
+                        const usage = entry.usage || entry.tokens || entry.tokenUsage;
+                        if (usage || entry.inputTokens || entry.outputTokens) {
                             sessions.push({
-                                sessionId: entry.id || String(Date.now()),
-                                timestamp: new Date(entry.timestamp || Date.now()),
-                                inputTokens: entry.input_token_count || entry.usage?.input_tokens || entry.tokens?.input || 0,
-                                outputTokens: entry.output_token_count || entry.usage?.output_tokens || entry.tokens?.output || 0,
-                                model: entry.model_version || entry.model,
+                                sessionId: entry.id || entry.sessionId || String(Date.now()),
+                                timestamp: new Date(entry.createdAt || entry.timestamp || Date.now()),
+                                inputTokens: entry.inputTokens || entry.input_token_count || usage?.inputTokens || usage?.input_tokens || 0,
+                                outputTokens: entry.outputTokens || entry.output_token_count || usage?.outputTokens || usage?.output_tokens || 0,
+                                model: entry.model || entry.modelName || 'gemini',
                                 provider: 'google',
                             });
                         }
                     } catch {}
                 }
+            } else if (filePath.endsWith('.json')) {
+                // Handle JSON files (session files)
+                try {
+                    const data = JSON.parse(content);
+                    if (data.messages && Array.isArray(data.messages)) {
+                        for (const msg of data.messages) {
+                            const usage = msg.usage || msg.tokens;
+                            if (usage && (usage.inputTokens || usage.outputTokens)) {
+                                sessions.push({
+                                    sessionId: data.id || String(Date.now()),
+                                    timestamp: new Date(data.createdAt || Date.now()),
+                                    inputTokens: usage.inputTokens || 0,
+                                    outputTokens: usage.outputTokens || 0,
+                                    model: data.model || 'gemini',
+                                    provider: 'google',
+                                });
+                            }
+                        }
+                    }
+                } catch {}
             }
         } catch {}
         return sessions;
@@ -470,11 +485,24 @@ const GeminiPlugin: AIAgentPlugin = {
     async parseDir(dirPath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
-            const files = fs_1.default.readdirSync(dirPath);
-            for (const file of files) {
-                if (file.endsWith('.json') || file.endsWith('.jsonl')) {
-                    const fromFile = await this.parse(path_1.default.join(dirPath, file));
-                    sessions.push(...fromFile);
+            if (!fs_1.default.existsSync(dirPath)) return sessions;
+            
+            // For .gemini/tmp/<project_hash>/chats/ structure
+            const subdirs = fs_1.default.readdirSync(dirPath);
+            for (const subdir of subdirs) {
+                const subdirPath = path_1.default.join(dirPath, subdir);
+                if (!fs_1.default.statSync(subdirPath).isDirectory()) continue;
+                
+                // Check for chats subdirectory
+                const chatsPath = path_1.default.join(subdirPath, 'chats');
+                if (fs_1.default.existsSync(chatsPath)) {
+                    const files = fs_1.default.readdirSync(chatsPath);
+                    for (const file of files) {
+                        if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+                            const fromFile = await this.parse(path_1.default.join(chatsPath, file));
+                            sessions.push(...fromFile);
+                        }
+                    }
                 }
             }
         } catch {}
@@ -490,35 +518,62 @@ const CodexPlugin: AIAgentPlugin = {
 
     async detect(): Promise<boolean> {
         const homedir = require('os').homedir();
-        const sessionsPath = path_1.default.join(homedir, '.codex', 'sessions');
-        return fs_1.default.existsSync(sessionsPath);
+        // Check multiple possible locations
+        const paths = [
+            path_1.default.join(homedir, '.codex'),
+            path_1.default.join(homedir, '.codex', 'sessions'),
+            path_1.default.join(homedir, '.codex', 'storage'),
+        ];
+        return paths.some(p => fs_1.default.existsSync(p));
     },
 
     getStoragePaths(): string[] {
         const homedir = require('os').homedir();
-        return [path_1.default.join(homedir, '.codex', 'sessions')];
+        return [
+            path_1.default.join(homedir, '.codex'),
+            path_1.default.join(homedir, '.codex', 'sessions'),
+            path_1.default.join(homedir, '.codex', 'storage'),
+        ];
     },
 
     async parse(filePath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
-            if (!filePath.endsWith('.jsonl')) return sessions;
+            if (!filePath.endsWith('.jsonl') && !filePath.endsWith('.json')) return sessions;
 
             const content = fs_1.default.readFileSync(filePath, 'utf8');
-            const lines = content.split('\n').filter(Boolean);
 
-            for (const line of lines) {
+            if (filePath.endsWith('.jsonl')) {
+                const lines = content.split('\n').filter(Boolean);
+                for (const line of lines) {
+                    try {
+                        const entry = JSON.parse(line);
+                        const usage = entry.usage || entry.tokens || entry.tokenUsage;
+                        if (usage || entry.inputTokens || entry.outputTokens) {
+                            sessions.push({
+                                sessionId: entry.id || entry.session_id || String(Date.now()),
+                                timestamp: new Date(entry.timestamp || entry.created_at || Date.now()),
+                                inputTokens: entry.input_tokens || entry.inputTokens || usage?.input || 0,
+                                outputTokens: entry.output_tokens || entry.outputTokens || usage?.output || 0,
+                                cacheReadTokens: entry.cached_tokens || entry.cache_read_tokens,
+                                model: entry.model || entry.model_name || 'codex',
+                                provider: 'openai',
+                            });
+                        }
+                    } catch {}
+                }
+            } else {
+                // Handle JSON session files
                 try {
-                    const entry = JSON.parse(line);
-                    if (entry.usage || entry.tokens) {
+                    const data = JSON.parse(content);
+                    const usage = data.usage || data.tokens;
+                    if (usage && (usage.input || usage.output || data.input_tokens || data.output_tokens)) {
                         sessions.push({
-                            sessionId: entry.id || String(Date.now()),
-                            timestamp: new Date(entry.timestamp || Date.now()),
-                            inputTokens: entry.input_tokens || entry.tokens?.input || 0,
-                            outputTokens: entry.output_tokens || entry.tokens?.output || 0,
-                            cacheReadTokens: entry.cached_token_count || entry.cache_read,
-                            reasoningTokens: entry.reasoning_token_count,
-                            model: entry.model,
+                            sessionId: data.id || String(Date.now()),
+                            timestamp: new Date(data.timestamp || data.created_at || Date.now()),
+                            inputTokens: data.input_tokens || usage?.input || 0,
+                            outputTokens: data.output_tokens || usage?.output || 0,
+                            model: data.model || 'codex',
                             provider: 'openai',
                         });
                     }
@@ -531,19 +586,24 @@ const CodexPlugin: AIAgentPlugin = {
     async parseDir(dirPath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
+            if (!fs_1.default.existsSync(dirPath)) return sessions;
+            
             const walkDir = async (dir: string) => {
                 const items = fs_1.default.readdirSync(dir);
                 for (const item of items) {
                     const fullPath = path_1.default.join(dir, item);
-                    const stat = fs_1.default.statSync(fullPath);
-                    if (stat.isDirectory()) {
-                        await walkDir(fullPath);
-                    } else if (item.endsWith('.jsonl')) {
-                        const parsed = await this.parse(fullPath);
-                        sessions.push(...parsed);
-                    }
+                    try {
+                        const stat = fs_1.default.statSync(fullPath);
+                        if (stat.isDirectory()) {
+                            await walkDir(fullPath);
+                        } else if (item.endsWith('.jsonl') || item.endsWith('.json')) {
+                            const parsed = await this.parse(fullPath);
+                            sessions.push(...parsed);
+                        }
+                    } catch {}
                 }
             };
+
             await walkDir(dirPath);
         } catch {}
         return sessions;
@@ -570,23 +630,57 @@ const QwenPlugin: AIAgentPlugin = {
     async parse(filePath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
+            if (!filePath.endsWith('.jsonl')) return sessions;
             const content = fs_1.default.readFileSync(filePath, 'utf8');
+            const lines = content.split('\n').filter(Boolean);
+            let sessionId = '';
+            let sessionTimestamp: Date | null = null;
+            let totalInputTokens = 0;
+            let totalOutputTokens = 0;
+            let totalCachedTokens = 0;
+            let totalThoughtsTokens = 0;
+            let model: string | undefined;
+            let projectPath: string | undefined;
 
-            if (filePath.endsWith('.jsonl')) {
-                const lines = content.split('\n').filter(Boolean);
-                for (const line of lines) {
-                    try {
-                        const entry = JSON.parse(line);
-                        sessions.push({
-                            sessionId: entry.id || String(Date.now()),
-                            timestamp: new Date(entry.timestamp || Date.now()),
-                            inputTokens: entry.tokens_in || entry.input_tokens || 0,
-                            outputTokens: entry.tokens_out || entry.output_tokens || 0,
-                            model: entry.model,
-                            provider: 'alibaba',
-                        });
-                    } catch {}
-                }
+            for (const line of lines) {
+                try {
+                    const entry = JSON.parse(line);
+                    if (!sessionId && entry.sessionId) sessionId = entry.sessionId;
+                    if (!sessionTimestamp && entry.timestamp) sessionTimestamp = new Date(entry.timestamp);
+                    if (!projectPath && entry.cwd) projectPath = entry.cwd;
+                    if (!model && entry.model) model = entry.model;
+
+                    if (entry.type === 'system' && entry.subtype === 'ui_telemetry') {
+                        const uiEvent = entry.systemPayload?.uiEvent;
+                        if (uiEvent) {
+                            totalInputTokens += uiEvent.input_token_count || 0;
+                            totalOutputTokens += uiEvent.output_token_count || 0;
+                            totalCachedTokens += uiEvent.cached_content_token_count || 0;
+                            totalThoughtsTokens += uiEvent.thoughts_token_count || 0;
+                            if (!model && uiEvent.model) model = uiEvent.model;
+                        }
+                    } else if (entry.type === 'assistant' && entry.usageMetadata) {
+                        const usage = entry.usageMetadata;
+                        totalInputTokens += usage.promptTokenCount || 0;
+                        totalOutputTokens += usage.candidatesTokenCount || 0;
+                        totalCachedTokens += usage.cachedContentTokenCount || 0;
+                        totalThoughtsTokens += usage.thoughtsTokenCount || 0;
+                    }
+                } catch {}
+            }
+
+            if (totalInputTokens > 0 || totalOutputTokens > 0) {
+                sessions.push({
+                    sessionId: sessionId || String(Date.now()),
+                    timestamp: sessionTimestamp || new Date(),
+                    inputTokens: totalInputTokens,
+                    outputTokens: totalOutputTokens,
+                    cacheReadTokens: totalCachedTokens || undefined,
+                    reasoningTokens: totalThoughtsTokens || undefined,
+                    model,
+                    provider: 'alibaba',
+                    projectPath,
+                });
             }
         } catch {}
         return sessions;
@@ -595,19 +689,18 @@ const QwenPlugin: AIAgentPlugin = {
     async parseDir(dirPath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
         try {
+            if (!fs_1.default.existsSync(dirPath)) return sessions;
             const projectDirs = fs_1.default.readdirSync(dirPath);
             for (const projectDir of projectDirs) {
                 const projectPath = path_1.default.join(dirPath, projectDir);
                 if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
-
-                const historyPath = path_1.default.join(projectPath, 'history');
-                if (fs_1.default.existsSync(historyPath)) {
-                    const files = fs_1.default.readdirSync(historyPath);
-                    for (const file of files) {
-                        if (file.endsWith('.json') || file.endsWith('.jsonl')) {
-                            const fromFile = await this.parse(path_1.default.join(historyPath, file));
-                            sessions.push(...fromFile);
-                        }
+                const chatsPath = path_1.default.join(projectPath, 'chats');
+                if (!fs_1.default.existsSync(chatsPath)) continue;
+                const files = fs_1.default.readdirSync(chatsPath);
+                for (const file of files) {
+                    if (file.endsWith('.jsonl')) {
+                        const fromFile = await this.parse(path_1.default.join(chatsPath, file));
+                        sessions.push(...fromFile);
                     }
                 }
             }
@@ -703,32 +796,69 @@ const CursorPlugin: AIAgentPlugin = {
             const Database = require('better-sqlite3');
             const cursorDb = new Database(filePath, { readonly: true });
 
-            // Try to read AI service data from ItemTable
-            const aiData = cursorDb.prepare("SELECT key, value FROM ItemTable WHERE key LIKE 'aiService.%'").all() as any[];
+            // Check if cursorDiskKV table exists (newer format)
+            const tableCheck = cursorDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cursorDiskKV'").all();
+            
+            if (tableCheck.length > 0) {
+                // New format: cursorDiskKV table
+                // Keys like: 'bubbleId:xxx', 'composerData:xxx', 'agentKv:xxx'
+                const bubbleData = cursorDb.prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'bubbleId:%'").all() as any[];
+                console.log(`[Cursor] Found ${bubbleData.length} bubble entries`);
 
-            for (const row of aiData) {
-                try {
-                    const value = JSON.parse(row.value);
-                    if (value && typeof value === 'object') {
-                        const inputTokens = value.inputTokens || value.input_tokens || value.promptTokens || 0;
-                        const outputTokens = value.outputTokens || value.output_tokens || value.completionTokens || 0;
+                for (const row of bubbleData) {
+                    try {
+                        const data = JSON.parse(row.value);
+                        // Token count is in data.tokenCount
+                        const tokenCount = data.tokenCount || data.usage;
+                        if (tokenCount) {
+                            const inputTokens = tokenCount.inputTokens || tokenCount.input_tokens || 0;
+                            const outputTokens = tokenCount.outputTokens || tokenCount.output_tokens || 0;
 
-                        if (inputTokens > 0 || outputTokens > 0) {
-                            sessions.push({
-                                sessionId: row.key || String(Date.now()),
-                                timestamp: new Date(),
-                                inputTokens,
-                                outputTokens,
-                                model: value.model || 'cursor',
-                                provider: 'cursor',
-                            });
+                            if (inputTokens > 0 || outputTokens > 0) {
+                                sessions.push({
+                                    sessionId: row.key,
+                                    timestamp: new Date(data.createdAt || Date.now()),
+                                    inputTokens,
+                                    outputTokens,
+                                    model: data.modelInfo?.modelName || data.model || 'claude-sonnet',
+                                    provider: 'anthropic',
+                                });
+                                console.log(`[Cursor] Found session: ${inputTokens} in / ${outputTokens} out`);
+                            }
                         }
-                    }
-                } catch {}
+                    } catch {}
+                }
+            } else {
+                // Fallback: Check ItemTable (older format)
+                const aiData = cursorDb.prepare("SELECT key, value FROM ItemTable WHERE key LIKE 'aiService.%'").all() as any[];
+
+                for (const row of aiData) {
+                    try {
+                        const value = JSON.parse(row.value);
+                        if (value && typeof value === 'object') {
+                            const inputTokens = value.inputTokens || value.input_tokens || value.promptTokens || 0;
+                            const outputTokens = value.outputTokens || value.output_tokens || value.completionTokens || 0;
+
+                            if (inputTokens > 0 || outputTokens > 0) {
+                                sessions.push({
+                                    sessionId: row.key || String(Date.now()),
+                                    timestamp: new Date(),
+                                    inputTokens,
+                                    outputTokens,
+                                    model: value.model || 'cursor',
+                                    provider: 'cursor',
+                                });
+                            }
+                        }
+                    } catch {}
+                }
             }
 
             cursorDb.close();
-        } catch {}
+            console.log(`[Cursor] Total sessions found: ${sessions.length}`);
+        } catch (e) {
+            console.error(`[Cursor] Parse error: ${e.message}`);
+        }
         return sessions;
     },
 
@@ -754,10 +884,18 @@ async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
 
     for (const plugin of AI_AGENT_PLUGINS) {
         try {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('ai-sync-progress', { agent: plugin.id, name: plugin.name, status: 'detecting' });
+            }
+
             const isDetected = await plugin.detect();
             console.log(`[DeskFlow] ${plugin.name} detected: ${isDetected}`);
 
             if (!isDetected) continue;
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('ai-sync-progress', { agent: plugin.id, name: plugin.name, status: 'parsing' });
+            }
 
             const paths = plugin.getStoragePaths();
             console.log(`[DeskFlow] ${plugin.name} paths:`, paths);
@@ -780,6 +918,10 @@ async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
                 }
 
                 console.log(`[DeskFlow] ${plugin.name} parsed ${sessions.length} sessions`);
+
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('ai-sync-progress', { agent: plugin.id, name: plugin.name, status: 'saving', count: sessions.length });
+                }
 
                 for (const session of sessions) {
                     const id = `${plugin.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -819,14 +961,38 @@ async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
     return results;
 }
 let categoryConfig = {
-    version: 1,
+    version: 2,
     appCategoryMap: {},
     domainCategoryMap: {},
     appTierMap: {},
     domainTierMap: {},
     tierAssignments: { ...DEFAULT_TIER_ASSIGNMENTS },
     detectedDomains: {},
-    detectedApps: {}
+    detectedApps: {},
+    // Keyword-based productivity rules per domain
+    domainKeywordRules: {},
+    // Per-domain default categories (when keywords don't match)
+    domainDefaultCategories: {}
+};
+
+// Default keyword rules for YouTube
+const DEFAULT_KEYWORD_RULES: Record<string, string[]> = {
+    'youtube.com': [
+        'tutorial', 'course', 'lecture', 'learn', 'class', 'university',
+        'physics', 'mathematics', 'chemistry', 'biology', 'science',
+        'programming', 'coding', 'javascript', 'python', 'typescript', 'react',
+        'algorithm', 'data structure', 'web development',
+        'crash course', 'lesson', 'study', 'exam', 'revision',
+        'masterclass', 'workshop', 'training', 'how to build', 'from scratch'
+    ]
+};
+
+// Default category when keywords don't match (per domain)
+const DEFAULT_DOMAIN_DEFAULTS: Record<string, string> = {
+    'youtube.com': 'Entertainment',
+    'reddit.com': 'Social Media',
+    'twitter.com': 'Social Media',
+    'x.com': 'Social Media'
 };
 function loadCategoryConfig() {
     try {
@@ -835,20 +1001,28 @@ function loadCategoryConfig() {
             const loaded = JSON.parse(data);
             categoryConfig = {
                 ...{
-                    version: 1,
+                    version: 2,
                     appCategoryMap: {},
                     domainCategoryMap: {},
                     appTierMap: {},
                     domainTierMap: {},
                     tierAssignments: { ...DEFAULT_TIER_ASSIGNMENTS },
                     detectedDomains: {},
-                    detectedApps: {}
+                    detectedApps: {},
+                    domainKeywordRules: {},
+                    domainDefaultCategories: {}
                 },
-                ...loaded
+                ...loaded,
+                // Ensure new fields exist even in old configs
+                domainKeywordRules: loaded?.domainKeywordRules || {},
+                domainDefaultCategories: loaded?.domainDefaultCategories || {}
             };
             console.log('[DeskFlow] ✅ Loaded category config');
         }
         else {
+            // Initialize with defaults on first run
+            categoryConfig.domainKeywordRules = { ...DEFAULT_KEYWORD_RULES };
+            categoryConfig.domainDefaultCategories = { ...DEFAULT_DOMAIN_DEFAULTS };
             saveCategoryConfig();
             console.log('[DeskFlow] ✅ Created default category config');
         }
@@ -856,14 +1030,16 @@ function loadCategoryConfig() {
     catch (err) {
         console.warn('[DeskFlow] Failed to load category config:', err);
         categoryConfig = {
-            version: 1,
+            version: 2,
             appCategoryMap: {},
             domainCategoryMap: {},
             appTierMap: {},
             domainTierMap: {},
             tierAssignments: { ...DEFAULT_TIER_ASSIGNMENTS },
             detectedDomains: {},
-            detectedApps: {}
+            detectedApps: {},
+            domainKeywordRules: { ...DEFAULT_KEYWORD_RULES },
+            domainDefaultCategories: { ...DEFAULT_DOMAIN_DEFAULTS }
         };
     }
 }
@@ -1061,6 +1237,7 @@ function initializeStorage() {
         repository_url TEXT,
         vcs_type TEXT,
         primary_language TEXT,
+        default_ide TEXT,
         added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_activity_at DATETIME
       )
@@ -1437,19 +1614,40 @@ function categorizeDomain(domain, title, url) {
     const titleLower = (title || '').toLowerCase();
     const urlLower = (url || '').toLowerCase();
     const combinedContext = `${titleLower} ${urlLower}`;
+    
     // Check excluded domains first
     if (browserExcludedDomains.some(excluded => lower.includes(excluded))) {
         return 'Excluded';
     }
-    // 1. Check user override
+    
+    // 1. Check user override (manual category assignment)
     if (categoryConfig.domainCategoryMap[lower]) {
         return categoryConfig.domainCategoryMap[lower];
     }
+    
     // 2. Check detected domains cache
     if (categoryConfig.detectedDomains[lower]) {
         return categoryConfig.detectedDomains[lower];
     }
-    // 3. Conservative smart detection for specific domains
+    
+    // 3. Use keyword-based productivity rules (configurable per domain)
+    for (const [domainPattern, keywords] of Object.entries(categoryConfig.domainKeywordRules || {})) {
+        if (lower.includes(domainPattern)) {
+            const keywordsArray = keywords as string[];
+            const isProductive = keywordsArray.some(keyword => 
+                combinedContext.includes(keyword.toLowerCase())
+            );
+            if (isProductive) {
+                return 'Education';
+            }
+            // Use domain's default category when keywords don't match
+            const defaultCategory = categoryConfig.domainDefaultCategories?.[domainPattern] || 
+                                   DEFAULT_DOMAIN_DEFAULTS[domainPattern] || 'Entertainment';
+            return defaultCategory;
+        }
+    }
+    
+    // 4. Fallback: legacy hardcoded rules for domains without keyword config
     // YouTube: CONSERVATIVE - default to Entertainment, only Education if VERY clear
     if (lower.includes('youtube')) {
         const strongEducationalKeywords = [
@@ -1496,7 +1694,7 @@ function categorizeDomain(domain, title, url) {
     if (lower.includes('bloomberg') || lower.includes('reuters') || lower.includes('wsj') || lower.includes('ft')) {
         return 'Productivity';
     }
-    // 4. Default domain-based categories
+    // 5. Default domain-based categories
     for (const [domainKey, category] of Object.entries(DEFAULT_DOMAIN_CATEGORIES)) {
         if (lower.includes(domainKey)) {
             categoryConfig.detectedDomains[lower] = category;
@@ -1504,7 +1702,7 @@ function categorizeDomain(domain, title, url) {
             return category;
         }
     }
-    // 5. Fall back to Uncategorized
+    // 6. Fall back to Uncategorized
     return 'Uncategorized';
 }
 // Real window polling using active-win
@@ -2073,6 +2271,65 @@ electron_1.ipcMain.handle('set-domain-tier', (event, domain, tier) => {
     saveCategoryConfig();
     return true;
 });
+
+// NEW: Set keyword rules for a domain (for keyword-based productivity categorization)
+electron_1.ipcMain.handle('set-domain-keyword-rules', (event, domain, keywords) => {
+    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywords;
+    saveCategoryConfig();
+    console.log(`[DeskFlow] Updated keyword rules for ${domain}:`, keywords);
+    return true;
+});
+
+// NEW: Get keyword rules for a domain
+electron_1.ipcMain.handle('get-domain-keyword-rules', (event, domain) => {
+    return categoryConfig.domainKeywordRules?.[domain.toLowerCase()] || 
+           DEFAULT_KEYWORD_RULES[domain.toLowerCase()] || [];
+});
+
+// NEW: Set default category for a domain (when keywords don't match)
+electron_1.ipcMain.handle('set-domain-default-category', (event, domain, category) => {
+    categoryConfig.domainDefaultCategories = categoryConfig.domainDefaultCategories || {};
+    categoryConfig.domainDefaultCategories[domain.toLowerCase()] = category;
+    saveCategoryConfig();
+    console.log(`[DeskFlow] Updated default category for ${domain}: ${category}`);
+    return true;
+});
+
+// NEW: Get default category for a domain
+electron_1.ipcMain.handle('get-domain-default-category', (event, domain) => {
+    return categoryConfig.domainDefaultCategories?.[domain.toLowerCase()] || 
+           DEFAULT_DOMAIN_DEFAULTS[domain.toLowerCase()] || 'Entertainment';
+});
+
+// NEW: Get all domains with keyword rules enabled
+electron_1.ipcMain.handle('get-keyword-enabled-domains', () => {
+    return Object.keys(categoryConfig.domainKeywordRules || {});
+});
+
+// NEW: Add a new domain to have keyword-based categorization
+electron_1.ipcMain.handle('add-keyword-domain', (event, domain, keywords, defaultCategory) => {
+    categoryConfig.domainKeywordRules = categoryConfig.domainKeywordRules || {};
+    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywords;
+    categoryConfig.domainDefaultCategories = categoryConfig.domainDefaultCategories || {};
+    categoryConfig.domainDefaultCategories[domain.toLowerCase()] = defaultCategory || 'Entertainment';
+    saveCategoryConfig();
+    console.log(`[DeskFlow] Added keyword domain: ${domain}`);
+    return true;
+});
+
+// NEW: Remove keyword rules for a domain (revert to default categorization)
+electron_1.ipcMain.handle('remove-keyword-domain', (event, domain) => {
+    if (categoryConfig.domainKeywordRules) {
+        delete categoryConfig.domainKeywordRules[domain.toLowerCase()];
+    }
+    if (categoryConfig.domainDefaultCategories) {
+        delete categoryConfig.domainDefaultCategories[domain.toLowerCase()];
+    }
+    saveCategoryConfig();
+    console.log(`[DeskFlow] Removed keyword domain: ${domain}`);
+    return true;
+});
+
 electron_1.ipcMain.handle('set-tier-assignments', (event, assignments) => {
     categoryConfig.tierAssignments = assignments;
     saveCategoryConfig();
@@ -2624,10 +2881,54 @@ electron_1.ipcMain.handle('deep-clean-and-rebuild', () => {
 
 // ========== IDE Projects IPC Handlers ==========
 
+// Async exec with timeout helper
+function execAsync(cmd: string, timeout = 5000): Promise<{ stdout: string; stderr: string } | null> {
+    return new Promise((resolve) => {
+        const { exec } = require('child_process');
+        const child = exec(cmd, { timeout }, (err: any, stdout: string, stderr: string) => {
+            if (err) resolve(null);
+            else resolve({ stdout: stdout.trim(), stderr: stderr.trim() });
+        });
+        setTimeout(() => {
+            child.kill();
+            resolve(null);
+        }, timeout);
+    });
+}
+
+// Expand environment variables in path
+function expandPath(p: string): string {
+    if (process.platform !== 'win32') return p;
+    const { execSync } = require('child_process');
+    try {
+        return execSync(`echo ${p}`, { encoding: 'utf8' }).trim();
+    } catch {
+        return p;
+    }
+}
+
+// Check if path exists (handles expanded env vars)
+function pathExists(p: string): boolean {
+    try {
+        return fs_1.default.existsSync(p);
+    } catch {
+        return false;
+    }
+}
+
 // Detect installed IDEs
 electron_1.ipcMain.handle('detect-ides', async () => {
     const { execSync } = require('child_process');
     const ides = [];
+    const idSet = new Set<string>();
+
+    // Helper to add IDE (avoid duplicates)
+    const addIde = (ide: { id: string; name: string; version: string; installPath: string }) => {
+        if (!idSet.has(ide.id)) {
+            idSet.add(ide.id);
+            ides.push(ide);
+        }
+    };
 
     // Detect VS Code
     try {
@@ -2640,70 +2941,299 @@ electron_1.ipcMain.handle('detect-ides', async () => {
             version = execSync('code --version 2>/dev/null', { encoding: 'utf8' }).trim().split('\n')[0];
         } catch {}
 
-        ides.push({
+        addIde({
             id: 'vscode',
             name: 'VS Code',
             version,
-            installPath: vscodePath,
-            detectedAt: new Date().toISOString()
+            installPath: vscodePath
         });
 
-        // Get VS Code extensions
-        try {
-            const extOutput = execSync('code --list-extensions', { encoding: 'utf8' });
-            const extensions = extOutput.trim().split('\n').filter(Boolean).map(ext => {
-                const [publisher, ...nameParts] = ext.split('.');
-                return {
-                    id: ext,
-                    ideId: 'vscode',
-                    publisher,
-                    name: nameParts.join('.'),
-                    enabled: true
-                };
-            });
+        // Get VS Code extensions (async, don't block)
+        setTimeout(() => {
+            try {
+                const extOutput = execSync('code --list-extensions 2>/dev/null', { encoding: 'utf8', timeout: 10000 });
+                const extensions = extOutput.trim().split('\n').filter(Boolean).map(ext => {
+                    const [publisher, ...nameParts] = ext.split('.');
+                    return {
+                        id: ext,
+                        ideId: 'vscode',
+                        publisher,
+                        name: nameParts.join('.'),
+                        enabled: true
+                    };
+                });
 
-            // Store extensions in DB
-            if (!useJson && db) {
-                for (const ext of extensions) {
-                    try {
-                        db.prepare(`
-                            INSERT OR REPLACE INTO extensions (id, ide_id, publisher, name, enabled)
-                            VALUES (?, ?, ?, ?, ?)
-                        `).run(ext.id, ext.ideId, ext.publisher, ext.name, ext.enabled ? 1 : 0);
-                    } catch {}
+                if (!useJson && db) {
+                    for (const ext of extensions) {
+                        try {
+                            db.prepare(`
+                                INSERT OR REPLACE INTO extensions (id, ide_id, publisher, name, enabled)
+                                VALUES (?, ?, ?, ?, ?)
+                            `).run(ext.id, ext.ideId, ext.publisher, ext.name, ext.enabled ? 1 : 0);
+                        } catch {}
+                    }
                 }
-            }
-        } catch {}
+            } catch {}
+        }, 0);
     } catch {}
 
     // Detect Cursor IDE
     const cursorPaths = process.platform === 'win32'
-        ? ['%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe', '%APPDATA%\\Cursor\\User']
+        ? [path_1.default.join(process.env.LOCALAPPDATA || '', 'Programs', 'cursor', 'Cursor.exe'),
+           path_1.default.join(process.env.APPDATA || '', 'Cursor')]
         : ['/Applications/Cursor.app', path_1.default.join(require('os').homedir(), 'Library/Application Support/Cursor')];
 
     for (const cursorPath of cursorPaths) {
-        try {
-            const expandedPath = process.platform === 'win32'
-                ? execSync(`echo ${cursorPath}`, { encoding: 'utf8' }).trim()
-                : cursorPath;
+        if (pathExists(cursorPath)) {
+            let version = '';
+            try {
+                version = execSync('cursor --version 2>/dev/null', { encoding: 'utf8', timeout: 3000 }).trim();
+            } catch {}
+            addIde({
+                id: 'cursor',
+                name: 'Cursor',
+                version,
+                installPath: cursorPath
+            });
+            break;
+        }
+    }
 
-            if (fs_1.default.existsSync(expandedPath)) {
+    // Detect JetBrains IDEs using 'where' command (like VS Code)
+    const jetbrainsCommands = [
+        { cmd: 'idea', name: 'IntelliJ IDEA', id: 'intellij' },
+        { cmd: 'idea64', name: 'IntelliJ IDEA', id: 'intellij' },
+        { cmd: 'pycharm', name: 'PyCharm', id: 'pycharm' },
+        { cmd: 'pycharm64', name: 'PyCharm', id: 'pycharm' },
+        { cmd: 'webstorm', name: 'WebStorm', id: 'webstorm' },
+        { cmd: 'webstorm64', name: 'WebStorm', id: 'webstorm' },
+        { cmd: 'goland', name: 'GoLand', id: 'goland' },
+        { cmd: 'goland64', name: 'GoLand', id: 'goland' },
+        { cmd: 'rider', name: 'Rider', id: 'rider' },
+        { cmd: 'rider64', name: 'Rider', id: 'rider' },
+    ];
+
+    for (const { cmd, name, id } of jetbrainsCommands) {
+        try {
+            const jetbrainsPath = process.platform === 'win32'
+                ? execSync(`where ${cmd} 2>nul`, { encoding: 'utf8' }).trim().split('\n')[0]
+                : execSync(`which ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
+            if (jetbrainsPath) {
                 let version = '';
                 try {
-                    version = execSync('cursor --version 2>/dev/null', { encoding: 'utf8' }).trim();
+                    version = execSync(`${cmd} --version 2>/dev/null`, { encoding: 'utf8', timeout: 3000 }).trim().split('\n')[0];
                 } catch {}
-
-                ides.push({
-                    id: 'cursor',
-                    name: 'Cursor',
+                addIde({
+                    id,
+                    name,
                     version,
-                    installPath: expandedPath,
-                    detectedAt: new Date().toISOString()
+                    installPath: jetbrainsPath
                 });
-                break;
             }
         } catch {}
     }
+
+    // Detect JetBrains IDEs via Toolbox (multiple formats supported)
+    const toolboxBase = path_1.default.join(process.env.APPDATA || '', 'JetBrains', 'Toolbox', 'apps');
+    if (pathExists(toolboxBase)) {
+        try {
+            const appDirs = fs_1.default.readdirSync(toolboxBase);
+            const jetbrainsMap: Record<string, { name: string; id: string; exe: string }> = {
+                'IDEA-U': { name: 'IntelliJ IDEA', id: 'intellij', exe: 'idea64.exe' },
+                'IDEA-CE': { name: 'IntelliJ IDEA Community', id: 'intellij-ce', exe: 'idea64.exe' },
+                'PyCharm-P': { name: 'PyCharm Professional', id: 'pycharm', exe: 'pycharm64.exe' },
+                'PyCharm-C': { name: 'PyCharm Community', id: 'pycharm-ce', exe: 'pycharm64.exe' },
+                'GoLand': { name: 'GoLand', id: 'goland', exe: 'goland64.exe' },
+                'WebStorm': { name: 'WebStorm', id: 'webstorm', exe: 'webstorm64.exe' },
+                'Rider': { name: 'Rider', id: 'rider', exe: 'rider64.exe' },
+                'AndroidStudio': { name: 'Android Studio', id: 'android-studio', exe: 'studio64.exe' },
+            };
+
+            for (const appDir of appDirs) {
+                const appPath = path_1.default.join(toolboxBase, appDir);
+                if (!fs_1.default.statSync(appPath).isDirectory()) continue;
+
+                const ideInfo = jetbrainsMap[appDir];
+                if (!ideInfo) continue;
+
+                let installPath = '';
+
+                // Try to find install location from various sources
+                try {
+                    const channels = fs_1.default.readdirSync(appPath);
+                    for (const channel of channels) {
+                        const channelPath = path_1.default.join(appPath, channel);
+                        if (!fs_1.default.statSync(channelPath).isDirectory()) continue;
+
+                        // Try .env.project (old format)
+                        const envProjectPath = path_1.default.join(channelPath, '.env.project');
+                        if (pathExists(envProjectPath)) {
+                            try {
+                                const envContent = fs_1.default.readFileSync(envProjectPath, 'utf8');
+                                const match = envContent.match(/IDE_INSTALL_LOCATION=(.+)/);
+                                if (match && match[1]) {
+                                    installPath = match[1].trim();
+                                    break;
+                                }
+                            } catch {}
+                        }
+
+                        // Try .env.vars (newer format)
+                        const envVarsPath = path_1.default.join(channelPath, '.env.vars');
+                        if (pathExists(envVarsPath)) {
+                            try {
+                                const envContent = fs_1.default.readFileSync(envVarsPath, 'utf8');
+                                const match = envContent.match(/IDE_INSTALL_LOCATION=(.+)/);
+                                if (match && match[1]) {
+                                    installPath = match[1].trim();
+                                    break;
+                                }
+                            } catch {}
+                        }
+
+                        // Try to find the IDE executable directly in subdirectories
+                        const findExe = (dir: string, depth = 0): string | null => {
+                            if (depth > 3) return null;
+                            try {
+                                const items = fs_1.default.readdirSync(dir);
+                                for (const item of items) {
+                                    const itemPath = path_1.default.join(dir, item);
+                                    const stat = fs_1.default.statSync(itemPath);
+                                    if (stat.isDirectory()) {
+                                        if (item.endsWith('.exe') || item === 'bin') {
+                                            const found = findExe(itemPath, depth + 1);
+                                            if (found) return found;
+                                        }
+                                    } else if (item === ideInfo.exe && itemPath.includes('bin')) {
+                                        return path_1.default.dirname(itemPath);
+                                    }
+                                }
+                            } catch {}
+                            return null;
+                        };
+
+                        const foundPath = findExe(channelPath);
+                        if (foundPath) {
+                            installPath = foundPath;
+                            break;
+                        }
+                    }
+                } catch {}
+
+                if (installPath && pathExists(installPath)) {
+                    let version = '';
+                    try {
+                        const productInfoPath = path_1.default.join(installPath, 'product-info.json');
+                        if (pathExists(productInfoPath)) {
+                            const productInfo = JSON.parse(fs_1.default.readFileSync(productInfoPath, 'utf8'));
+                            version = productInfo.version || '';
+                        }
+                    } catch {}
+                    addIde({
+                        id: ideInfo.id,
+                        name: ideInfo.name,
+                        version,
+                        installPath
+                    });
+                }
+            }
+        } catch {}
+    }
+
+    // Also detect JetBrains IDEs installed directly (not via Toolbox)
+    const directJetbrainsPaths = [
+        { base: path_1.default.join(process.env.LOCALAPPDATA || '', 'JetBrains'), exe: 'idea64.exe', name: 'IntelliJ IDEA', id: 'intellij' },
+        { base: path_1.default.join(process.env.LOCALAPPDATA || '', 'JetBrains'), exe: 'pycharm64.exe', name: 'PyCharm', id: 'pycharm' },
+        { base: path_1.default.join(process.env.LOCALAPPDATA || '', 'JetBrains'), exe: 'webstorm64.exe', name: 'WebStorm', id: 'webstorm' },
+        { base: path_1.default.join(process.env.LOCALAPPDATA || '', 'JetBrains'), exe: 'goland64.exe', name: 'GoLand', id: 'goland' },
+        { base: path_1.default.join(process.env.LOCALAPPDATA || '', 'JetBrains'), exe: 'rider64.exe', name: 'Rider', id: 'rider' },
+    ];
+
+    for (const { base, exe, name, id } of directJetbrainsPaths) {
+        try {
+            // Search in subdirectories of the base path
+            const searchDirs = fs_1.default.existsSync(base) ? fs_1.default.readdirSync(base) : [];
+            for (const dir of searchDirs) {
+                const candidatePath = path_1.default.join(base, dir, 'bin', exe);
+                if (pathExists(candidatePath)) {
+                    let version = '';
+                    try {
+                        version = execSync(`${path_1.default.join(base, dir, 'bin', exe.split('.')[0] + '.sh')} --version 2>/dev/null`, { encoding: 'utf8', timeout: 3000 }).trim().split('\n')[0];
+                    } catch {}
+                    addIde({
+                        id,
+                        name,
+                        version,
+                        installPath: path_1.default.dirname(candidatePath)
+                    });
+                    break;
+                }
+            }
+        } catch {}
+    }
+
+    // Detect Android Studio (standalone installation)
+    const androidPaths = process.platform === 'win32' ? [
+        path_1.default.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk'),
+        path_1.default.join(process.env.PROGRAMFILES || '', 'Android', 'Android Studio'),
+        path_1.default.join(process.env.LOCALAPPDATA || '', 'Programs', 'Android Studio'),
+    ] : ['/Applications/Android Studio.app'];
+
+    for (const androidPath of androidPaths) {
+        if (pathExists(androidPath)) {
+            // Verify it's actually Android Studio by checking for studio.exe or similar
+            const studioPath = process.platform === 'win32'
+                ? path_1.default.join(androidPath, 'bin', 'studio64.exe')
+                : path_1.default.join(androidPath, 'Contents', 'MacOS', 'studio');
+            if (pathExists(studioPath) || pathExists(androidPath)) {
+                addIde({
+                    id: 'android-studio',
+                    name: 'Android Studio',
+                    version: '',
+                    installPath: androidPath
+                });
+                break;
+            }
+        }
+    }
+
+    // Detect Google Antigravity IDE
+    const antigravityPaths = process.platform === 'win32' ? [
+        path_1.default.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity', 'Antigravity.exe'),
+        path_1.default.join(process.env.PROGRAMFILES || '', 'Google', 'Antigravity', 'Antigravity.exe'),
+        path_1.default.join(process.env.APPDATA || '', 'Antigravity'),
+    ] : ['/Applications/Antigravity.app', path_1.default.join(require('os').homedir(), '.antigravity')];
+
+    for (const agPath of antigravityPaths) {
+        if (pathExists(agPath)) {
+            let version = '';
+            try {
+                version = execSync('agy --version 2>/dev/null', { encoding: 'utf8', timeout: 3000 }).trim();
+            } catch {}
+            addIde({
+                id: 'antigravity',
+                name: 'Google Antigravity',
+                version,
+                installPath: agPath
+            });
+            break;
+        }
+    }
+
+    // Try to detect agy CLI directly
+    try {
+        const agyPath = process.platform === 'win32'
+            ? execSync('where agy 2>nul', { encoding: 'utf8' }).trim().split('\n')[0]
+            : execSync('which agy', { encoding: 'utf8' }).trim();
+        if (agyPath && !idSet.has('antigravity')) {
+            addIde({
+                id: 'antigravity',
+                name: 'Google Antigravity',
+                version: '',
+                installPath: agyPath
+            });
+        }
+    } catch {}
 
     // Store IDEs in DB
     if (!useJson && db) {
@@ -2744,13 +3274,34 @@ electron_1.ipcMain.handle('get-extensions', (event, ideId) => {
     }
 });
 
-// Scan for development tools
+// Scan for development tools (async with progress)
 electron_1.ipcMain.handle('scan-tools', async () => {
-    const { execSync } = require('child_process');
-    const tools = [];
+    const { exec } = require('child_process');
+    const tools: any[] = [];
+
+    const execPromise = (cmd: string, timeout = 3000): Promise<{ stdout: string } | null> => {
+        return new Promise((resolve) => {
+            const child = exec(cmd, { timeout }, (err: any, stdout: string) => {
+                resolve(err ? null : { stdout: stdout.trim() });
+            });
+            setTimeout(() => {
+                child.kill();
+                resolve(null);
+            }, timeout);
+        });
+    };
+
+    const execSyncSafe = (cmd: string, fallback: string = ''): string => {
+        try {
+            const { execSync } = require('child_process');
+            return execSync(cmd, { encoding: 'utf8', timeout: 3000 }).trim();
+        } catch {
+            return fallback;
+        }
+    };
 
     // Common development tools to detect
-    const TOOL_CATEGORIES = {
+    const TOOL_CATEGORIES: Record<string, string[]> = {
         versionControl: ['git', 'hg', 'svn'],
         runtimes: ['node', 'python', 'python3', 'ruby', 'go', 'java', 'rustc'],
         packageManagers: ['npm', 'yarn', 'pnpm', 'pip', 'pip3', 'cargo', 'brew', 'bundle'],
@@ -2761,48 +3312,69 @@ electron_1.ipcMain.handle('scan-tools', async () => {
     };
 
     const detectCommand = process.platform === 'win32' ? 'where' : 'which';
+    const allCmds = Object.entries(TOOL_CATEGORIES).flatMap(([cat, cmds]) => cmds.map(cmd => ({ cmd, category: cat })));
 
-    for (const [category, cmds] of Object.entries(TOOL_CATEGORIES)) {
-        for (const cmd of cmds) {
-            try {
-                const result = execSync(`${detectCommand} ${cmd} 2>nul`, { encoding: 'utf8' }).trim();
-                if (result) {
-                    let version = '';
-                    try {
-                        version = execSync(`${cmd} --version 2>nul`, { encoding: 'utf8' }).trim().split('\n')[0];
-                    } catch {}
+    // Run detection in batches to avoid overwhelming the system
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < allCmds.length; i += BATCH_SIZE) {
+        const batch = allCmds.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+            batch.map(({ cmd, category }) => execPromise(`${detectCommand} ${cmd} 2>nul`))
+        );
 
-                    tools.push({
-                        id: `${cmd}-${Date.now()}`,
-                        name: cmd,
-                        category,
-                        version: version || null,
-                        installPath: result.split('\n')[0],
-                        detectedAt: new Date().toISOString(),
-                        detectionMethod: 'path'
-                    });
-                }
-            } catch {}
+        for (let j = 0; j < batch.length; j++) {
+            const { cmd, category } = batch[j];
+            const result = results[j];
+            if (result && result.stdout) {
+                const version = execSyncSafe(`${cmd} --version 2>nul`).split('\n')[0] || '';
+                tools.push({
+                    id: `${cmd}-${Date.now()}`,
+                    name: cmd,
+                    category,
+                    version,
+                    installPath: result.stdout.split('\n')[0],
+                    detectedAt: new Date().toISOString(),
+                    detectionMethod: 'path'
+                });
+            }
         }
     }
 
-    // Detect npm global packages
-    try {
-        const npmOutput = execSync('npm list -g --depth=0 --json 2>nul', { encoding: 'utf8' });
-        const npmData = JSON.parse(npmOutput);
-        const globalDeps = npmData.dependencies || {};
-        for (const [name, info] of Object.entries(globalDeps)) {
-            tools.push({
-                id: `npm-${name}`,
-                name,
-                category: 'npm-package',
-                version: (info as any).version,
-                installPath: (info as any).path,
-                detectedAt: new Date().toISOString(),
-                detectionMethod: 'package-manager'
-            });
-        }
-    } catch {}
+    // Detect npm global packages (run in background, don't block)
+    setTimeout(() => {
+        try {
+            const { execSync } = require('child_process');
+            const npmOutput = execSync('npm list -g --depth=0 --json 2>nul', { encoding: 'utf8', timeout: 10000 });
+            const npmData = JSON.parse(npmOutput);
+            const globalDeps = npmData.dependencies || {};
+            for (const [name, info] of Object.entries(globalDeps)) {
+                const toolInfo = info as any;
+                tools.push({
+                    id: `npm-${name}-${Date.now()}`,
+                    name,
+                    category: 'npm-package',
+                    version: toolInfo.version || '',
+                    installPath: toolInfo.path || '',
+                    detectedAt: new Date().toISOString(),
+                    detectionMethod: 'package-manager'
+                });
+            }
+
+            // Store additional tools in DB
+            if (!useJson && db) {
+                for (const tool of tools) {
+                    if (tool.category === 'npm-package') {
+                        try {
+                            db.prepare(`
+                                INSERT OR REPLACE INTO tools (id, name, category, version, install_path, detected_at, detection_method)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            `).run(tool.id, tool.name, tool.category, tool.version, tool.installPath, tool.detectedAt, tool.detectionMethod);
+                        } catch {}
+                    }
+                }
+            }
+        } catch {}
+    }, 100);
 
     // Store tools in DB
     if (!useJson && db) {
@@ -2817,7 +3389,10 @@ electron_1.ipcMain.handle('scan-tools', async () => {
     }
 
     console.log('[DeskFlow] Tools scanned:', tools.length, 'detected');
-    return tools;
+    return {
+        tools,
+        message: `Found ${tools.length} tools`
+    };
 });
 
 // Get stored tools
@@ -2847,22 +3422,101 @@ electron_1.ipcMain.handle('get-tool-categories', () => {
 electron_1.ipcMain.handle('add-project', (event, projectData) => {
     if (useJson) return { success: false, message: 'Projects require SQLite' };
 
-    const { name, path, repositoryUrl, vcsType, primaryLanguage } = projectData;
+    const { name, path, repositoryUrl, vcsType, primaryLanguage, defaultIde } = projectData;
     const id = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     try {
         db.prepare(`
-            INSERT INTO projects (id, name, path, repository_url, vcs_type, primary_language, last_activity_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(id, name, path, repositoryUrl || null, vcsType || null, primaryLanguage || null, new Date().toISOString());
+            INSERT INTO projects (id, name, path, repository_url, vcs_type, primary_language, default_ide, last_activity_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(id, name, path, repositoryUrl || null, vcsType || null, primaryLanguage || null, defaultIde || null, new Date().toISOString());
 
         // Scan for project-specific tools
         scanProjectTools(id, path);
 
-        console.log('[DeskFlow] Project added:', name);
+        console.log('[DeskFlow] Project added:', name, 'with IDE:', defaultIde);
         return { success: true, id, name };
     } catch (err: any) {
         console.error('[DeskFlow] Failed to add project:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Open project in specified IDE
+electron_1.ipcMain.handle('open-project', async (event, projectId: string, ideId?: string) => {
+    if (useJson) return { success: false, message: 'Projects require SQLite' };
+
+    try {
+        const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+        if (!project) {
+            return { success: false, message: 'Project not found' };
+        }
+
+        // If no IDE specified, use project's default IDE
+        const targetIde = ideId || project.default_ide;
+
+        if (!targetIde) {
+            return { success: false, message: 'No IDE specified for this project' };
+        }
+
+        // Get IDE info
+        const ide = db.prepare('SELECT * FROM ides WHERE id = ?').get(targetIde) as any;
+        if (!ide) {
+            return { success: false, message: 'IDE not found' };
+        }
+
+        // Build open command based on IDE
+        const { exec } = require('child_process');
+        let command = '';
+
+        switch (ideId || project.default_ide) {
+            case 'vscode':
+                command = `code "${project.path}"`;
+                break;
+            case 'cursor':
+                command = `cursor "${project.path}"`;
+                break;
+            case 'intellij':
+            case 'intellij-ce':
+            case 'pycharm':
+            case 'pycharm-ce':
+            case 'goland':
+            case 'webstorm':
+            case 'rider':
+                // JetBrains IDEs use a generic launcher or the .exe path
+                if (ide.install_path && ide.install_path.includes('.exe')) {
+                    command = `"${ide.install_path}" "${project.path}"`;
+                } else {
+                    // Try using the JetBrains toolbox launcher
+                    command = `"${ide.install_path}" "${project.path}"`;
+                }
+                break;
+            case 'android-studio':
+                command = `"${ide.install_path}\\bin\\studio64.exe" "${project.path}"`;
+                break;
+            case 'antigravity':
+                command = `agy "${project.path}"`;
+                break;
+            default:
+                // Try using the IDE's install path directly
+                if (ide.install_path) {
+                    command = `"${ide.install_path}" "${project.path}"`;
+                } else {
+                    return { success: false, message: `No path configured for ${ide.name}` };
+                }
+        }
+
+        // Execute the open command
+        exec(command, (err: any) => {
+            if (err) {
+                console.error('[DeskFlow] Failed to open project:', err);
+            }
+        });
+
+        console.log('[DeskFlow] Opening project:', project.name, 'in', ide.name);
+        return { success: true, ide: ide.name };
+    } catch (err: any) {
+        console.error('[DeskFlow] Open project error:', err);
         return { success: false, message: err.message };
     }
 });
@@ -3078,6 +3732,26 @@ electron_1.ipcMain.handle('get-commit-stats', (event, projectId, period = 'week'
     }
 });
 
+// Open folder picker dialog
+electron_1.ipcMain.handle('pick-folder', async () => {
+    return new Promise((resolve) => {
+        const dialog = require('@electron/dialog');
+        dialog.showOpenDialog({
+            properties: ['openDirectory'],
+            title: 'Select Project Folder'
+        }).then((result: any) => {
+            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+                resolve({ success: false, path: null });
+            } else {
+                resolve({ success: true, path: result.filePaths[0] });
+            }
+        }).catch((err: any) => {
+            console.error('[DeskFlow] Folder picker error:', err);
+            resolve({ success: false, path: null });
+        });
+    });
+});
+
 // Get IDE Projects overview for dashboard
 electron_1.ipcMain.handle('get-ide-projects-overview', () => {
     if (useJson) {
@@ -3095,7 +3769,7 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
         const tools = db.prepare('SELECT * FROM tools ORDER BY category, name').all();
         const projects = db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC LIMIT 10').all();
         const aiUsage = db.prepare(`
-            SELECT tool, SUM(input_tokens + output_tokens) as tokens, SUM(cost_usd) as cost
+            SELECT tool, SUM(input_tokens + output_tokens) as tokens, SUM(cost_usd) as cost, COUNT(*) as session_count
             FROM ai_usage
             WHERE date >= date('now', '-30 days')
             GROUP BY tool
@@ -3111,7 +3785,7 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
         let totalCost = 0;
 
         for (const row of aiUsage) {
-            byTool[row.tool] = { tokens: row.tokens, cost: row.cost };
+            byTool[row.tool] = { tokens: row.tokens, cost: row.cost, sessions: row.session_count };
             totalTokens += row.tokens;
             totalCost += row.cost;
         }
@@ -3150,49 +3824,104 @@ electron_1.ipcMain.handle('sync-ai-usage', async () => {
 
 // Debug: Check which AI agents are detected
 electron_1.ipcMain.handle('debug-ai-agents', async () => {
-    const agentStatus: Record<string, { detected: boolean; paths: string[]; sampleFiles?: string[] }> = {};
+    const agentStatus: Record<string, { detected: boolean; paths: string[]; sampleFiles?: string[]; totalFiles?: number }> = {};
 
     for (const plugin of AI_AGENT_PLUGINS) {
         try {
             const isDetected = await plugin.detect();
             const paths = plugin.getStoragePaths();
             const sampleFiles: string[] = [];
+            let totalFiles = 0;
 
-            // Check if paths exist and list some files
             for (const p of paths) {
-                if (fs_1.default.existsSync(p)) {
-                    if (fs_1.default.statSync(p).isDirectory()) {
-                        try {
-                            const files = fs_1.default.readdirSync(p).slice(0, 5);
-                            for (const f of files) {
-                                const fullPath = path_1.default.join(p, f);
-                                const stat = fs_1.default.statSync(fullPath);
-                                if (stat.isFile()) {
-                                    sampleFiles.push(f);
-                                } else if (stat.isDirectory()) {
-                                    sampleFiles.push(`${f}/ (dir)`);
-                                    try {
-                                        const subFiles = fs_1.default.readdirSync(fullPath).slice(0, 3);
-                                        for (const sf of subFiles) {
-                                            sampleFiles.push(`  └── ${sf}`);
-                                        }
-                                    } catch {}
+                if (!fs_1.default.existsSync(p)) continue;
+                const stat = fs_1.default.statSync(p);
+                if (stat.isFile()) {
+                    sampleFiles.push(path_1.default.basename(p));
+                    totalFiles++;
+                    continue;
+                }
+                if (!stat.isDirectory()) continue;
+
+                // For project-based agents (Qwen: projects/*/chats/, Gemini: tmp/*/chats/)
+                // Check for a nested chats structure
+                const hasChatsSubdir = (dir: string): boolean => {
+                    try {
+                        const items = fs_1.default.readdirSync(dir);
+                        for (const item of items) {
+                            const itemPath = path_1.default.join(dir, item);
+                            try {
+                                if (fs_1.default.statSync(itemPath).isDirectory()) {
+                                    const chatsPath = path_1.default.join(itemPath, 'chats');
+                                    if (fs_1.default.existsSync(chatsPath) && fs_1.default.statSync(chatsPath).isDirectory()) {
+                                        return true;
+                                    }
                                 }
+                            } catch {}
+                        }
+                    } catch {}
+                    return false;
+                };
+
+                if (hasChatsSubdir(p)) {
+                    // Nested structure: project dirs → chats → files
+                    const projectDirs = fs_1.default.readdirSync(p);
+                    let displayCount = 0;
+                    for (const projectDir of projectDirs) {
+                        const projectPath = path_1.default.join(p, projectDir);
+                        try {
+                            if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
+                            const chatsPath = path_1.default.join(projectPath, 'chats');
+                            if (!fs_1.default.existsSync(chatsPath)) continue;
+                            const chatFiles = fs_1.default.readdirSync(chatsPath).filter(f => f.endsWith('.jsonl') || f.endsWith('.json'));
+                            totalFiles += chatFiles.length;
+                            if (displayCount < 3 && chatFiles.length > 0) {
+                                sampleFiles.push(`${projectDir}/chats/ (${chatFiles.length} sessions)`);
+                                displayCount++;
                             }
                         } catch {}
-                    } else {
-                        sampleFiles.push(path_1.default.basename(p));
                     }
+                    if (projectDirs.length > 3) {
+                        sampleFiles.push(`...and ${projectDirs.length - 3} more projects`);
+                    }
+                } else {
+                    // Flat structure or database file
+                    try {
+                        const allFiles = fs_1.default.readdirSync(p);
+                        const dataFiles = allFiles.filter(f => f.endsWith('.jsonl') || f.endsWith('.json') || f.endsWith('.db'));
+                        totalFiles += dataFiles.length;
+
+                        // Show up to 5 sample files
+                        const shown = allFiles.slice(0, 5);
+                        for (const f of shown) {
+                            const fullPath = path_1.default.join(p, f);
+                            try {
+                                const fStat = fs_1.default.statSync(fullPath);
+                                if (fStat.isFile()) {
+                                    if (f.endsWith('.db')) {
+                                        sampleFiles.push(`${f} (${(fStat.size / 1024).toFixed(1)} KB)`);
+                                    } else {
+                                        sampleFiles.push(f);
+                                    }
+                                } else if (fStat.isDirectory()) {
+                                    const subFiles = fs_1.default.readdirSync(fullPath);
+                                    sampleFiles.push(`${f}/ (dir, ${subFiles.length} items)`);
+                                }
+                            } catch {}
+                        }
+                        if (allFiles.length > 5) {
+                            sampleFiles.push(`...and ${allFiles.length - 5} more`);
+                        }
+                    } catch {}
                 }
             }
 
-            agentStatus[plugin.id] = { detected: isDetected, paths, sampleFiles };
+            agentStatus[plugin.id] = { detected: isDetected, paths, sampleFiles, totalFiles };
         } catch (err: any) {
-            agentStatus[plugin.id] = { detected: false, paths: [err.message], sampleFiles: [] };
+            agentStatus[plugin.id] = { detected: false, paths: [err.message], sampleFiles: [], totalFiles: 0 };
         }
     }
 
-    // Also check database state
     let dbState = null;
     if (!useJson && db) {
         try {

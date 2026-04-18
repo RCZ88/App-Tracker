@@ -13,6 +13,7 @@ import {
   Trash2,
   RefreshCw,
   ChevronDown,
+  ChevronRight,
   Sparkles,
   GitCommit,
   Layers,
@@ -23,6 +24,12 @@ import {
   Activity,
   TrendingUp,
   ExternalLink,
+  HelpCircle,
+  FolderOpen,
+  Settings,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -107,10 +114,11 @@ export default function IDEProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [syncingAI, setSyncingAI] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
   const [aiSyncResult, setAiSyncResult] = useState<{ success: boolean; agents: Record<string, number> } | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [showAddProject, setShowAddProject] = useState(false);
-  const [newProject, setNewProject] = useState({ name: '', path: '', repositoryUrl: '' });
+  const [newProject, setNewProject] = useState({ name: '', path: '', repositoryUrl: '', defaultIde: '' });
   const [activeTab, setActiveTab] = useState<'overview' | 'ides' | 'tools' | 'projects' | 'ai' | 'git'>('overview');
   const [commitHistory, setCommitHistory] = useState<any[]>([]);
   const [contributorStats, setContributorStats] = useState<any>(null);
@@ -120,8 +128,15 @@ export default function IDEProjectsPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [showAgentDebug, setShowAgentDebug] = useState(false);
   const [agentDebugInfo, setAgentDebugInfo] = useState<any>(null);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
+    const hasSeenOnboarding = localStorage.getItem('ide-projects-onboarding-seen');
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
     loadOverview();
   }, []);
 
@@ -204,8 +219,19 @@ export default function IDEProjectsPage() {
 
   const handleSyncAI = async () => {
     setSyncingAI(true);
+    setSyncProgress('Starting AI sync...');
     setAiSyncResult(null);
+    let cleanup: (() => void) | undefined;
     try {
+      cleanup = window.deskflowAPI!.onAISyncProgress((data: any) => {
+        if (data.status === 'detecting') {
+          setSyncProgress(`Detecting ${data.name}...`);
+        } else if (data.status === 'parsing') {
+          setSyncProgress(`Parsing ${data.name} data...`);
+        } else if (data.status === 'saving') {
+          setSyncProgress(`Saving ${data.count} sessions from ${data.name}...`);
+        }
+      });
       const result = await window.deskflowAPI!.syncAIUsage() as any;
       if (result.success) {
         const agents: Record<string, number> = {};
@@ -215,12 +241,16 @@ export default function IDEProjectsPage() {
           }
         }
         setAiSyncResult({ success: true, agents });
+        setSyncProgress('Refreshing data...');
         await loadOverview();
       }
     } catch (err) {
       console.error('AI sync failed:', err);
+    } finally {
+      if (cleanup) cleanup();
+      setSyncingAI(false);
+      setSyncProgress(null);
     }
-    setSyncingAI(false);
   };
 
   const handleDebugAgents = async () => {
@@ -240,11 +270,22 @@ export default function IDEProjectsPage() {
       const result = await window.deskflowAPI!.addProject(newProject);
       if (result.success) {
         setShowAddProject(false);
-        setNewProject({ name: '', path: '', repositoryUrl: '' });
+        setNewProject({ name: '', path: '', repositoryUrl: '', defaultIde: '' });
         await loadOverview();
       }
     } catch (err) {
       console.error('Failed to add project:', err);
+    }
+  };
+
+  const handleOpenProject = async (projectId: string, ideId?: string) => {
+    try {
+      const result = await window.deskflowAPI!.openProject(projectId, ideId);
+      if (!result.success) {
+        console.error('Failed to open project:', result.message);
+      }
+    } catch (err) {
+      console.error('Failed to open project:', err);
     }
   };
 
@@ -268,6 +309,7 @@ export default function IDEProjectsPage() {
   };
 
   const formatTokens = (tokens: number): string => {
+    if (tokens >= 1000000000) return `${(tokens / 1000000000).toFixed(1)}B`;
     if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
     if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
     return tokens.toString();
@@ -398,45 +440,79 @@ export default function IDEProjectsPage() {
           <p className="text-zinc-500 mt-1">Track your development environment, AI tools, and project metrics</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-xs text-zinc-500 mb-1">Actions</div>
-            <div className="flex items-center gap-2">
-              <motion.button
-                onClick={handleSyncAI}
-                disabled={syncingAI}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25"
-                title="Import AI usage data from Claude Code, Cursor, OpenCode, and more"
-              >
-                <Sparkles className={`w-4 h-4 ${syncingAI ? 'animate-spin' : ''}`} />
-                {syncingAI ? 'Syncing...' : 'Sync AI Usage'}
-              </motion.button>
-              <motion.button
-                onClick={handleScan}
-                disabled={scanning}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-xl transition-all border border-zinc-600 disabled:opacity-50"
-                title="Detect installed IDEs and developer tools"
-              >
-                <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
-                {scanning ? 'Scanning...' : 'Scan Environment'}
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </div>
+          <motion.button
+            onClick={handleSyncAI}
+            disabled={syncingAI}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25"
+            title="Import AI usage data from Claude Code, Cursor, OpenCode, and more"
+          >
+            <Sparkles className={`w-4 h-4 ${syncingAI ? 'animate-spin' : ''}`} />
+            {syncingAI ? 'Syncing...' : 'Sync AI Usage'}
+          </motion.button>
 
-      {/* Quick Info Bar */}
-      <div className="flex items-center gap-6 text-sm text-zinc-500 px-2">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-violet-400" />
-          <span>Sync AI: Import data from AI coding assistants</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-emerald-400" />
-          <span>Scan: Detect IDEs and tools</span>
+          <div className="relative">
+            <motion.button
+              onClick={() => setShowActionsMenu(!showActionsMenu)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-xl border border-zinc-600 transition-all"
+            >
+              Actions
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showActionsMenu ? 'rotate-180' : ''}`} />
+            </motion.button>
+
+            <AnimatePresence>
+              {showActionsMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50"
+                >
+                  <button
+                    onClick={() => { handleScan(); setShowActionsMenu(false); }}
+                    disabled={scanning}
+                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                      <RefreshCw className={`w-4 h-4 text-emerald-400 ${scanning ? 'animate-spin' : ''}`} />
+                    </div>
+                    <div>
+                      <div className="text-white font-medium">Scan Environment</div>
+                      <div className="text-xs text-zinc-500">Detect IDEs and tools</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { handleDebugAgents(); setShowActionsMenu(false); }}
+                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                      <HelpCircle className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="text-white font-medium">AI Debug Info</div>
+                      <div className="text-xs text-zinc-500">View detection status</div>
+                    </div>
+                  </button>
+                  <div className="border-t border-zinc-700" />
+                  <button
+                    onClick={() => { setShowSetupModal(true); setShowActionsMenu(false); }}
+                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <Settings className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="text-white font-medium">Setup Guide</div>
+                      <div className="text-xs text-zinc-500">How to get started</div>
+                    </div>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -771,11 +847,25 @@ export default function IDEProjectsPage() {
                               <span className="text-xs text-zinc-500 font-mono">v{tool.version}</span>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+))}
+                 </div>
+
+                {/* How Calculations Work */}
+                <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl">
+                  <h4 className="text-sm font-medium text-zinc-400 mb-2">How Counts Are Calculated</h4>
+                  <div className="space-y-1 text-xs text-zinc-500">
+                    <p><span className="text-zinc-300">Sessions:</span> = number of chat/conversation files found per agent. One JSONL file = one session.</p>
+                    <p><span className="text-zinc-300">Tokens:</span> = sum of all input + output tokens parsed from session files.</p>
+                    <p><span className="text-zinc-300">Cost:</span> = calculated from tokens using provider pricing (e.g., Claude opus-4: $15/M input, $75/M output).</p>
+                    <p><span className="text-violet-400">Claude Code:</span> ~/.claude/projects/project-slug/*.jsonl — aggregates all turns per file into 1 session.</p>
+                    <p><span className="text-amber-400">Qwen:</span> ~/.qwen/projects/project-slug/chats/*.jsonl — 1 file = 1 session, aggregates ui_telemetry tokens.</p>
+                    <p><span className="text-blue-400">OpenCode:</span> ~/.local/share/opencode/opencode.db — 1 DB session row = 1 session, sums message tokens.</p>
+                    <p><span className="text-cyan-400">Gemini:</span> ~/.gemini/tmp/hash-slug/chats/ — 1 JSONL file = 1 session.</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
               </motion.div>
             );
           })}
@@ -833,13 +923,27 @@ export default function IDEProjectsPage() {
                   </div>
                   <div>
                     <label className="block text-sm text-zinc-400 mb-2">Project Path</label>
-                    <input
-                      type="text"
-                      value={newProject.path}
-                      onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
-                      placeholder="C:\Projects\my-project"
-                      className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newProject.path}
+                        onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
+                        placeholder="C:\Projects\my-project"
+                        className="flex-1 px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
+                      />
+                      <button
+                        onClick={async () => {
+                          const result = await window.deskflowAPI!.pickFolder();
+                          if (result.success && result.path) {
+                            setNewProject({ ...newProject, path: result.path });
+                          }
+                        }}
+                        className="px-4 py-3 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-xl border border-zinc-600 transition-colors"
+                        title="Browse for folder"
+                      >
+                        <FolderOpen className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm text-zinc-400 mb-2">Repository URL (optional)</label>
@@ -850,6 +954,20 @@ export default function IDEProjectsPage() {
                       placeholder="https://github.com/user/repo"
                       className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
                     />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-zinc-400 mb-2">Default IDE (optional)</label>
+                    <select
+                      value={newProject.defaultIde}
+                      onChange={(e) => setNewProject({ ...newProject, defaultIde: e.target.value })}
+                      className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
+                    >
+                      <option value="">Select an IDE...</option>
+                      {overview?.ides?.map((ide: any) => (
+                        <option key={ide.id} value={ide.id}>{ide.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-zinc-500 mt-1">Choose the IDE to use when opening this project</p>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
@@ -873,7 +991,9 @@ export default function IDEProjectsPage() {
 
           {overview?.projects && overview.projects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {overview.projects.map((project: any, idx: number) => (
+              {overview.projects.map((project: any, idx: number) => {
+                const projectIde = overview?.ides?.find((ide: any) => ide.id === project.default_ide);
+                return (
                 <motion.div
                   key={project.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -893,7 +1013,30 @@ export default function IDEProjectsPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {/* IDE Badge and Open Button */}
+                  {project.default_ide ? (
+                    <div className="flex items-center justify-between mb-4 p-3 bg-zinc-800/50 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Monitor className="w-4 h-4 text-violet-400" />
+                        <span className="text-sm text-zinc-300">{projectIde?.name || project.default_ide}</span>
+                      </div>
+                      <button
+                        onClick={() => handleOpenProject(project.id)}
+                        className="px-3 py-1.5 bg-violet-600/30 hover:bg-violet-600/50 text-violet-300 text-xs rounded-lg flex items-center gap-1.5 transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Open
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mb-4 p-3 bg-zinc-800/30 rounded-xl text-center">
+                      <p className="text-xs text-zinc-500">No default IDE set</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">Edit project to add one</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 flex-wrap">
                     {project.vcs_type && (
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-lg flex items-center gap-1">
                         <GitBranch className="w-3 h-3" />
@@ -917,7 +1060,8 @@ export default function IDEProjectsPage() {
                     )}
                   </div>
                 </motion.div>
-              ))}
+              );
+              })}
             </div>
           ) : (
             <motion.div
@@ -1038,11 +1182,12 @@ export default function IDEProjectsPage() {
                         {info.sampleFiles && info.sampleFiles.length > 0 && (
                           <div>
                             <span className="text-xs text-zinc-500">Files Found:</span>
-                            <div className="text-xs text-zinc-400 font-mono mt-1 max-h-20 overflow-y-auto">
-                              {info.sampleFiles.slice(0, 8).map((f: string, i: number) => (
+                            {info.totalFiles > 0 && <span className="text-xs text-violet-400 ml-2">({info.totalFiles} total)</span>}
+                            <div className="text-xs text-zinc-400 font-mono mt-1 max-h-24 overflow-y-auto">
+                              {info.sampleFiles.slice(0, 5).map((f: string, i: number) => (
                                 <div key={i} className="truncate">{f}</div>
                               ))}
-                              {info.sampleFiles.length > 8 && <div className="text-zinc-600">...and {info.sampleFiles.length - 8} more</div>}
+                              {info.sampleFiles.length > 5 && <div className="text-zinc-600">...and {info.sampleFiles.length - 5} more</div>}
                             </div>
                           </div>
                         )}
@@ -1438,6 +1583,313 @@ export default function IDEProjectsPage() {
             </motion.div>
           </div>
         </motion.div>
+      )}
+
+      {/* Setup Guide Modal */}
+      <AnimatePresence>
+        {(showSetupModal || showOnboarding) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowSetupModal(false);
+              if (showOnboarding) {
+                localStorage.setItem('ide-projects-onboarding-seen', 'true');
+                setShowOnboarding(false);
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden border border-zinc-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-zinc-700 flex items-center justify-between sticky top-0 bg-zinc-900 z-10">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                    <HelpCircle className="w-5 h-5 text-white" />
+                  </div>
+                  Project Tracking Setup Guide
+                </h2>
+                <div className="flex items-center gap-3">
+                  {!showOnboarding && (
+                    <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            localStorage.setItem('ide-projects-onboarding-seen', 'true');
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                      />
+                      Don't show again
+                    </label>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowSetupModal(false);
+                      if (showOnboarding) {
+                        localStorage.setItem('ide-projects-onboarding-seen', 'true');
+                        setShowOnboarding(false);
+                      }
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(85vh-88px)] space-y-6">
+                {showOnboarding && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-4">
+                    <p className="text-blue-300 text-sm"> Welcome! This guide will help you set up project tracking. Follow the steps below to get started.</p>
+                  </div>
+                )}
+
+                {/* Step 1: Add Project */}
+                <div className="glass rounded-2xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-emerald-400">1</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        Add Your First Project
+                        {overview?.projects && overview.projects.length > 0 && (
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-lg">Done</span>
+                        )}
+                      </h3>
+                      <div className="space-y-2 text-sm text-zinc-400">
+                        <p className="flex items-start gap-2">
+                          <ChevronRight className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
+                          Click the <strong className="text-white">"Add Project"</strong> button
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <ChevronRight className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
+                          Click <strong className="text-white">"Browse"</strong> and select your project <strong className="text-amber-400">FOLDER</strong> (not the .exe file)
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <ChevronRight className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
+                          Enter a name for the project
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <ChevronRight className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" />
+                          (Optional) Add your GitHub repository URL
+                        </p>
+                      </div>
+                      <div className="mt-3 p-3 bg-zinc-800/50 rounded-lg">
+                        <p className="text-xs text-zinc-500 mb-1">Example paths:</p>
+                        <p className="text-xs text-emerald-400 font-mono">✓ C:\Projects\MyApp</p>
+                        <p className="text-xs text-red-400 font-mono">✗ C:\Projects\MyApp\myapp.exe</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 2: AI Usage Tracking */}
+                <div className="glass rounded-2xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-violet-400">2</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-3">Track AI Coding Assistant Usage</h3>
+                      <p className="text-sm text-zinc-400 mb-4">We automatically detect these AI tools and import their usage data:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {[
+                          { name: 'Claude Code', path: '~/.claude/projects/<project>/*.jsonl', color: '#f97316' },
+                          { name: 'Qwen CLI', path: '~/.qwen/projects/<project>/chats/*.jsonl', color: '#f59e0b' },
+                          { name: 'OpenCode', path: '~/.local/share/opencode/opencode.db', color: '#3b82f6' },
+                          { name: 'Gemini CLI', path: '~/.gemini/history/', color: '#06b6d4' },
+                          { name: 'Cursor AI', path: '%APPDATA%\\Cursor\\', color: '#a855f7' },
+                          { name: 'Codex CLI', path: '~/.codex/', color: '#10b981' },
+                        ].map((agent) => (
+                          <div key={agent.name} className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-xl">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: agent.color + '22' }}>
+                              <Sparkles className="w-4 h-4" style={{ color: agent.color }} />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-white">{agent.name}</div>
+                              <div className="text-xs text-zinc-500 font-mono truncate max-w-[180px]">{agent.path}</div>
+                            </div>
+                            {agentDebugInfo?.agents?.[agent.name.toLowerCase().replace(' ', '-')]?.detected ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-auto" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-zinc-600 ml-auto" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                        <p className="text-sm text-amber-300">Tip Click <strong>"Sync AI Usage"</strong> to import data from detected AI tools</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: Git Tracking */}
+                <div className="glass rounded-2xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-amber-400">3</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-3">Track Git Commits & Metrics</h3>
+                      <div className="space-y-4">
+                        <div className="p-4 bg-zinc-800/50 rounded-xl">
+                          <h4 className="text-sm font-medium text-white mb-2 flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-zinc-400" />
+                            Local Repositories
+                          </h4>
+                          <p className="text-sm text-zinc-400">Add your project (must contain .git folder), then click "Sync Commits" to import commit history, additions, and deletions.</p>
+                        </div>
+                        <div className="p-4 bg-zinc-800/50 rounded-xl">
+                          <h4 className="text-sm font-medium text-white mb-2 flex items-center gap-2">
+                            <ExternalLink className="w-4 h-4 text-zinc-400" />
+                            GitHub Repositories
+                          </h4>
+                          <p className="text-sm text-zinc-400">Click "Sync GitHub" and enter <span className="text-violet-400 font-mono">owner/repository</span> (e.g., "facebook/react"). For private repos, add your GitHub token.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 4: IDE Detection */}
+                <div className="glass rounded-2xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-blue-400">4</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-3">Detect Your Development Environment</h3>
+                      <p className="text-sm text-zinc-400 mb-4">Click "Scan Environment" to automatically detect:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                          { name: 'VS Code', detected: overview?.ides?.some((i: any) => i.name === 'VS Code') },
+                          { name: 'IntelliJ IDEA', detected: overview?.ides?.some((i: any) => i.name?.includes('IntelliJ')) },
+                          { name: 'PyCharm', detected: overview?.ides?.some((i: any) => i.name?.includes('PyCharm')) },
+                          { name: 'Android Studio', detected: overview?.ides?.some((i: any) => i.name?.includes('Android')) },
+                          { name: 'Cursor', detected: overview?.ides?.some((i: any) => i.name === 'Cursor') },
+                          { name: 'Google Antigravity', detected: overview?.ides?.some((i: any) => i.name?.includes('Antigravity')) },
+                        ].map((ide) => (
+                          <div key={ide.name} className="flex items-center gap-2 p-2 bg-zinc-800/50 rounded-lg">
+                            <Monitor className="w-4 h-4 text-zinc-500" />
+                            <span className="text-sm text-zinc-300">{ide.name}</span>
+                            {ide.detected ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-auto" />
+                            ) : (
+                              <span className="w-4 h-4 rounded-full border border-zinc-600 ml-auto" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg">
+                        <p className="text-sm text-zinc-400">Also detects: Git, Node.js, Python, Docker, npm, yarn, and more tools.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Start Checklist */}
+                <div className="glass rounded-2xl p-5 bg-gradient-to-br from-zinc-900 to-zinc-800/50">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    Quick Start Checklist
+                  </h3>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Add at least one project', done: overview?.projects && overview.projects.length > 0 },
+                      { label: 'Install Claude Code, Cursor, or OpenCode?', done: false },
+                      { label: 'Click "Sync AI Usage" to import AI data', done: false },
+                      { label: 'Click "Scan Environment" to detect your setup', done: overview?.ides && overview.ides.length > 0 },
+                    ].map((item, idx) => (
+                      <label key={idx} className="flex items-center gap-3 p-3 hover:bg-zinc-800/30 rounded-lg cursor-pointer transition-colors">
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          item.done ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-600'
+                        }`}>
+                          {item.done && <CheckCircle2 className="w-3 h-3 text-white" />}
+                        </div>
+                        <span className={`text-sm ${item.done ? 'text-zinc-400 line-through' : 'text-white'}`}>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
+                    <p className="text-sm text-violet-300">Tip Your data is stored locally and private. No data leaves your computer.</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scanning Loading Overlay */}
+      <AnimatePresence>
+        {scanning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 rounded-2xl p-8 border border-zinc-700 shadow-2xl max-w-sm w-full mx-4"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
+                  <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">Scanning Environment</h3>
+                <p className="text-zinc-400 text-sm mb-4">Detecting IDEs and development tools...</p>
+                <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                    initial={{ width: '0%' }}
+                    animate={{ width: '100%' }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  />
+                </div>
+                <p className="text-zinc-500 text-xs mt-3">Please wait, this may take a moment</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {syncingAI && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4 text-center"
+          >
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-500/20 flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-violet-400 animate-spin" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Syncing AI Usage</h3>
+            <p className="text-zinc-400 text-sm mb-4">{syncProgress || 'Please wait...'}</p>
+            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                initial={{ width: '0%' }}
+                animate={{ width: syncProgress ? '60%' : '30%' }}
+                transition={{ duration: 1.5, repeat: Infinity, repeatType: 'reverse' }}
+              />
+            </div>
+            <p className="text-xs text-zinc-500 mt-4">Do not close or switch tabs during sync</p>
+          </motion.div>
+        </div>
       )}
     </motion.div>
   );

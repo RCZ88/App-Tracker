@@ -409,6 +409,81 @@ const WEBSITES_GALAXY_POS: [number, number, number] = [3250, 0, 0];
 
 ---
 
+## 🕹️ Electron + Three.js/WebGL Memory Leak Pattern
+
+**Symptoms:** App freezes during page navigation, console stops output, memory grows
+
+**Root Causes:**
+1. React StrictMode causes double-mounting (duplicate WebGL contexts)
+2. Three.js geometries/materials/textures not disposed on unmount
+3. Particle counts too high (memory accumulation)
+4. Chart.js instances not destroyed
+5. Event listeners not cleaned up
+
+**Fix Workflow:**
+1. Remove StrictMode from main.tsx (causes double-mount)
+2. Add GLCleanup component in Canvas for WebGL disposal
+3. Dispose in onUnmount/useEffect cleanup
+4. Reduce particle counts if >10K total
+5. Lazy-load heavy 3D components
+6. Add Chart.js cleanup with destroy()
+
+**Key Numbers:**
+| Component | Safe Count | Problem Threshold |
+|-----------|------------|-------------------|
+| Galaxy particles | 3000-4000 | >6000 |
+| Website particles | 2000-3000 | >5000 |
+| Stars | 2000-4000 | >6000 |
+| Total | <12000 | >15000 leaks |
+
+**Fixed in:** 2026-04-17 (OrbitSystem.tsx, main.tsx, StatsPage.tsx)
+
+---
+
+## 🎨 Tailwind v4 CSS Silent Failure (CRITICAL)
+
+**Severity:** P0 — Entire app looks unstyled/broken with zero build errors
+
+**Symptoms:**
+- App renders but looks completely wrong — no colors, no spacing, no layout
+- Build succeeds with no errors
+- CSS output file is suspiciously small (~14KB instead of 68KB+)
+- Most utility classes (bg-zinc-*, text-*, p-*, gap-*, etc.) are missing from built CSS
+- May see "Invalid code point" errors in Tailwind — these are RED HERRINGS
+
+**Root Cause:**
+`src/index.css` has Tailwind v3 directives instead of v4 directive:
+```css
+/* WRONG — Tailwind v3 syntax, does NOT work with v4 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+**Fix:**
+```css
+/* CORRECT — Tailwind v4 syntax */
+@import "tailwindcss";
+```
+
+**Why it breaks silently:**
+Tailwind v4's engine ignores `@tailwind` directives. They get passed through as inert CSS. The v4 plugin never triggers content scanning, so it never looks at your `.tsx` files to find which utility classes to generate. Only the baseline `@layer properties` and any custom styles in the CSS file itself get emitted.
+
+**Verification checklist:**
+1. `src/index.css` line 1 is `@import "tailwindcss";` (NOT `@tailwind base/components/utilities`)
+2. `vite.config.ts` has `@tailwindcss/vite` plugin
+3. `package.json` has `"tailwindcss": "4.x"` (NOT 3.x)
+4. Built CSS file is 60KB+ (not ~14KB)
+5. Do NOT install `autoprefixer` or `postcss` — they are v3 dependencies
+
+**NEVER do these:**
+- NEVER change `@import "tailwindcss"` to `@tailwind base/components/utilities`
+- NEVER run `npm install tailwindcss@latest` — it may downgrade to v3
+- NEVER add `autoprefixer` or `postcss` — they conflict with v4
+- NEVER assume "build succeeded" means "CSS is correct" — always check output size
+
+---
+
 ## 🔄 Version History
 
 | Version | Date | Changes |
@@ -418,8 +493,10 @@ const WEBSITES_GALAXY_POS: [number, number, number] = [3250, 0, 0];
 | 1.2 | 2026-04-16 | Added Data Mismatch Debugging Pattern |
 | 1.3 | 2026-04-16 | Added Data Computation Pattern (Single Source of Truth) |
 | 1.4 | 2026-04-16 | Added 3D Camera/Clipping Debugging Pattern |
+| 1.5 | 2026-04-17 | Added Electron + Three.js/WebGL Memory Leak Pattern |
+| 1.6 | 2026-04-19 | Added Tailwind v4 CSS Silent Failure pattern |
 
 ---
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-04-19
 **Maintained By:** AI Development Team

@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, TrendingUp, Zap, Calendar, BarChart3, X, Monitor,
-  ChevronRight, Award, Activity
+  ChevronRight, Award, Activity, TrendingUp as TrendingUpIcon
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -66,6 +66,19 @@ function formatDuration(seconds: number): string {
 
 export default function StatsPage({ appStats, logs, selectedPeriod = 'week' }: StatsPageProps) {
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [hourlyChartMode, setHourlyChartMode] = useState<'bar' | 'line'>('bar');
+  const chartRefs = useRef<Record<string, ChartJS | null>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(chartRefs.current).forEach(chart => {
+        if (chart) {
+          chart.destroy();
+        }
+      });
+      chartRefs.current = {};
+    };
+  }, []);
 
   // Sort apps by total time
   const sortedApps = useMemo(() => {
@@ -389,6 +402,62 @@ export default function StatsPage({ appStats, logs, selectedPeriod = 'week' }: S
     },
   };
 
+  // Line chart version of hourly data (connected dots)
+  const hourlyLineChartData = {
+    labels: hourlyDistribution.map(h => `${h.hour.toString().padStart(2, '0')}:00`),
+    datasets: [{
+      label: 'Minutes',
+      data: hourlyDistribution.map(h => h.minutes),
+      borderColor: '#6366f1',
+      backgroundColor: 'rgba(99, 102, 241, 0.2)',
+      fill: true,
+      tension: 0.3,
+      pointBackgroundColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#10b981' : '#6366f1';
+      }),
+      pointBorderColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#059669' : '#6366f1';
+      }),
+      pointRadius: 4,
+      pointHoverRadius: 6,
+    }]
+  };
+
+  const hourlyLineChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(24, 24, 27, 0.95)',
+        titleColor: '#fff',
+        bodyColor: '#a1a1aa',
+        borderColor: '#3f3f46',
+        borderWidth: 1,
+        padding: 12,
+        callbacks: {
+          label: (ctx: any) => ` ${formatDuration(ctx.parsed.y)}`,
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: '#71717a', maxTicksLimit: 12 }
+      },
+      y: {
+        grid: { color: '#27272a' },
+        ticks: {
+          color: '#71717a',
+          callback: (v: any) => formatDuration(v),
+        },
+        beginAtZero: true,
+      }
+    },
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -493,35 +562,63 @@ export default function StatsPage({ appStats, logs, selectedPeriod = 'week' }: S
         ))}
       </div>
 
-      {/* Daily/Hourly Usage Trend */}
+{/* Hourly Distribution */}
       <div className="glass rounded-3xl p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <Calendar className="w-5 h-5 text-indigo-400" />
-          <div>
-            <div className="text-xl font-semibold">
-              {selectedPeriod === 'today' ? 'Hourly Activity' : 'Daily Usage Trend'}
-            </div>
-            <div className="text-sm text-zinc-500">
-              {selectedPeriod === 'today' ? 'Total minutes per hour' : 'Total minutes per day'}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            {hourlyChartMode === 'bar' ? (
+              <BarChart3 className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <TrendingUpIcon className="w-5 h-5 text-indigo-400" />
+            )}
+            <div>
+              <div className="text-xl font-semibold">
+                {selectedPeriod === 'today' ? 'Hourly Activity' : 'Daily Usage Trend'}
+              </div>
+              <div className="text-sm text-zinc-500">
+                {selectedPeriod === 'today' ? 'Activity by hour of day' : `${selectedPeriod === 'week' ? '7 days' : selectedPeriod === 'month' ? '30 days' : '90 days'} of activity`}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="h-64">
-          <Line data={dailyChartData} options={dailyChartOptions} />
-        </div>
-      </div>
-
-      {/* Hourly Distribution */}
-      <div className="glass rounded-3xl p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <BarChart3 className="w-5 h-5 text-emerald-400" />
-          <div>
-            <div className="text-xl font-semibold">Hourly Distribution</div>
-            <div className="text-sm text-zinc-500">Activity by hour of day</div>
+          <div className="flex items-center gap-1 bg-zinc-800/50 p-1 rounded-lg">
+            <button
+              onClick={() => setHourlyChartMode('bar')}
+              className={`p-2 rounded-md transition-all ${
+                hourlyChartMode === 'bar'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Bar Chart"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setHourlyChartMode('line')}
+              className={`p-2 rounded-md transition-all ${
+                hourlyChartMode === 'line'
+                  ? 'bg-indigo-500/20 text-indigo-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Line Chart"
+            >
+              <TrendingUpIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
         <div className="h-56">
-          <Bar data={hourlyChartData} options={hourlyChartOptions} />
+          {hourlyChartMode === 'bar' ? (
+            selectedPeriod === 'today' ? (
+              <Bar data={hourlyChartData} options={hourlyChartOptions} />
+            ) : (
+              <Bar data={dailyChartData} options={dailyChartOptions} />
+            )
+          ) : (
+            selectedPeriod === 'today' ? (
+              <Line data={hourlyLineChartData} options={hourlyLineChartOptions} />
+            ) : (
+              <Line data={dailyChartData} options={dailyChartOptions} />
+            )
+          )}
         </div>
       </div>
 

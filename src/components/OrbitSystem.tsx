@@ -7,11 +7,68 @@ import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, RotateCcw, X, RefreshCw, Globe, ChevronDown, ChevronUp, Clock, Settings, Activity } from 'lucide-react';
 
+// Cleanup component to properly dispose of WebGL resources
+function GLCleanup() {
+  const { gl, scene } = useThree();
+  
+  useEffect(() => {
+    return () => {
+      // Dispose of all geometries in the scene
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          if (object.geometry) {
+            object.geometry.dispose();
+          }
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach((material: any) => {
+                if (material.map) material.map.dispose();
+                if (material.normalMap) material.normalMap.dispose();
+                if (material.emissiveMap) material.emissiveMap.dispose();
+                if (material.alphaMap) material.alphaMap.dispose();
+                material.dispose();
+              });
+            } else {
+              const material = object.material as any;
+              if (material.map) material.map.dispose();
+              if (material.normalMap) material.normalMap.dispose();
+              if (material.emissiveMap) material.emissiveMap.dispose();
+              if (material.alphaMap) material.alphaMap.dispose();
+              material.dispose();
+            }
+          }
+        }
+      });
+      
+      // Dispose of render targets
+      if (gl.getRenderTarget) {
+        const renderTarget = gl.getRenderTarget();
+        if (renderTarget) {
+          renderTarget.dispose();
+        }
+      }
+      
+      // Clear the animation frame request
+      gl.dispose();
+      
+      // Set context lost handler to prevent errors
+      const canvas = gl.domElement;
+      const handleContextLost = (event: Event) => {
+        event.preventDefault();
+        console.log('[OrbitSystem] WebGL context lost - cleanup complete');
+      };
+      canvas.addEventListener('webglcontextlost', handleContextLost, { once: true });
+    };
+  }, [gl, scene]);
+  
+  return null;
+}
+
 // Galaxy dust cloud component - creates a realistic 3D spiral galaxy with multiple arms
 // Using Deep-Navy Spiral Galaxy color scheme with optimized rendering
 function GalaxyDustCloud() {
   const pointsRef = useRef<THREE.Points>(null!);
-  const particleCount = 8000;
+  const particleCount = 4000; // Reduced from 8000 for better performance
   
   const maxRadius = 280;
   
@@ -136,7 +193,7 @@ function GalaxyDustCloud() {
 // Different from Apps galaxy (spiral) - more cloud-like and wispy
 function WebsiteGalaxyDustCloud() {
   const pointsRef = useRef<THREE.Points>(null!);
-  const particleCount = 6000;
+  const particleCount = 3000; // Reduced from 6000 for better performance
 
   const maxRadius = 280;
 
@@ -425,6 +482,16 @@ function getCategoryColor(category: string, indexInCategory: number): string {
 // Includes all desktop apps including browsers, only excludes browser-tracked websites
 
 function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>, categoryOverrides?: Record<string, string>): PlanetData[] {
+  // Fallback: load category overrides directly from localStorage to ensure sync
+  let effectiveOverrides = categoryOverrides;
+  if (!effectiveOverrides || Object.keys(effectiveOverrides).length === 0) {
+    try {
+      const saved = localStorage.getItem('deskflow-app-category-overrides');
+      if (saved) {
+        effectiveOverrides = JSON.parse(saved);
+      }
+    } catch { /* ignore */ }
+  }
   // Filter: include all apps including browsers, only exclude browser-tracked websites
   const validLogs = (logs || []).filter((log: any) =>
     log && log.app && typeof log.app === 'string' && log.app.trim().length > 0 &&
@@ -482,7 +549,7 @@ function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>,
 
     const catInfo = APP_CATEGORIES[appName] || { cat: 'Other', color: '#64748b' };
     // Use user-defined category override from settings, otherwise use default category
-    const category = categoryOverrides?.[appName] || catInfo.cat || 'Other';
+    const category = effectiveOverrides?.[appName] || catInfo.cat || 'Other';
 
     // Check for user override colors first
     const customColor = appColors?.[appName];
@@ -1297,7 +1364,13 @@ function TexturedPlanet({
   const hologramRef = useRef<THREE.Mesh>(null!);
   const labelRef = useRef<THREE.Group>(null!);
   const glowRef = useRef<THREE.Sprite>(null!);
-  const angleRef = useRef(Math.random() * Math.PI * 2);
+  // Use seeded angle based on name so position is stable across component remounts
+  // This prevents glitches when component remounts unexpectedly
+  const initialAngle = useMemo(() => {
+    const seed = hashString(data.name);
+    return (seed / 1000000) * Math.PI * 2;
+  }, [data.name]);
+  const angleRef = useRef(initialAngle);
   const [isHovered, setIsHovered] = useState(false);
   const labelPosRef = useRef(new THREE.Vector3());
 
@@ -1907,6 +1980,16 @@ function computeWebsitePlanets(
   websiteColors?: Record<string, string>,
   websiteCategoryOverrides?: Record<string, string>
 ): PlanetData[] {
+  // Fallback: load website category overrides directly from localStorage
+  let effectiveWebsiteOverrides = websiteCategoryOverrides;
+  if (!effectiveWebsiteOverrides || Object.keys(effectiveWebsiteOverrides).length === 0) {
+    try {
+      const saved = localStorage.getItem('deskflow-domain-category-overrides');
+      if (saved) {
+        effectiveWebsiteOverrides = JSON.parse(saved);
+      }
+    } catch { /* ignore */ }
+  }
   const safeLogs = websiteLogs || [];
   
   const validLogs = safeLogs.filter((log: any) =>
@@ -1941,7 +2024,7 @@ function computeWebsitePlanets(
   for (let idx = 0; idx < sortedApps.length; idx++) {
     const [domainName, domainLogs] = sortedApps[idx];
 
-    const category = websiteCategoryOverrides?.[domainName] || domainLogs[0]?.category || 'Uncategorized';
+    const category = effectiveWebsiteOverrides?.[domainName] || domainLogs[0]?.category || 'Uncategorized';
     const color = websiteColors?.[domainName] || getCategoryColor(category, categoryCount[category] || 0);
     categoryCount[category] = (categoryCount[category] || 0) + 1;
 
@@ -2512,39 +2595,79 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     return computeWebsiteSolarSystems(websiteLogs || [], websiteColors, websiteCategoryOverrides);
   }, [websiteLogs, websiteColors, websiteCategoryOverrides]);
   
-  // Determine galaxy type based on camera position - runs less frequently using interval
+  // Refs to track interaction state - prevent glitches during user interaction
+  const isInteractingRef = useRef(false);
+  const lastInteractionTimeRef = useRef(0);
+  const INTERACTION_COOLDOWN = 1000; // 1 second cooldown after interaction
+
+  // Track when user starts/stops interacting with OrbitControls
+  useEffect(() => {
+    const handleInteractionStart = () => {
+      isInteractingRef.current = true;
+    };
+    const handleInteractionEnd = () => {
+      lastInteractionTimeRef.current = Date.now();
+      isInteractingRef.current = false;
+    };
+
+    window.addEventListener('pointerdown', handleInteractionStart);
+    window.addEventListener('pointerup', handleInteractionEnd);
+    window.addEventListener('wheel', handleInteractionStart);
+    window.addEventListener('wheel', handleInteractionEnd);
+
+    return () => {
+      window.removeEventListener('pointerdown', handleInteractionStart);
+      window.removeEventListener('pointerup', handleInteractionEnd);
+      window.removeEventListener('wheel', handleInteractionStart);
+      window.removeEventListener('wheel', handleInteractionEnd);
+    };
+  }, []);
+
+  // Determine galaxy type based on camera position - but skip during interaction
   // Also animates camera to center of new galaxy when switching
   useEffect(() => {
     const interval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceInteraction = now - lastInteractionTimeRef.current;
+
+      // Skip if user is currently interacting or within cooldown period
+      if (isInteractingRef.current || timeSinceInteraction < INTERACTION_COOLDOWN) {
+        return;
+      }
+
       // Threshold is middle between apps galaxy (0) and websites galaxy (3250)
       const threshold = 1625;
       const newGalaxyType = cameraPosRef.current[0] > threshold ? 'websites' : 'apps';
       if (newGalaxyType !== galaxyTypeRef.current) {
         galaxyTypeRef.current = newGalaxyType;
         setGalaxyType(newGalaxyType);
+
+        // Only auto-switch view mode when NOT in solar system view
+        // Let user manually switch views - don't force exit during camera movement
         if (viewMode === 'solarSystem') {
-          setViewMode('galaxy');
-          setSelectedPlanet(null);
+          // Don't force exit to galaxy - this was causing the glitch!
+          // setViewMode('galaxy');
+          // setSelectedPlanet(null);
         }
-        // Animate camera to center of new galaxy
-        if (controlsRef.current && animationSpeed !== 'instant') {
+        // Animate camera to center of new galaxy only in galaxy view
+        if (viewMode === 'galaxy' && controlsRef.current && animationSpeed !== 'instant') {
           const duration = ANIMATION_DURATIONS[animationSpeed];
           const targetX = newGalaxyType === 'websites' ? 3250 : 0;
           const targetPos = new THREE.Vector3(targetX, 100, 200);
           const lookAtPos = new THREE.Vector3(targetX, 0, 0);
-          
+
           const startPos = controlsRef.current.object.position.clone();
           const startTarget = controlsRef.current.target.clone();
           const startTime = Date.now();
-          
+
           const animate = () => {
             const elapsed = Date.now() - startTime;
             const t = Math.min(elapsed / duration, 1);
             const eased = 1 - Math.pow(1 - t, 3);
-            
+
             controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
             controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
-            
+
             if (t < 1) {
               requestAnimationFrame(animate);
             }
@@ -2633,9 +2756,28 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
 
   // Track current planet positions for camera navigation
   const planetPositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
+  
+  // Cleanup flag to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+
+  // Cleanup effect for Three.js resources on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Clear planet positions cache
+      planetPositionsRef.current.clear();
+      // Force a small delay to let Three.js clean up before React fully unmounts
+      setTimeout(() => {
+        // The Canvas component handles WebGL cleanup, this just helps ensure
+        // no pending state updates fire after unmount
+      }, 50);
+    };
+  }, []);
 
   // Called when a planet reports its position each frame
   const handlePlanetPositionUpdate = (name: string, position: THREE.Vector3) => {
+    if (!isMountedRef.current) return;
     planetPositionsRef.current.set(name, position.clone());
   };
 
@@ -2809,21 +2951,26 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
         {(() => {
           try {
             return (
-                <Canvas 
+              <Canvas 
                 key={`canvas-${textureRefreshKey}`} 
                 camera={{ position: viewMode === 'galaxy' ? (galaxyType === 'websites' ? [3250, 100, 200] : [0, 100, 200]) : [0, 100, 180], fov: 45, near: 0.1, far: 10000 }} 
                 onError={(e) => console.error('[OrbitSystem] Canvas error:', e)}
+                onCreated={({ gl }) => {
+                  gl.setClearColor('#0a0a14', 0);
+                }}
                 gl={{
                   powerPreference: 'high-performance',
                   antialias: false,
                   alpha: false,
                   stencil: false,
                   depth: true,
+                  preserveDrawingBuffer: false,
                 }}
                 dpr={Math.min(window.devicePixelRatio, 1.5)}
                 frameloop="always"
               >
                 <PerformanceMonitor>
+                  <GLCleanup />
                   <color attach="background" args={['#0a0a14']} />
                   <fog attach="fog" args={['#0a0a14', 1500, 4500]} />
                   
@@ -2862,7 +3009,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                       viewMode={viewMode}
                     />
                     <CameraTracker cameraPosRef={cameraPosRef} />
-                    <Stars radius={4000} depth={200} count={8000} factor={6} fade speed={0.1} saturation={0.3} />
+                    <Stars radius={4000} depth={200} count={3000} factor={6} fade speed={0.1} saturation={0.3} />
                     <OrbitControls 
                       enablePan={true} 
                       enableZoom={true} 

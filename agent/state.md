@@ -6,13 +6,484 @@
 
 ## 📊 Current Status
 
-**Version:** 1.24
-**Last Updated:** 2026-04-16
+**Version:** 1.37
+**Last Updated:** 2026-04-19
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-19 — Heatmap: Fix missing today data + show live session
+
+**What Changed:**
+1. **Root cause of empty heatmap:** `targetWeekStart` wasn't zeroed to midnight — it kept the current time component (e.g., Sunday 14:30 instead of Sunday 00:00). This caused the filter `sessionStart < targetWeekStart` to exclude all logs from earlier today. On Sunday specifically (week start = today), this meant almost the entire day was filtered out.
+2. Added `currentWeekStart.setHours(0, 0, 0, 0)` in heatmap calculation AND week label calculation
+3. Also added live current session to heatmap (so ongoing work shows in real-time)
+
+**Files Modified:**
+- `src/App.tsx` — Fixed `targetWeekStart` to zero time component; added live session to heatmap
+
+**Why:** The `setDate()` method doesn't zero the time portion. Since `targetWeekStart` included the current time (e.g., 14:30), any log with a timestamp before 14:30 on Sunday was excluded from the heatmap, making today look empty.
+
+### 2026-04-19 — Heatmap: Live Current Session
+
+**What Changed:**
+1. Added the current active session to the heatmap in real-time — previously, the heatmap only showed completed sessions from the database, so it looked like "nothing was being recorded" for today
+2. Refactored heatmap `useMemo` to use a shared `addSession()` helper, added logic to inject the current `sessionStart` + `elapsedTime` when viewing the current week (`weekOffset === 0`)
+3. Added `isTracking`, `currentApp`, `elapsedTime`, `sessionStart` to the `useMemo` dependency array
+
+**Files Modified:**
+- `src/App.tsx` — heatmap `useMemo` now includes live current session data
+
+**Why:** The heatmap only renders completed sessions (written to DB when you switch apps). Your current active session doesn't appear until you switch tasks, making it look like "today has no activity." Now the live session is shown in real-time.
+
+### 2026-04-19 — Tailwind v4 CSS Build Fix (CRITICAL)
+
+**What Changed:**
+1. Fixed `src/index.css` — replaced Tailwind v3 directives (`@tailwind base/components/utilities`) with v4 directive (`@import "tailwindcss"`)
+2. This was the root cause of ALL broken styling — v3 directives don't trigger content scanning in Tailwind v4, so only ~14KB of CSS was generated (custom styles + a few utilities) instead of the proper ~68KB
+
+**Files Modified:**
+- `src/index.css` — Changed from `@tailwind base; @tailwind components; @tailwind utilities;` to `@import "tailwindcss";`
+
+**Why:** Tailwind v4 completely changed how CSS is configured. The old `@tailwind` directives are v3 syntax and don't work properly with v4 — they don't trigger automatic content detection, so most utility classes were missing from the build output.
+
+**Result:** CSS went from 14KB (broken/missing most utilities) to 68KB (complete with all utilities). All bg-zinc-*, text-zinc-*, border-zinc-*, spacing, and color classes now present.
+
+### 2026-04-18 — Solar System Animation Glitch Fix
+
+**What Changed:**
+1. **Fixed animation glitch causing planets to jump randomly every ~0.5 seconds**
+2. **Added interaction detection** - tracks mouse down/up and wheel events to prevent state changes during user interaction
+3. **Removed forced view mode exit** - commented out code that forced exit from solar system to galaxy when crossing threshold, this was the root cause
+4. **Made planet angle stable** - changed from random to seeded by planet name, so position stays consistent even if component remounts
+
+**Root Cause:**
+- 500ms interval was checking camera position and forcing `setViewMode('galaxy')` when crossing the apps/websites threshold
+- This happened during ANY camera movement including mouse interactions
+- Also added 1-second cooldown after user interactions before any state changes
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Added interaction tracking refs and cooldown, removed forced view mode exit, stable angle init
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — AI Agent Data Storage Research + Parsing Fixes
+
+**What Changed:**
+
+**1. Research Findings Documented:**
+- Created `agent/docs/11-ai-agent-data-storage-research-18042026/result.md`
+- Researched storage locations, file formats, and token tracking for 8+ AI agents
+- Found actual data structures for Claude Code, Cursor, OpenCode, Gemini CLI, Aider, Windsurf
+
+**2. Claude Code Parsing Fixed:**
+- Updated to match actual JSONL format: `entry.message.usage.input_tokens`
+- Looks at `entry.type === "assistant"` with `entry.message.usage`
+- Gets model from `entry.message.model`
+- Handles cache tokens from `entry.message.usage.cache_read_input_tokens`
+
+**3. Cursor Parsing Updated:**
+- Now queries `cursorDiskKV` table (newer Cursor format)
+- Looks for keys like `bubbleId:*` which contain chat data with token counts
+- Parses `data.tokenCount.inputTokens/outputTokens`
+- Falls back to `ItemTable` for older format
+
+**4. OpenCode - Already Working:**
+- Uses SQLite `sessions` table with `prompt_tokens`, `completion_tokens`, `cost`
+
+**5. IDE Detection - JetBrains via where command:**
+- Added `where idea`, `where pycharm`, `where webstorm`, etc. detection
+
+**6. Folder Picker:**
+- Added native folder picker for project path selection
+
+**Files Modified:**
+- `src/main.ts` - Updated Claude Code and Cursor plugins with proper parsing
+- `agent/docs/11-ai-agent-data-storage-research-18042026/` - Research documents
+- `src/pages/IDEProjectsPage.tsx` - Folder picker button
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — Context Maintenance Infrastructure: Graphify Fix + Maintain-Context Skill
+
+**What Changed:**
+1. Fixed empty GRAPH_REPORT.md — regenerated from existing graph.json/analysis.json data with proper community labels
+2. Synced graphify-out/ to Obsidian vault (GRAPH_REPORT.md, graph.json, analysis.json, graph.html, manifest.json)
+3. Created `agent/skills/maintain-context/SKILL.md` — automated post-task context sync skill
+4. Rewrote `AGENTS.md` to reference maintain-context skill instead of manual update steps
+5. Documented which agent .md files are still relevant vs redundant with graphify
+
+**Files Modified:**
+- `graphify-out/GRAPH_REPORT.md` — regenerated with 130 lines, labeled communities
+- `AGENTS.md` — replaced old graphify section with maintain-context skill reference
+- `agent/skills/maintain-context/SKILL.md` — new: post-task knowledge sync skill
+
+**Why:** GRAPH_REPORT.md was empty/broken, making the AGENTS.md instruction to "read it first" useless. The maintain-context skill automates what was previously a manual, error-prone process.
+
+**Result:** AI agents can now automatically run maintain-context after completing tasks, keeping graphify, state.md, PROBLEMS.md, debugging.md, and data.md in sync.
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — IDE Projects: Folder Picker and Improved JetBrains Detection
+
+**What Changed:**
+
+**1. Folder Picker for Project Path:**
+- Added native folder picker button next to Project Path input
+- Click the folder icon to open Windows Explorer-style folder selection dialog
+- Selected path automatically fills the Project Path field
+
+**2. Improved JetBrains Detection:**
+- Added `where` command detection for JetBrains IDEs (like VS Code)
+- Now checks for: `idea`, `idea64`, `pycharm`, `pycharm64`, `webstorm`, `webstorm64`, `goland`, `goland64`, `rider`, `rider64`
+- Works for both Toolbox-installed and directly-installed JetBrains IDEs
+
+**Files Modified:**
+- `src/main.ts` - Added `pick-folder` IPC handler, JetBrains `where` command detection
+- `src/preload.ts` - Added `pickFolder` binding
+- `src/App.tsx` - Added type definition
+- `src/pages/IDEProjectsPage.tsx` - Added folder picker button next to path input
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — Smart Website Categorization UI Improvements
+
+**What Changed:**
+
+**1. Domain Selection - Dropdown Instead of Text Input:**
+- Changed from free text input to dropdown select populated from visited websites
+- Only shows websites from `domainStats` that user has actually visited
+- Filters out websites that already have keyword rules configured
+- Shows category info in dropdown (e.g., "youtube.com (Entertainment)")
+
+**2. Keyword Input - Tag/Chip System:**
+- Replaced comma-separated text input with visual tag/chip system
+- Each keyword displayed as removable chip with X button
+- Input field + "Add" button to add new keywords
+- Press Enter or click Add to add keyword
+- Keywords shown as green chips for easy visibility
+- Empty state: "No keywords added yet" when no keywords exist
+
+**3. Fixed Editing Existing Keyword Rules:**
+- When clicking "Configure" on existing domain, keywords now load properly
+- Added `editingKeywords` state to track keywords being modified
+- Keywords properly sync between `editingKeywords` and `domainKeywords` states
+- Both add and remove operations update both states for consistency
+
+**4. Improved Save Flow:**
+- Save button now uses `editingKeywords` consistently for both new and existing domains
+- Properly updates both frontend and backend state on save
+- Resets all temporary states after save (editingKeywords, tempKeywordInput, newKeywordDomain)
+- Added disabled state on save button when no domain selected
+
+**5. Productivity Page Time Calculation Fix:**
+- Fixed mismatch between header time and displayed items
+- Header now shows sum of displayed items (top 5), not total app/website time
+- Added `displayedAppSeconds` and `displayedWebsiteSeconds` calculations
+- Shows "Xh Xm (Y% of total)" format for clarity
+
+**6. Productivity Page Website Details Enhancement:**
+- Websites section now shows ALL websites (up to 10), not just top 5 productive
+- Each website shows category badge with color (Education, Entertainment, etc.)
+- Shows "via keywords" indicator for keyword-categorized sites
+- Shows checkmark (✓) for productive websites
+- Added `getCategoryColor()` function for color-coded categories
+- Fixed `isCurrentHour` type error in daily trend data
+
+**7. Productivity Page Websites Section Redesign:**
+- **Filter Logic:** Only shows websites that are:
+  - Set to productive category (Education, Productivity, etc.) OR
+  - Configured as "smart website" in Settings (has keyword rules)
+- **Grouped by Domain:** Websites grouped by domain (youtube.com, reddit.com, etc.)
+- **Expandable Subpages:** Click domain to expand/collapse showing individual page titles
+- **Page Details:** Each subpage shows title (truncated), category badge, duration
+- **Persisted Expand State:** Expand state saved to localStorage, persists across page navigations
+- **Smart Website Indicator:** Shows "Smart website" badge for domains with keyword rules
+- **Props Added:** `domainKeywordRules` prop to ProductivityPage
+- **State Management:** `expandedDomains` state with `toggleDomain` function
+
+**Files Modified:**
+- `src/pages/ProductivityPage.tsx` - Website section redesign with grouped domains and expandable subpages
+- `src/App.tsx` - Added `domainKeywordRules` state and pass to ProductivityPage
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Smart Website Categorization UI overhaul with dropdown and tag input
+- `src/pages/ProductivityPage.tsx` - Website details enhancement, category colors, fixed type errors, websites section redesign
+- `src/App.tsx` - Added domainKeywordRules state and pass to ProductivityPage
+- `src/pages/ProductivityPage.tsx` - Fixed time calculation to show sum of displayed items
+
+**How It Works Now:**
+1. Go to Settings → Category tab
+2. Click "Add Domain" in Smart Website Categorization section
+3. Select website from dropdown (e.g., "youtube.com")
+4. Add keywords by typing and pressing Enter (e.g., "tutorial", "course")
+5. Choose default category (Entertainment)
+6. Click "Add Domain" to save
+7. Existing rules show keyword count and default category
+8. Click "Configure" to edit keywords - they load as chips
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — Keyword-Based Productivity Categorization
+
+**What Changed:**
+
+**1. Configurable Keyword Rules:**
+- Users can now configure which keywords mark a website as "productive"
+- Default YouTube keywords: tutorial, course, lecture, learn, programming, etc.
+- Keywords stored in categoryConfig as `domainKeywordRules`
+
+**2. Per-Domain Default Categories:**
+- Each website can have a default category when no keywords match
+- YouTube defaults to "Entertainment"
+- Reddit/Twitter default to "Social Media"
+
+**3. Smart Website Categorization Section:**
+- New section in Settings → Category tab
+- Add/remove domains with custom keyword lists
+- Configure default category per domain
+
+**4. Backend Implementation:**
+- Updated data model with `domainKeywordRules` and `domainDefaultCategories`
+- Updated `categorizeDomain()` to check keyword rules BEFORE hardcoded logic
+- Added 7 new IPC handlers for keyword management
+
+**Files Modified:**
+- `src/main.ts` - Updated categoryConfig data model, categorizeDomain() logic, new IPC handlers
+- `src/preload.ts` - Added new API bindings
+- `src/pages/SettingsPage.tsx` - Added Smart Website Categorization UI section
+
+**Default Keywords for YouTube:**
+```
+tutorial, course, lecture, learn, class, university,
+physics, mathematics, chemistry, biology, science,
+programming, coding, javascript, python, typescript, react,
+algorithm, data structure, web development,
+crash course, lesson, study, exam, revision,
+masterclass, workshop, training, how to build, from scratch
+```
+
+**How It Works:**
+- When visiting youtube.com/watch?v=xxx:
+  - If video title contains "tutorial" → categorized as "Education"
+  - If video title contains "funny cats" → categorized as "Entertainment" (default)
+- User can add more websites with custom keywords in Settings
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — Settings: Color Customization Revamp
+
+**What Changed:**
+
+**1. Modern UI Redesign:**
+- Redesigned Colors tab with gradient header and modern card-based design
+- Each color item is now in beautiful cards with hover effects
+- Color preview bars at the bottom of each card
+- Smooth Framer Motion animations
+
+**2. Apps/Websites Toggle:**
+- Added toggle between Applications and Websites color modes
+- Gradient toggle buttons (emerald for apps, blue for websites)
+- Icons for visual distinction
+
+**3. Website Color Support (NEW!):**
+- Users can now customize colors for individual websites
+- Website colors stored in localStorage as `deskflow-domain-colors`
+- Toggle shows "Individual Websites" section when in Websites mode
+
+**4. Settings Page Expand/Collapse:**
+- "Show More" / "Show Less" buttons for Applications and Websites carousels
+- Shows 5 apps (1 row) collapsed, 15 apps (3 rows) expanded
+- Changed from flexbox to grid layout for multi-row display
+
+**5. Removed Duplicate Section:**
+- Removed duplicate "Category Assignments" section  
+- Was redundant since carousel already allows category changes
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Complete Colors tab redesign with toggle, card-based design, website colors
+- Added `colorEditMode` state ('apps' | 'websites')
+- Added `domainColors` state for website color persistence
+- Added `handleDomainColorChange()` handler function
+- Added `Globe` icon import
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-17 — IDE Projects: Open Project in IDE
+
+**What Changed:**
+
+**1. Default IDE for Projects:**
+- Added `default_ide` column to `projects` database table
+- When adding a project, can select a default IDE from detected IDEs
+- IDE selector dropdown shows all detected IDEs (VS Code, IntelliJ, PyCharm, etc.)
+
+**2. Quick Open Button:**
+- Project cards now show which IDE is configured (if any)
+- "Open" button to quickly open the project in its default IDE
+- Backend handler `open-project` launches the project in the specified IDE
+
+**3. Open Commands by IDE:**
+| IDE | Command |
+|-----|---------|
+| VS Code | `code "path"` |
+| Cursor | `cursor "path"` |
+| JetBrains | `"install_path" "path"` |
+| Android Studio | `"studio64.exe" "path"` |
+| Antigravity | `agy "path"` |
+
+**Files Modified:**
+- `src/main.ts` - Added `default_ide` column, `open-project` handler
+- `src/preload.ts` - Added `openProject` IPC binding
+- `src/App.tsx` - Added type definitions
+- `src/pages/IDEProjectsPage.tsx` - IDE selector in Add Project form, Open button on project cards
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-17 — IDE Projects: Loading Overlay and JetBrains Detection Fix
+
+**What Changed:**
+
+**1. Scanning Loading Overlay:**
+- Added full-screen loading overlay when "Scan Environment" is clicked
+- Overlay blocks all user interaction until scan completes
+- Shows animated progress bar and "Scanning Environment" message
+- Prevents user confusion during the scanning process
+
+**2. Improved JetBrains IDE Detection:**
+- Enhanced JetBrains Toolbox detection to support multiple env file formats:
+  - `.env.project` (older format)
+  - `.env.vars` (newer format)
+- Added recursive directory search to find IDE executables directly
+- Added fallback detection for JetBrains IDEs installed directly (not via Toolbox)
+- Searches in `%LOCALAPPDATA%\JetBrains\` subdirectories
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Added scanning loading overlay component
+- `src/main.ts` - Enhanced JetBrains detection logic
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-17 — IDE Projects: UI Redesign, Setup Guide, and Improved IDE Detection
+
+**What Changed:**
+
+**1. UI Redesign - Dropdown Actions Menu:**
+- Replaced "Scan Environment" button with "Actions ▼" dropdown menu
+- Primary "Sync AI Usage" button stays visible and prominent
+- Dropdown contains: Scan Environment, AI Debug Info, Setup Guide
+- Cleaner header with less button clutter
+
+**2. Setup Guide Modal:**
+- Full setup guide with 4 steps displayed in a modal overlay
+- Shows on first visit to IDE Projects page (can be disabled)
+- Includes: Add Project, AI Tracking, Git Tracking, IDE Detection
+- Real-time status indicators (detected/not found) for AI tools and IDEs
+- Checklist showing what's been completed
+- "Don't show again" checkbox (saves to localStorage)
+
+**3. Improved IDE Detection:**
+- Added Google Antigravity IDE detection (new AI IDE from Google)
+- Added IntelliJ IDEA, PyCharm, GoLand via JetBrains Toolbox detection
+- Added Android Studio detection (standalone installation)
+- Improved Cursor detection with better path checking
+- Async extension loading for VS Code (doesn't block IDE detection)
+
+**4. Fixed Scan Environment Freeze:**
+- Made scan-tools handler truly async with Promise.all batch processing
+- Added 3-second timeout per command to prevent hanging
+- Runs commands in batches of 5 to avoid overwhelming the system
+- npm global packages detection runs in background
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Dropdown menu, Setup modal, onboarding state
+- `src/main.ts` - Async IDE detection, JetBrains Toolbox support, Antigravity, async scan-tools
+
+**IDE Detection Paths Added:**
+| IDE | Windows Path |
+|-----|-------------|
+| Google Antigravity | `%LOCALAPPDATA%\Programs\Antigravity\Antigravity.exe` |
+| IntelliJ IDEA | `%APPDATA%\JetBrains\Toolbox\apps\IDEA-U\...` |
+| PyCharm | `%APPDATA%\JetBrains\Toolbox\apps\PyCharm-P\...` |
+| Android Studio | `%LOCALAPPDATA%\Android\Sdk` |
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-17 — Website Color Selection in Settings (v1.25)
+
+**What Changed:**
+1. ✅ Added `allTimeWebsiteStats` computation in App.tsx from browserLogs
+2. ✅ Added `websiteStats` prop to SettingsPage
+3. ✅ Added `localWebsiteColors` state for website color management
+4. ✅ Added `getWebsiteColor` and `handleWebsiteColorChange` functions
+5. ✅ Added Website Colors section in Settings → Colors tab
+
+**Files Modified:**
+- `src/App.tsx` - Added allTimeWebsiteStats useMemo, passed to SettingsPage
+- `src/pages/SettingsPage.tsx` - Added websiteColors handling and UI section
+
+**Why:**
+- Settings page only had Application Colors, missing Website Colors
+- Website tracking data exists in browserLogs but wasn't displayed in Settings
+
+**Result:**
+- Settings → Colors tab now shows 3 sections: Category Colors, Application Colors, Website Colors
+- Each website can have its color customized
+
+**Build:** ✅ Successful
+
+---
+
+### 2026-04-17 — Electron App Freezing Fix (Memory Leak)
+
+**What Changed:**
+1. ✅ Removed React StrictMode from main.tsx (caused double-mounting/dup WebGL)
+2. ✅ Added GLCleanup component in OrbitSystem.tsx for WebGL disposal
+3. ✅ Reduced particle counts: Galaxy 8000→4000, Website 6000→3000, Stars 8000→3000
+4. ✅ Lazy-loaded OrbitSystem with Suspense fallback
+5. ✅ Added Chart.js cleanup in StatsPage.tsx
+
+**Files Modified:**
+- `src/main.tsx` - Removed StrictMode wrapper
+- `src/components/OrbitSystem.tsx` - Added GLCleanup, reduced particles
+- `src/App.tsx` - Lazy-loaded OrbitSystem
+- `src/pages/StatsPage.tsx` - Added Chart.js destroy() cleanup
+- `src/pages/ProductivityPage.tsx` - Removed framer-motion, added cleanup
+- `src/pages/BrowserActivityPage.tsx` - Removed framer-motion, added isMountedRef
+
+**Why:**
+- App froze during page navigation after extended use
+- OrbitSystem had 17K+ particles with procedural textures + post-processing
+- React StrictMode caused double-mounting in dev, creating duplicate WebGL contexts
+- Chart.js instances not destroyed on unmount
+
+**Result:** Build verified ✅, app runs smoothly
+
+**Build:** ✅ Successful
+
+---
 
 ### 2026-04-16 — IDE Projects: AI Sync Debug Panel
 
@@ -76,6 +547,22 @@
 - No PerformanceMonitor errors
 
 **Build:** ✅ Successful
+
+---
+
+### 2026-04-18 — Window Focus/Visibility Resume Fix
+
+**What Changed:**
+1. ✅ Added `focus` event listener - detects when user returns to app window
+2. ✅ Added `visibilitychange` event listener - detects when tab becomes visible
+3. ✅ These catch return from idle even without mouse/keyboard activity inside the app
+
+**Files Modified:**
+- `src/App.tsx` - Activity listener useEffect
+
+**Why:** Previous activity listeners only captured events INSIDE the DeskFlow window. When user returned from being away but didn't move mouse/type inside the app, tracking wouldn't resume. Now window focus/visibility events catch the return.
+
+**Result:** Tracking resumes when user focuses the app window or switches back to the tab
 
 ---
 
@@ -1052,6 +1539,13 @@ interface DailyStat {
 | `set-domain-tier` | invoke | Set productivity tier for a specific domain |
 | `set-tier-assignments` | invoke | Update tier assignment mappings |
 | `get-default-categories` | invoke | Get list of all available categories |
+| `set-domain-keyword-rules` | invoke | Set productivity keywords for a domain |
+| `get-domain-keyword-rules` | invoke | Get productivity keywords for a domain |
+| `set-domain-default-category` | invoke | Set default category for a domain |
+| `get-domain-default-category` | invoke | Get default category for a domain |
+| `get-keyword-enabled-domains` | invoke | Get all domains with keyword rules enabled |
+| `add-keyword-domain` | invoke | Add a new domain with keyword rules |
+| `remove-keyword-domain` | invoke | Remove keyword rules from a domain |
 | `apply-category-to-historical` | invoke | Update all historical logs to new categories + rebuild aggregates |
 | `get-tier-assignments` | invoke | Get current tier assignment configuration |
 | `migrate-to-aggregates` | invoke | One-time migration to populate aggregate tables |
@@ -1094,8 +1588,14 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.22 | 2026-04-16 | PerformanceMonitor fix: Simplified to plain JSX children |
 | 1.23 | 2026-04-16 | Mouse sensitivity & reset fix: Dynamic OrbitControls target, resetCameraToGalaxy(), seeded random for stable positions |
 | 1.24 | 2026-04-16 | IDE Projects: Added AI sync debug panel with detection status, paths, and database state visibility |
+| 1.26 | 2026-04-17 | IDE Projects UI redesign with dropdown menu, Setup Guide modal with onboarding, improved IDE detection (Antigravity, JetBrains, Android Studio), async scan-tools |
+| 1.27 | 2026-04-17 | IDE Projects: Added scanning loading overlay, enhanced JetBrains detection with multiple env formats and recursive search |
+| 1.28 | 2026-04-17 | IDE Projects: Add default IDE selection when adding projects, quick Open button to launch project in specified IDE |
+| 1.31 | 2026-04-18 | Context maintenance infrastructure: Fixed empty GRAPH_REPORT.md, created maintain-context skill, rewrote AGENTS.md |
+| 1.32 | 2026-04-18 | IDE Projects: Added folder picker for project path, improved JetBrains detection using `where` command |
+| 1.33 | 2026-04-18 | AI Agent Data Storage Research: Documented storage locations for Claude Code, Cursor, OpenCode, etc. Fixed Claude Code and Cursor parsing to match actual data formats |
 
 ---
 
-**Last Updated:** 2026-04-16 (v1.24)
+**Last Updated:** 2026-04-18 (v1.33)
 **Maintained By:** AI Development Team

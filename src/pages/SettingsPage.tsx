@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { AnimatePresence } from 'framer-motion';
 import { 
   Settings, Database, Clock, Download, Trash2, RefreshCw, 
   ChevronRight, X, Plus, GripVertical, Palette, Check, ChevronDown, Globe,
@@ -100,59 +101,91 @@ function ColorPicker({ value, onChange, size = 'md' }: { value: string; onChange
   const ref = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-color-picker-overlay]')) return;
+      if (ref.current && !ref.current.contains(target)) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isOpen]);
 
   const sizeClass = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
-  const popupSizeClass = size === 'sm' ? 'w-40' : 'w-44';
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`${sizeClass} rounded-full cursor-pointer border-2 border-zinc-600 hover:border-zinc-400 transition-all hover:scale-110 shadow-md`}
-        style={{ backgroundColor: value }}
-        title="Click to change color"
-      />
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className={`absolute top-full left-0 mt-2 p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 ${popupSizeClass}`}
+    <>
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`${sizeClass} rounded-full cursor-pointer border-2 border-zinc-600 hover:border-zinc-400 transition-all hover:scale-110 shadow-md`}
+          style={{ backgroundColor: value }}
+          title="Click to change color"
+        />
+      </div>
+      {isOpen && createPortal(
+        <div
+          data-color-picker-overlay
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2147483647,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false); }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+            }}
+            className="p-4 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-52"
           >
-            {/* Grid of preset color circles */}
-            <div className="grid grid-cols-5 gap-1.5 mb-2">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-zinc-300">Pick a color</span>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-5 gap-2 mb-3">
               {PRESET_COLORS.slice(0, 15).map((color) => (
                 <button
                   key={color}
                   onClick={() => { onChange(color); setIsOpen(false); }}
-                  className={`w-5 h-5 rounded-full hover:scale-125 transition-transform ${value === color ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-900' : ''}`}
+                  className={`w-7 h-7 rounded-full hover:scale-110 transition-transform ${value === color ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : ''}`}
                   style={{ backgroundColor: color }}
                 />
               ))}
             </div>
-            {/* Smaller color input for custom colors */}
-            <div className="flex items-center gap-2 pt-2 border-t border-zinc-700">
+            <div className="flex items-center gap-2 pt-3 border-t border-zinc-700">
               <input
                 type="color"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-5 h-5 rounded cursor-pointer bg-transparent"
+                className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
               />
               <span className="text-xs text-zinc-400 font-mono">{value}</span>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -413,6 +446,21 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
           if (config?.domainCategoryMap) {
             Object.assign(domainOverrides, config.domainCategoryMap);
           }
+          // Load keyword rules
+          if (config?.domainKeywordRules) {
+            setDomainKeywords(config.domainKeywordRules);
+          }
+          if (config?.domainDefaultCategories) {
+            setDomainDefaultCategories(config.domainDefaultCategories);
+          }
+        } catch { /* ignore */ }
+      }
+      
+      // Load keyword-enabled domains
+      if (window.deskflowAPI?.getKeywordEnabledDomains) {
+        try {
+          const domains = await window.deskflowAPI.getKeywordEnabledDomains();
+          setKeywordEnabledDomains(domains);
         } catch { /* ignore */ }
       }
       
@@ -510,6 +558,18 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     localStorage.setItem('deskflow-app-category-overrides', JSON.stringify(appCategoryOverrides));
     localStorage.setItem('deskflow-domain-category-overrides', JSON.stringify(domainCategoryOverrides));
     localStorage.setItem('deskflow-animation-speed', animationSpeed);
+    
+    // Save keyword-based productivity rules
+    for (const [domain, keywords] of Object.entries(domainKeywords)) {
+      if (window.deskflowAPI?.setDomainKeywordRules) {
+        await window.deskflowAPI.setDomainKeywordRules(domain, keywords);
+      }
+    }
+    for (const [domain, category] of Object.entries(domainDefaultCategories)) {
+      if (window.deskflowAPI?.setDomainDefaultCategory) {
+        await window.deskflowAPI.setDomainDefaultCategory(domain, category);
+      }
+    }
     
     // Update database based on sync mode (wrapped in try-catch)
     try {
@@ -651,6 +711,16 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
   const [domainSearchQuery, setDomainSearchQuery] = useState('');
   const [appSearchFilter, setAppSearchFilter] = useState('');
   const [domainSearchFilter, setDomainSearchFilter] = useState('');
+  
+  // Keyword-based productivity categorization state
+  const [keywordEnabledDomains, setKeywordEnabledDomains] = useState<string[]>([]);
+  const [editingKeywordDomain, setEditingKeywordDomain] = useState<string | null>(null);
+  const [domainKeywords, setDomainKeywords] = useState<Record<string, string[]>>({});
+  const [domainDefaultCategories, setDomainDefaultCategories] = useState<Record<string, string>>({});
+  const [newKeywordDomain, setNewKeywordDomain] = useState('');
+  const [newKeywordInput, setNewKeywordInput] = useState('');
+  const [editingKeywords, setEditingKeywords] = useState<string[]>([]);
+  const [tempKeywordInput, setTempKeywordInput] = useState('');
 
   const ITEMS_PER_PAGE = 5;
 
@@ -1095,6 +1165,256 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   className="w-full mt-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-400 transition-all"
                 >
                   Done
+                </button>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Smart Website Categorization Section */}
+          <div className="glass rounded-3xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Smart Website Categorization</h2>
+                <p className="text-xs text-zinc-500">Configure keyword-based productivity detection for websites</p>
+              </div>
+              <button
+                onClick={() => setEditingKeywordDomain(editingKeywordDomain ? null : 'new')}
+                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Domain
+              </button>
+            </div>
+
+            {/* List of domains with keyword rules */}
+            <div className="space-y-2 mb-4">
+              {keywordEnabledDomains.length > 0 ? (
+                keywordEnabledDomains.map((domain) => (
+                  <div
+                    key={domain}
+                    className="flex items-center justify-between p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/30"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <Globe className="w-4 h-4 text-zinc-500" />
+                      <div>
+                        <div className="text-sm font-medium text-zinc-200">{domain}</div>
+                        <div className="text-xs text-zinc-500">
+                          {domainKeywords[domain]?.length || 0} keywords - Default: {domainDefaultCategories[domain] || 'Entertainment'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingKeywordDomain(domain);
+                          setEditingKeywords(domainKeywords[domain] || []);
+                          setTempKeywordInput('');
+                        }}
+                        className="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-all"
+                      >
+                        Configure
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (window.deskflowAPI?.removeKeywordDomain) {
+                            await window.deskflowAPI.removeKeywordDomain(domain);
+                            setKeywordEnabledDomains(prev => prev.filter(d => d !== domain));
+                            setHasChanges(true);
+                            onHasChangesChange(true);
+                          }
+                        }}
+                        className="p-1.5 text-zinc-500 hover:text-red-400 transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-zinc-500">
+                  <Globe className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No domains with keyword rules yet</p>
+                  <p className="text-xs mt-1">Add a domain to enable smart categorization</p>
+                </div>
+              )}
+            </div>
+
+            {/* Configuration panel */}
+            {editingKeywordDomain && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-4 bg-zinc-900/80 rounded-xl border border-zinc-700/50"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold">
+                    {editingKeywordDomain === 'new' ? 'Add New Domain' : `Configure: ${editingKeywordDomain}`}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setEditingKeywordDomain(null);
+                      setEditingKeywords([]);
+                      setTempKeywordInput('');
+                    }}
+                    className="p-1 text-zinc-500 hover:text-white transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Domain Dropdown for new */}
+                {editingKeywordDomain === 'new' && (
+                  <div className="mb-4">
+                    <label className="text-xs text-zinc-400 mb-1.5 block">Select Website</label>
+                    <select
+                      value={newKeywordDomain}
+                      onChange={(e) => setNewKeywordDomain(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="">Choose a website...</option>
+                      {domainStats
+                        .filter((s: any) => !keywordEnabledDomains.includes(s.domain))
+                        .map((site: any) => (
+                          <option key={site.domain} value={site.domain}>
+                            {site.domain} ({site.category || 'Uncategorized'})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Keyword Tags Input */}
+                <div className="mb-4">
+                  <label className="text-xs text-zinc-400 mb-1.5 block">Productivity Keywords</label>
+                  <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
+                    {(editingKeywordDomain === 'new' ? editingKeywords : (domainKeywords[editingKeywordDomain] || []))
+                      .map((keyword, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-medium"
+                      >
+                        {keyword}
+                        <button
+                          onClick={() => {
+                            if (editingKeywordDomain === 'new') {
+                              setEditingKeywords(prev => prev.filter((_, i) => i !== idx));
+                            } else {
+                              const updated = (domainKeywords[editingKeywordDomain] || []).filter((_, i) => i !== idx);
+                              setDomainKeywords(prev => ({ ...prev, [editingKeywordDomain]: updated }));
+                              setEditingKeywords(updated);
+                            }
+                          }}
+                          className="hover:text-emerald-300 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {(editingKeywordDomain === 'new' ? editingKeywords.length === 0 : !(domainKeywords[editingKeywordDomain]?.length > 0)) && (
+                      <span className="text-xs text-zinc-500 italic">No keywords added yet</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tempKeywordInput}
+                      onChange={(e) => setTempKeywordInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && tempKeywordInput.trim()) {
+                          e.preventDefault();
+                          const newKeyword = tempKeywordInput.trim().toLowerCase();
+                          if (!editingKeywords.includes(newKeyword)) {
+                            setEditingKeywords(prev => [...prev, newKeyword]);
+                            if (editingKeywordDomain !== 'new') {
+                              setDomainKeywords(prev => ({
+                                ...prev,
+                                [editingKeywordDomain]: [...(prev[editingKeywordDomain] || []), newKeyword]
+                              }));
+                            }
+                          }
+                          setTempKeywordInput('');
+                        }
+                      }}
+                      placeholder="Type a keyword and press Enter"
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (tempKeywordInput.trim()) {
+                          const newKeyword = tempKeywordInput.trim().toLowerCase();
+                          if (!editingKeywords.includes(newKeyword)) {
+                            setEditingKeywords(prev => [...prev, newKeyword]);
+                            if (editingKeywordDomain !== 'new') {
+                              setDomainKeywords(prev => ({
+                                ...prev,
+                                [editingKeywordDomain]: [...(prev[editingKeywordDomain] || []), newKeyword]
+                              }));
+                            }
+                          }
+                          setTempKeywordInput('');
+                        }
+                      }}
+                      className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium transition-all"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Default Category */}
+                <div className="mb-4">
+                  <label className="text-xs text-zinc-400 mb-1.5 block">Default Category</label>
+                  <select
+                    value={editingKeywordDomain === 'new' ? 'Entertainment' : (domainDefaultCategories[editingKeywordDomain] || 'Entertainment')}
+                    onChange={(e) => {
+                      if (editingKeywordDomain !== 'new') {
+                        setDomainDefaultCategories(prev => ({
+                          ...prev,
+                          [editingKeywordDomain]: e.target.value
+                        }));
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {DEFAULT_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Save Button */}
+                <button
+                  onClick={async () => {
+                    const domain = editingKeywordDomain === 'new' ? newKeywordDomain.toLowerCase() : editingKeywordDomain;
+                    const keywords = editingKeywords;
+                    const defaultCat = editingKeywordDomain === 'new' ? 'Entertainment' : (domainDefaultCategories[editingKeywordDomain] || 'Entertainment');
+
+                    if (!domain) {
+                      alert('Please select a website');
+                      return;
+                    }
+
+                    if (window.deskflowAPI?.addKeywordDomain) {
+                      await window.deskflowAPI.addKeywordDomain(domain, keywords, defaultCat);
+                      setDomainKeywords(prev => ({ ...prev, [domain]: keywords }));
+                      setDomainDefaultCategories(prev => ({ ...prev, [domain]: defaultCat }));
+                      
+                      if (editingKeywordDomain === 'new') {
+                        setKeywordEnabledDomains(prev => [...prev, domain]);
+                      }
+                      
+                      setEditingKeywordDomain(null);
+                      setEditingKeywords([]);
+                      setTempKeywordInput('');
+                      setNewKeywordDomain('');
+                      setHasChanges(true);
+                      onHasChangesChange(true);
+                    }
+                  }}
+                  disabled={editingKeywordDomain === 'new' && !newKeywordDomain}
+                  className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all"
+                >
+                  {editingKeywordDomain === 'new' ? 'Add Domain' : 'Save Changes'}
                 </button>
               </motion.div>
             )}

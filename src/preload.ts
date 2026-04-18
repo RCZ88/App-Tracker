@@ -92,9 +92,19 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   applyCategoryToHistorical: (tierAssignments: any) => ipcRenderer.invoke('apply-category-to-historical', tierAssignments),
   getTierAssignments: () => ipcRenderer.invoke('get-tier-assignments'),
   getDefaultCategories: () => ipcRenderer.invoke('get-default-categories'),
+  
+  // NEW: Keyword-based productivity categorization
+  getDomainKeywordRules: (domain: string) => ipcRenderer.invoke('get-domain-keyword-rules', domain),
+  setDomainKeywordRules: (domain: string, keywords: string[]) => ipcRenderer.invoke('set-domain-keyword-rules', domain, keywords),
+  getDomainDefaultCategory: (domain: string) => ipcRenderer.invoke('get-domain-default-category', domain),
+  setDomainDefaultCategory: (domain: string, category: string) => ipcRenderer.invoke('set-domain-default-category', domain, category),
+  getKeywordEnabledDomains: () => ipcRenderer.invoke('get-keyword-enabled-domains'),
+  addKeywordDomain: (domain: string, keywords: string[], defaultCategory?: string) => ipcRenderer.invoke('add-keyword-domain', domain, keywords, defaultCategory),
+  removeKeywordDomain: (domain: string) => ipcRenderer.invoke('remove-keyword-domain', domain),
 
   // File operations
   saveFile: (options: { content: string; filename: string; fileType: string }) => ipcRenderer.invoke('save-file', options),
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
 
   // ========== IDE Projects ==========
   // IDE Detection
@@ -108,11 +118,12 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   getToolCategories: () => ipcRenderer.invoke('get-tool-categories'),
 
   // Project Management
-  addProject: (projectData: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string }) =>
+  addProject: (projectData: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string; defaultIde?: string }) =>
     ipcRenderer.invoke('add-project', projectData),
   getProjects: () => ipcRenderer.invoke('get-projects'),
   getProjectTools: (projectId: string) => ipcRenderer.invoke('get-project-tools', projectId),
   removeProject: (projectId: string) => ipcRenderer.invoke('remove-project', projectId),
+  openProject: (projectId: string, ideId?: string) => ipcRenderer.invoke('open-project', projectId, ideId),
 
   // AI & Git Metrics
   getAIUsageSummary: (period?: 'week' | 'month') => ipcRenderer.invoke('get-ai-usage-summary', period),
@@ -124,6 +135,11 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   // AI Usage Sync
   syncAIUsage: () => ipcRenderer.invoke('sync-ai-usage'),
   debugAIAgents: () => ipcRenderer.invoke('debug-ai-agents'),
+  onAISyncProgress: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('ai-sync-progress', handler);
+    return () => { ipcRenderer.removeListener('ai-sync-progress', handler); };
+  },
 
   // Git & DORA Metrics
   syncCommits: (projectId: string, repoPath?: string) => ipcRenderer.invoke('sync-commits', projectId, repoPath),

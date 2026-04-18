@@ -4,6 +4,31 @@
 
 ---
 
+## 🚀 Agent Self-Improvement
+
+### agent-reflect
+**Location:** `agent/skills/agent-reflect/`
+**When to use:** After completing complex tasks, when user corrects behavior, or before context compaction
+
+**Usage:**
+```
+reflect
+```
+Then follow the 6-step workflow to analyze conversation and extract learnings.
+
+**What it does:**
+- Scans conversation for correction signals
+- Detects agent platform (OpenCode/Cursor/Claude Code)
+- Classifies learnings and maps to target files
+- Proposes changes with user approval
+
+**Key patterns:**
+- HIGH confidence: Explicit corrections ("never", "always", "wrong")
+- MEDIUM confidence: Approved approaches ("perfect", "exactly")
+- LOW confidence: Observations of what worked
+
+---
+
 ## 🔧 Core Skills
 
 ### 1. File Operations
