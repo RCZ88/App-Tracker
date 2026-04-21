@@ -6,13 +6,104 @@
 
 ## 📊 Current Status
 
-**Version:** 1.48
+**Version:** 1.53
 **Last Updated:** 2026-04-21
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-21 — Browser Tracking Fix
+
+**What Changed:**
+1. ✅ Added all known browsers to the dropdown (Chrome, Firefox, Safari, Edge, Brave, Opera, Vivaldi, Arc)
+2. ✅ Browser with extension now marked with "★ (with extension)" in dropdown
+3. ✅ Browser with extension is set as default/pre-selected
+4. ✅ Added `extensionBrowser` state to properly track which browser has the extension
+5. ✅ When user selects a browser, it's saved as the browser with extension
+6. ✅ Fixed case-insensitive browser deduplication (prevents Chrome/chrome duplicates)
+7. ✅ Defaults to Chrome if available, otherwise first browser
+
+**Files Modified:**
+- `src/pages/BrowserActivityPage.tsx` - Added all known browsers to availableBrowsers, added extension marker (★), added separate extensionBrowser state, case-insensitive dedup
+
+**Result:** All browser category apps should appear in dropdown. The one with the extension is marked with "★ (with extension)" and is the default selection.
+
+### 2026-04-21 — Terminal Fix: Event Name Mismatch & Terminal Implementation
+
+**What Changed:**
+1. ✅ Fixed terminal data not reaching frontend - event name mismatch between main.ts (`terminal:data`) and preload.ts (`terminal-data`)
+2. ✅ Updated `onTerminalData` listener in preload.ts to listen to `terminal:data` event
+3. ✅ Terminal now properly receives PTY output data
+4. ✅ Added `calculate-project-health` IPC handler that was missing
+5. ✅ Fixed terminal container dimensions - added minHeight/minWidth
+6. ✅ Fixed terminal layout rendering - proper flex layout
+7. ✅ Added debugging logs to track terminal data flow
+8. ✅ Added project details to dropdown (language, VCS type)
+9. ✅ Added project stats panel to sidebar
+10. ✅ Added all split directions (left, right, top, bottom) for split-screen
+11. ✅ Fixed "Open Terminal" button to add terminal to layout
+12. ✅ Added test text to terminal to verify rendering
+
+**Files Modified:**
+- `src/preload.ts` - Fixed `onTerminalData` to listen to `terminal:data` instead of `terminal-data`
+- `src/main.ts` - Added `calculate-project-health` handler, debugging logs for terminal data
+- `src/components/TerminalWindow.tsx` - Fixed container dimensions, layout rendering, split controls
+- `src/pages/TerminalPage.tsx` - Added project details dropdown, project stats sidebar, fixed Open Terminal button
+
+**Why:** Terminal was completely non-functional because: (1) IPC event names didn't match, (2) terminal container had no dimensions, (3) "Open Terminal" button spawned terminal but didn't add to layout, (4) missing project health handler.
+
+**Result:** Terminal now spawns PTY, streams output to xterm.js frontend, handles user input. Split-screen works with 4 directions. Project details shown in dropdown and sidebar.
+
+### 2026-04-21 — Tracking Browser Extension Setting
+
+**What Changed:**
+1. ✅ Added `browserWithExtension` preference to track which browser has the extension installed
+2. ✅ Modified `get-tracked-browsers` IPC handler to only return browsers with extension (not all tracked browsers from DB)
+3. ✅ Added `set-browser-with-extension` IPC handler to save which browser has the extension
+4. ✅ Updated BrowserActivityPage dropdown to only show browsers that have the extension installed
+5. ✅ Changed dropdown handler to use `setBrowserWithExtension` instead of generic `setPreference`
+
+**Files Modified:**
+- `src/main.ts` - Added `browserWithExtension` to UserPreferences interface, rewrote `get-tracked-browsers` handler, added `set-browser-with-extension` handler
+- `src/preload.ts` - Added `setBrowserWithExtension` API binding
+- `src/pages/BrowserActivityPage.tsx` - Added load browser with extension on mount, updated dropdown onChange handler
+
+**Why:** The tracking browser dropdown was showing all browsers that were tracked (Chrome, Firefox, Edge, etc.), but it should only show browsers that have the DeskFlow extension installed. Now only the browser with the extension (e.g., Comet) appears in the dropdown.
+
+**Result:**
+- Tracking Browser dropdown only shows browsers with the extension installed
+- User can select which browser has the extension from the dropdown
+- Setting persists to preferences file
+- Other browsers without extension are excluded from the dropdown options
+
+### 2026-04-21 — OpenRouter AI Integration Fix & Test Button
+
+**What Changed:**
+1. ✅ Fixed OpenRouter API connection: Added required headers (`HTTP-Referer`, `X-Title`)
+2. ✅ Added system prompts for both color generation and categorization
+3. ✅ Changed model from `anthropic/claude-sonnet-4-5` to `anthropic/claude-3.5-sonnet` (standard OpenRouter model name)
+4. ✅ Added model fallback list: `['anthropic/claude-3.5-sonnet', 'anthropic/claude-3-sonnet', 'openai/gpt-4o-mini', 'google/gemini-flash-1.5']`
+5. ✅ Added `extractJsonFromResponse()` helper to parse JSON from markdown code blocks
+6. ✅ Added comprehensive error handling: HTTP status checks, error object parsing, try-catch with detailed logging
+7. ✅ Added `test-openrouter-key` IPC handler to verify API key works
+8. ✅ Added "Test Connection" button in Settings > General next to API key input
+9. ✅ Shows real-time test status: testing / success (green with model name) / error (red with message)
+10. ✅ Added detailed console logging at every step for debugging
+
+**Files Modified:**
+- `src/main.ts` - Added system prompts, proper headers, JSON extraction helper, test endpoint, detailed logging
+- `src/preload.ts` - Added `testOpenRouterKey` API binding
+- `src/pages/SettingsPage.tsx` - Added Test Connection button with status indicators
+
+**Why:** AI features were returning empty `{}` despite API key being loaded. Root causes were: missing OpenRouter headers, wrong model name, no JSON extraction from markdown blocks.
+
+**Result:**
+- OpenRouter API now connects properly with required headers
+- AI responses are correctly parsed even if wrapped in markdown code blocks
+- Users can test their API key before using Magic Color/Category
+- Clear error messages if something goes wrong
 
 ### 2026-04-21 — Settings Page Grid Layout, API Key & Save Bar
 
@@ -120,6 +211,18 @@
 16. ✅ **Fixed app freeze during AI sync** — added `setImmediate` yielding between plugins and every 10 files during parsing
 17. ✅ **Massive sync speedup** — wrapped DB inserts in transactions with 100-record batches (was 1 insert = 1 disk write)
 18. ✅ Added yielding to Claude and Qwen `parseDir` loops so large directories don't block the main thread
+19. ✅ Agent popup top metrics now show **period-specific totals** — when you switch chart to 7D/30D/All, the Tokens/Messages/Cost/Sessions/efficiency numbers update to match that period
+20. ✅ **Fixed terminal layout console spam** — added missing IPC handlers for `get-terminal-layouts` and `save-terminal-layout` in main.ts
+21. ✅ Terminal layout hook now logs errors only once per project instead of every retry
+22. ✅ **Fixed terminal page console spam** — added stub IPC handlers for `get-terminal-presets`, `spawn-terminal`, `resize-terminal`, `kill-terminal`, `send-terminal-input`, `get-terminal-sessions`
+23. ✅ TerminalPage now deduplicates error logs using `logOnce()` helper
+24. ✅ **Implemented full terminal window management** — `create-terminal-window` opens a new BrowserWindow with embedded terminal, `spawn-terminal` launches PowerShell/bash PTY, bidirectional I/O streaming
+25. ✅ **Added terminal preset CRUD** — `add-terminal-preset`, `remove-terminal-preset`, `execute-terminal-preset` with DB persistence
+26. ✅ **Added terminal session tracking** — `save-terminal-session`, `get-terminal-sessions`, `get-terminal-session-resume-id` for chat-to-terminal mapping
+27. ✅ **Terminal control flow**: Select project → "Open Terminal" button → creates new window → spawns shell → streams output
+28. ✅ **Implemented node-pty based TerminalManager** — Proper PTY spawning with `node-pty` library for full terminal functionality (input/output working)
+29. ✅ **Fixed terminal I/O** — Added `terminal:create`, `terminal:write`, `terminal:resize`, `terminal:destroy` IPC handlers using TerminalManager
+30. ✅ **Added terminal data forwarding** — Data from PTY is forwarded to xterm.js for rendering
 
 **Files Modified:**
 - `src/pages/IDEProjectsPage.tsx` — Fixed ChartJS.register, enhanced agent popup, added comparison chart, sparklines, leaderboard, export
@@ -2031,6 +2134,17 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.32 | 2026-04-18 | IDE Projects: Added folder picker for project path, improved JetBrains detection using `where` command |
 | 1.33 | 2026-04-18 | AI Agent Data Storage Research: Documented storage locations for Claude Code, Cursor, OpenCode, etc. Fixed Claude Code and Cursor parsing to match actual data formats |
 | 1.38 | 2026-04-19 | Terminal Window Feature: Multi-window Electron + PTY backend (node-pty) + xterm.js frontend + recursive tiling layout |
+| 1.39 | 2026-04-19 | IDE Help Page: Created /ide-help route with comprehensive help content and added Help button in IDE Projects |
+| 1.40 | 2026-04-19 | Settings page overhaul: Line-style color picker, App/Website toggle, expand/collapse, all data shown |
+| 1.41 | 2026-04-19 | Color picker click anywhere to open, removed duplicate Category Assignments |
+| 1.42 | 2026-04-19 | Fixed Category Assignments section deletion bug |
+| 1.44 | 2026-04-20 | AI Color Magic: OpenRouter SDK integration for auto-generating colors with confirm/undo flow |
+| 1.45 | 2026-04-20 | Projects Page Redesign: Removed popup modal, converted to expandable accordion cards with rich inline details (Health, Git, Sessions, Presets, Tools) |
+| 1.46 | 2026-04-20 | Settings Page Fix: Converted app carousel to line-style list with App/Website toggle |
+| 1.50 | 2026-04-21 | Terminal Fix: Fixed event name mismatch (terminal:data vs terminal-data) that prevented terminal data from reaching frontend |
+| 1.51 | 2026-04-21 | Terminal Implementation: Added calculate-project-health handler, fixed terminal container dimensions, added split-screen controls (4 directions), added project details dropdown and stats sidebar |
+| 1.52 | 2026-04-21 | Browser Tracking Fix: Added all known browsers to dropdown (Chrome, Firefox, Safari, etc.), marks browser with extension with ★, loads extension browser first |
+| 1.53 | 2026-04-21 | Browser Tracking Fix: Fixed case-insensitive deduplication, defaults to Chrome |
 | 1.39 | 2026-04-19 | IDE Help Page: Created /ide-help route with comprehensive help content and added Help button in IDE Projects |
 | 1.40 | 2026-04-19 | Settings page overhaul: Line-style color picker, App/Website toggle, expand/collapse, all data shown |
 | 1.41 | 2026-04-19 | Color picker click anywhere to open, removed duplicate Category Assignments |

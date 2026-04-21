@@ -464,12 +464,14 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
         } catch { /* ignore */ }
       }
       
-      // Load OpenRouter API key from preferences
+          // Load OpenRouter API key from preferences
       if (window.deskflowAPI?.getPreferences) {
         try {
           const prefs = await window.deskflowAPI.getPreferences();
           if (prefs?.openrouterApiKey) {
-            setOpenRouterApiKey(prefs.openrouterApiKey);
+            // Strip any quotes that might have been saved
+            const cleanKey = prefs.openrouterApiKey.trim().replace(/^["']|["']$/g, '');
+            setOpenRouterApiKey(cleanKey);
           }
         } catch { /* ignore */ }
       }
@@ -557,9 +559,10 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
       console.log('[Settings] Saved tier assignments:', tierAssignments);
     }
     localStorage.setItem('deskflow-tier-assignments', JSON.stringify(tierAssignments));
+    // Always save colors to localStorage (even if parent doesn't provide setter)
+    localStorage.setItem('deskflow-planet-colors', JSON.stringify(localAppColors));
     if (setAppColors) {
       setAppColors(localAppColors);
-      localStorage.setItem('deskflow-planet-colors', JSON.stringify(localAppColors));
     }
     if (setCategoryOrder) {
       setCategoryOrder(localCategoryOrder);
@@ -569,9 +572,10 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     localStorage.setItem('deskflow-domain-category-overrides', JSON.stringify(domainCategoryOverrides));
     localStorage.setItem('deskflow-animation-speed', animationSpeed);
     
-    // Save OpenRouter API key to preferences
+    // Save OpenRouter API key to preferences (strip quotes)
     if (openRouterApiKey && window.deskflowAPI?.setPreference) {
-      await window.deskflowAPI.setPreference('openrouterApiKey', openRouterApiKey);
+      const cleanKey = openRouterApiKey.trim().replace(/^["']|["']$/g, '');
+      await window.deskflowAPI.setPreference('openrouterApiKey', cleanKey);
     }
     
     // Save keyword-based productivity rules
@@ -648,8 +652,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
   };
 
   const handleAppColorChange = (app: string, color: string) => {
-    const updated = { ...localAppColors, [app]: color };
-    setLocalAppColors(updated);
+    setLocalAppColors(prev => ({ ...prev, [app]: color }));
     setHasChanges(true);
     onHasChangesChange(true);
   };
@@ -737,6 +740,8 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
   const [pendingCategories, setPendingCategories] = useState<Record<string, string>>({});
   const [preAiCategories, setPreAiCategories] = useState<Record<string, string>>({});
   const [openRouterApiKey, setOpenRouterApiKey] = useState('');
+  const [apiKeyTestStatus, setApiKeyTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [apiKeyTestMessage, setApiKeyTestMessage] = useState('');
   
   // Keyword-based productivity categorization state
   const [keywordEnabledDomains, setKeywordEnabledDomains] = useState<string[]>([]);
@@ -793,6 +798,55 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
       {/* Content based on active tab */}
       {activeTab === 'category' && (
         <div className="space-y-4">
+          {/* Data Sync Mode */}
+          <div className="glass rounded-3xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Data Sync Mode</h2>
+                <p className="text-xs text-zinc-500">Choose how category changes are applied to your data</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDataSyncMode('forward')}
+                className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition ${
+                  dataSyncMode === 'forward'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 border border-transparent'
+                }`}
+              >
+                <div className="font-medium">Forward Only</div>
+                <div className="text-xs mt-1 opacity-70">New data uses updated categories</div>
+              </button>
+              <button
+                onClick={() => setDataSyncMode('refactor')}
+                className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition ${
+                  dataSyncMode === 'refactor'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 border border-transparent'
+                }`}
+              >
+                <div className="font-medium">Refactor All Data</div>
+                <div className="text-xs mt-1 opacity-70">Update existing data to match categories</div>
+              </button>
+            </div>
+            {dataSyncMode === 'refactor' && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <p className="text-xs text-amber-200">This will update all existing data to match your category settings. This action cannot be undone.</p>
+              </div>
+            )}
+            {syncStatus !== 'idle' && (
+              <div className={`mt-3 text-xs px-3 py-2 rounded-lg ${
+                syncStatus === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
+                syncStatus === 'error' ? 'bg-red-500/10 text-red-400' :
+                'bg-zinc-800/50 text-zinc-400'
+              }`}>
+                {syncMessage}
+              </div>
+            )}
+          </div>
+
           {/* Productivity Tiers */}
           <div className="glass rounded-3xl p-5">
             <div className="mb-4">
@@ -934,7 +988,9 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                         result.forEach((item: any) => {
                           newOverrides[item.name] = item.category;
                         });
-                        setPendingCategories(newOverrides);
+                        setAppCategoryOverrides(newOverrides);
+                        setHasChanges(true);
+                        onHasChangesChange(true);
                         setGeneratingCategories(false);
                       }
                     } catch (err) {
@@ -1150,7 +1206,9 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                         result.forEach((item: any) => {
                           newOverrides[item.name] = item.category;
                         });
-                        setPendingCategories(newOverrides);
+                        setDomainCategoryOverrides(newOverrides);
+                        setHasChanges(true);
+                        onHasChangesChange(true);
                         setGeneratingCategories(false);
                       }
                     } catch (err) {
@@ -1679,9 +1737,60 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                       type="password"
                       placeholder="sk-or-v1-..."
                       value={openRouterApiKey}
-                      onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                      onChange={(e) => {
+                        setOpenRouterApiKey(e.target.value);
+                        setApiKeyTestStatus('idle');
+                        setHasChanges(true);
+                        onHasChangesChange(true);
+                      }}
                       className="w-full px-3 py-2 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
                     />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={async () => {
+                          if (!openRouterApiKey) {
+                            setApiKeyTestStatus('error');
+                            setApiKeyTestMessage('Please enter an API key first');
+                            return;
+                          }
+                          setApiKeyTestStatus('testing');
+                          setApiKeyTestMessage('Testing connection...');
+                          try {
+                            // Temporarily save key to preferences for testing
+                            if (window.deskflowAPI?.setPreference) {
+                              await window.deskflowAPI.setPreference('openrouterApiKey', openRouterApiKey);
+                            }
+                            const result = await window.deskflowAPI?.testOpenRouterKey?.();
+                            if (result?.success) {
+                              setApiKeyTestStatus('success');
+                              setApiKeyTestMessage(`Connected! Model: ${result.model || 'OK'}`);
+                            } else {
+                              setApiKeyTestStatus('error');
+                              setApiKeyTestMessage(result?.error || 'Connection failed');
+                            }
+                          } catch (err: any) {
+                            setApiKeyTestStatus('error');
+                            setApiKeyTestMessage(err.message || 'Test failed');
+                          }
+                        }}
+                        disabled={apiKeyTestStatus === 'testing'}
+                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-all flex items-center gap-1.5"
+                      >
+                        {apiKeyTestStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                      </button>
+                      {apiKeyTestStatus === 'success' && (
+                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          {apiKeyTestMessage}
+                        </span>
+                      )}
+                      {apiKeyTestStatus === 'error' && (
+                        <span className="text-xs text-red-400 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          {apiKeyTestMessage}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-zinc-500 mt-1.5">Required for Magic Color and Magic Category AI features</p>
                   </div>
                 </div>
@@ -1812,7 +1921,16 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                         : domainStats.map((d: any) => d.domain);
                       if (window.deskflowAPI?.generateAIColors) {
                         const generated = await window.deskflowAPI.generateAIColors(appsToColor);
-                        setPendingColors(generated);
+                        // Apply all generated colors in single state update
+                        const validColors: Record<string, string> = {};
+                        Object.entries(generated).forEach(([appName, color]) => {
+                          if (color && typeof color === 'string' && color.startsWith('#')) {
+                            validColors[appName] = color;
+                          }
+                        });
+                        setLocalAppColors(prev => ({ ...prev, ...validColors }));
+                        setHasChanges(true);
+                        onHasChangesChange(true);
                         setGeneratingColors(false);
                       }
                     } catch (err) {

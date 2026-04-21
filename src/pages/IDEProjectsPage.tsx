@@ -2463,37 +2463,70 @@ export default function IDEProjectsPage() {
                 </button>
               </div>
 
-              {/* Top Metrics Grid */}
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Total Tokens</div>
-                  <div className="text-base font-semibold text-white">{formatTokens(selectedAgentDetail.tokens)}</div>
-                </div>
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Messages</div>
-                  <div className="text-base font-semibold text-blue-400">{selectedAgentDetail.messageCount.toLocaleString()}</div>
-                </div>
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Total Cost</div>
-                  <div className="text-base font-semibold text-emerald-400">{formatCurrency(selectedAgentDetail.cost)}</div>
-                </div>
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Sessions</div>
-                  <div className="text-base font-semibold text-violet-400">{selectedAgentDetail.sessions.toLocaleString()}</div>
-                </div>
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Tokens/Msg</div>
-                  <div className="text-base font-semibold text-amber-400">
-                    {selectedAgentDetail.messageCount > 0 ? formatTokens(Math.round(selectedAgentDetail.tokens / selectedAgentDetail.messageCount)) : 'N/A'}
-                  </div>
-                </div>
-                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-zinc-500 mb-1">Cost/Session</div>
-                  <div className="text-base font-semibold text-rose-400">
-                    {selectedAgentDetail.sessions > 0 ? formatCurrency(selectedAgentDetail.cost / selectedAgentDetail.sessions) : 'N/A'}
-                  </div>
-                </div>
-              </div>
+              {/* Top Metrics Grid — period-aware */}
+              {(() => {
+                const daysMap: Record<string, number> = { 'week': 7, 'month': 30, 'all': 9999 };
+                const numDays = daysMap[agentDetailPeriod] || 7;
+                const cutoff = numDays >= 9999 ? null : subDays(new Date(), numDays - 1);
+                const daily = overview?.aiUsage?.byTool?.[selectedAgentDetail.id]?.daily || {};
+
+                let periodTokens = 0;
+                let periodMessages = 0;
+                let periodCost = 0;
+                let periodSessions = 0;
+
+                for (const [dateStr, dayData] of Object.entries(daily)) {
+                  if (cutoff) {
+                    const d = new Date(dateStr);
+                    if (d < cutoff) continue;
+                  }
+                  periodTokens += (dayData as any).tokens || 0;
+                  periodMessages += (dayData as any).messageCount || 0;
+                  periodCost += (dayData as any).cost || 0;
+                  periodSessions += (dayData as any).sessions || 0;
+                }
+
+                const periodLabel = agentDetailPeriod === 'week' ? 'Last 7 Days' : agentDetailPeriod === 'month' ? 'Last 30 Days' : 'All Time';
+
+                return (
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-zinc-400 font-medium">{periodLabel}</span>
+                      <div className="h-px flex-1 bg-zinc-800" />
+                    </div>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Tokens</div>
+                        <div className="text-base font-semibold text-white">{formatTokens(periodTokens)}</div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Messages</div>
+                        <div className="text-base font-semibold text-blue-400">{periodMessages.toLocaleString()}</div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Cost</div>
+                        <div className="text-base font-semibold text-emerald-400">{formatCurrency(periodCost)}</div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Sessions</div>
+                        <div className="text-base font-semibold text-violet-400">{periodSessions.toLocaleString()}</div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Tokens/Msg</div>
+                        <div className="text-base font-semibold text-amber-400">
+                          {periodMessages > 0 ? formatTokens(Math.round(periodTokens / periodMessages)) : 'N/A'}
+                        </div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                        <div className="text-xs text-zinc-500 mb-1">Cost/Session</div>
+                        <div className="text-base font-semibold text-rose-400">
+                          {periodSessions > 0 ? formatCurrency(periodCost / periodSessions) : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                 {/* Timeline Chart */}

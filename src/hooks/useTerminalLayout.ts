@@ -38,7 +38,10 @@ export function useTerminalLayout(projectId: string | null = null, initialLayout
         setLayoutState(initialLayout || { id: 'root', type: 'leaf', terminalId: 'term-initial', size: 50 });
       }
     } catch (e) {
-      console.warn('[useTerminalLayout] Failed to load layout:', e);
+      if (projectId && !loggedProjects.has(projectId)) {
+        console.warn('[useTerminalLayout] Failed to load layout:', e);
+        loggedProjects.add(projectId);
+      }
       setLayoutState(initialLayout || { id: 'root', type: 'leaf', terminalId: 'term-initial', size: 50 });
     }
     setIsLoading(false);
@@ -69,7 +72,7 @@ export function useTerminalLayout(projectId: string | null = null, initialLayout
         }
       }
     } catch (e) {
-      console.warn('[useTerminalLayout] Failed to save layout:', e);
+      // Silently ignore save errors to prevent console spam
     }
   }, [activeLayoutId, projectId]);
 

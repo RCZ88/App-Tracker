@@ -525,6 +525,23 @@ function App() {
   // Load category overrides from localStorage AND categoryConfig on mount
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [domainKeywordRules, setDomainKeywordRules] = useState<Record<string, string[]>>({});
+  const [trackingBrowser, setTrackingBrowser] = useState<string>('');
+
+  useEffect(() => {
+    const loadTrackingBrowser = async () => {
+      try {
+        if (window.deskflowAPI?.getPreferences) {
+          const prefs = await window.deskflowAPI.getPreferences();
+          if (prefs?.browserWithExtension) {
+            setTrackingBrowser(prefs.browserWithExtension.toLowerCase());
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    loadTrackingBrowser();
+    const interval = setInterval(loadTrackingBrowser, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const loadOverrides = async () => {
@@ -604,14 +621,12 @@ function App() {
       filtered = allLogs;
     }
 
-    // Include apps (excluding main browser, which is tracked via websites) but exclude actual websites
-    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
-    const mainBrowser = (window.deskflowAPI as any)?.getPreferences ? 'chrome' : 'chrome';
+    // Include apps (excluding tracking browser, which is tracked via websites) but exclude actual websites
     const appLogs = filtered.filter(log => {
       // Exclude actual website tracking data
       if (log.is_browser_tracking) return false;
-      // Exclude main browser app (tracked via browser extension instead)
-      if (BROWSER_APPS.some(b => log.app.toLowerCase().includes(b))) return false;
+      // Only exclude the tracking browser app (tracked via extension), not all browsers
+      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return false;
       return true;
     });
 
@@ -642,7 +657,7 @@ function App() {
     }));
 
     return stats.sort((a, b) => b.total_ms - a.total_ms);
-  }, [allLogs, selectedPeriod, categoryOverrides]);
+  }, [allLogs, selectedPeriod, categoryOverrides, trackingBrowser]);
 
   // Compute ALL TIME app stats - no filtering by period (for Settings page)
   const allTimeAppStats = useMemo(() => {
@@ -1224,14 +1239,38 @@ function App() {
   // Focus = productive categories only, Total = all categories
   const [timeMode, setTimeMode] = useState<'focus' | 'total'>('focus');
 
-  // Compute time by category - includes both desktop apps AND websites
+  // Compute time by category - SEPARATE for apps and websites
+  // Apps-only time (for Total mode)
+  const appsTimeByCategory = useMemo(() => {
+    const categoryTime: Record<string, number> = {};
+    filteredLogs.forEach(log => {
+      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return;
+      const cat = log.category || 'Uncategorized';
+      categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
+    });
+    return categoryTime;
+  }, [filteredLogs, trackingBrowser]);
+
+  // Productive websites time (for Focus mode)
+  const productiveWebsitesTime = useMemo(() => {
+    let productiveTime = 0;
+    browserLogs.forEach(log => {
+      const websiteCategory = (log as any).category || 'Uncategorized';
+      const mappedCategory = WEBSITE_CATEGORY_MAP[websiteCategory] || 'Other';
+      if (tierAssignments?.productive.includes(mappedCategory)) {
+        productiveTime += log.duration;
+      }
+    });
+    return productiveTime;
+  }, [browserLogs, tierAssignments]);
+
+  // Total time by category (apps + all websites, used for score calculation)
   const timeByCategory = useMemo(() => {
-    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
     const categoryTime: Record<string, number> = {};
     
-    // Desktop apps (excluding main browser - tracked as websites instead)
+    // Desktop apps (excluding tracking browser - tracked as websites instead)
     filteredLogs.forEach(log => {
-      if (BROWSER_APPS.some(b => log.app.toLowerCase().includes(b))) return;
+      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return;
       const cat = log.category || 'Uncategorized';
       categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
     });
@@ -1245,7 +1284,7 @@ function App() {
     });
     
     return categoryTime;
-  }, [filteredLogs, browserLogs]);
+  }, [filteredLogs, browserLogs, trackingBrowser]);
 
   // Compute productivity score - same algorithm as ProductivityPage
   const TIER_WEIGHTS = { productive: 1.0, neutral: 0.5, distracting: 0 };
@@ -1273,30 +1312,32 @@ function App() {
     return (weighted / total) * 100;
   }, [timeByCategory, tierAssignments]);
 
-  // Compute focus time (only productive categories) vs total time (all categories)
+  // Compute focus time vs total time
+  // Total = apps only (no websites)
+  // Focus = apps productive + productive websites
   const focusAndTotalTime = useMemo(() => {
-    let productiveTime = 0;
-    let totalTime = 0;
-
-    Object.entries(timeByCategory).forEach(([category, duration]) => {
-      totalTime += duration;
-      // Check if this category is in the productive tier
+    // Total time = apps only
+    const totalTime = Object.values(appsTimeByCategory).reduce((sum, d) => sum + d, 0);
+    
+    // Focus time = apps productive + productive websites
+    let productiveAppsTime = 0;
+    Object.entries(appsTimeByCategory).forEach(([category, duration]) => {
       if (tierAssignments?.productive.includes(category)) {
-        productiveTime += duration;
+        productiveAppsTime += duration;
       }
     });
+    const focusTime = productiveAppsTime + productiveWebsitesTime;
 
-    return { focus: productiveTime, total: totalTime };
-  }, [timeByCategory, tierAssignments]);
+    return { focus: focusTime, total: totalTime };
+  }, [appsTimeByCategory, productiveWebsitesTime, tierAssignments]);
   
   // Compute breakdown for display (apps vs websites)
-  // Apps excludes the main browser since that's tracked via websites
+  // Only the tracking browser is excluded from apps since it's tracked via websites
   const timeBreakdown = useMemo(() => {
-    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
-    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking && !BROWSER_APPS.some(b => l.app.toLowerCase().includes(b))).reduce((sum, l) => sum + l.duration, 0);
+    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking && !(trackingBrowser && l.app.toLowerCase().includes(trackingBrowser))).reduce((sum, l) => sum + l.duration, 0);
     const websitesTime = filteredLogs.filter(l => l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
     return { apps: appsTime, websites: websitesTime };
-  }, [filteredLogs]);
+  }, [filteredLogs, trackingBrowser]);
 
   // Display time based on mode
   const displayTime = timeMode === 'focus' ? Math.floor(focusAndTotalTime.focus) : Math.floor(focusAndTotalTime.total);
@@ -1571,7 +1612,6 @@ Trend: +14% vs. yesterday. Keep it up!`;
     { icon: Target, label: 'Productivity', path: '/productivity' },
     { icon: Globe, label: 'Browser Activity', path: '/browser' },
     { icon: Code2, label: 'IDE Projects', path: '/ide' },
-    { icon: Terminal, label: 'Terminal', path: '/terminal' },
     { icon: BarChart3, label: 'Insights', path: '/reports' },
     { icon: Database, label: 'Database', path: '/database' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -1824,7 +1864,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
               <Clock className="w-4 h-4 text-zinc-500" />
               {formatDuration(displayTime)}
               <span className="text-xs text-zinc-500 font-normal">
-                ({timeMode === 'focus' ? 'productive only' : 'apps + websites'})
+                ({timeMode === 'focus' ? 'productive apps + web' : 'apps only'})
               </span>
             </div>
 
@@ -2103,11 +2143,11 @@ Trend: +14% vs. yesterday. Keep it up!`;
                 </motion.div>
               } />
               {/* Stats Page */}
-              <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} />} />
+              <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* Productivity Page */}
-              <Route path="/productivity" element={<ProductivityPage logs={logs} browserLogs={browserLogs} appStats={computedAppStats} selectedPeriod={selectedPeriod} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} domainKeywordRules={domainKeywordRules} />} />
+              <Route path="/productivity" element={<ProductivityPage logs={logs} browserLogs={browserLogs} appStats={computedAppStats} selectedPeriod={selectedPeriod} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} domainKeywordRules={domainKeywordRules} timeMode={timeMode} />} />
               {/* Browser Page */}
-              <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} />} />
+              <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* IDE Page */}
               <Route path="/ide" element={<IDEProjectsPage />} />
 

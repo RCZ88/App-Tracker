@@ -36,6 +36,8 @@ interface StatsPageProps {
   logs: unknown[];
   dailyStats?: unknown[];
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
+  timeMode?: 'focus' | 'total';
+  tierAssignments?: { productive: string[]; neutral: string[]; distracting: string[] };
 }
 
 // Category color map
@@ -64,7 +66,7 @@ function formatDuration(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function StatsPage({ appStats, logs, selectedPeriod = 'week' }: StatsPageProps) {
+export default function StatsPage({ appStats, logs, selectedPeriod = 'week', timeMode = 'total', tierAssignments }: StatsPageProps) {
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
   const [hourlyChartMode, setHourlyChartMode] = useState<'bar' | 'line'>('bar');
   const chartRefs = useRef<Record<string, ChartJS | null>>({});

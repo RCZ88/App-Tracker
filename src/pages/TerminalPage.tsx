@@ -27,6 +27,15 @@ interface Session {
   total_cost_usd?: number;
 }
 
+const loggedErrors = new Set<string>();
+
+function logOnce(key: string, message: string, ...args: any[]) {
+  if (!loggedErrors.has(key)) {
+    loggedErrors.add(key);
+    console.warn(message, ...args);
+  }
+}
+
 export default function TerminalPage({ projectId: propProjectId }: { projectId?: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'presets' | 'sessions' | 'map' | 'analytics'>('presets');
@@ -52,7 +61,7 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
       const data = await window.deskflowAPI.getTerminalPresets(selectedProject || undefined);
       setPresets(data || []);
     } catch (e) {
-      console.warn('[TerminalPage] Failed to load presets:', e);
+      logOnce('terminal-presets', '[TerminalPage] Failed to load presets:', e);
     }
   }, [selectedProject]);
 
@@ -62,7 +71,7 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
       const data = await window.deskflowAPI.getTerminalSessions(selectedProject || undefined, 20);
       setSessions(data || []);
     } catch (e) {
-      console.warn('[TerminalPage] Failed to load sessions:', e);
+      logOnce('terminal-sessions', '[TerminalPage] Failed to load sessions:', e);
     }
   }, [selectedProject]);
 
@@ -72,12 +81,17 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
       const data = await window.deskflowAPI.getProjects();
       setProjects(data || []);
     } catch (e) {
-      console.warn('[TerminalPage] Failed to load projects:', e);
+      logOnce('terminal-projects', '[TerminalPage] Failed to load projects:', e);
     }
   }, []);
 
   useEffect(() => {
     loadProjects();
+    // Load project from localStorage if no propProjectId
+    if (!propProjectId) {
+      const stored = localStorage.getItem('terminal-project');
+      if (stored) setSelectedProject(stored);
+    }
   }, [loadProjects]);
 
   useEffect(() => {
@@ -91,12 +105,22 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
   }, [activeTab, selectedProject, loadPresets, loadSessions]);
 
   const spawnTerminal = useCallback(async (terminalId: string, cwd?: string) => {
-    if (!window.deskflowAPI) return false;
+    console.log('[TerminalPage] spawnTerminal called:', terminalId, cwd);
+    if (!window.deskflowAPI) {
+      console.log('[TerminalPage] No deskflowAPI!');
+      return false;
+    }
     try {
-      await window.deskflowAPI.spawnTerminal(terminalId, cwd);
+      const result = await window.deskflowAPI.spawnTerminal(terminalId, cwd || '');
+      console.log('[TerminalPage] spawnTerminal result:', result);
+      if (!result.success) {
+        logOnce('terminal-spawn', '[TerminalPage] Failed to spawn shell:', result.error);
+        return false;
+      }
       return true;
     } catch (e) {
-      console.warn('[TerminalPage] Failed to spawn terminal:', e);
+      console.error('[TerminalPage] spawnTerminal error:', e);
+      logOnce('terminal-spawn', '[TerminalPage] Failed to spawn terminal:', e);
       return false;
     }
   }, []);
@@ -118,17 +142,21 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
   const handleAddPreset = useCallback(async () => {
     if (!window.deskflowAPI || !newPreset.name || !newPreset.command) return;
     try {
-      await window.deskflowAPI.addTerminalPreset({
+      const result = await window.deskflowAPI.addTerminalPreset({
         projectId: selectedProject || undefined,
         name: newPreset.name,
         command: newPreset.command,
         category: newPreset.category || undefined,
       });
-      setNewPreset({ name: '', command: '', category: '' });
-      setShowAddPreset(false);
-      loadPresets();
+      if (result.success) {
+        setNewPreset({ name: '', command: '', category: '' });
+        setShowAddPreset(false);
+        loadPresets();
+      } else {
+        logOnce('terminal-add-preset', '[TerminalPage] Failed to add preset:', result.error);
+      }
     } catch (e) {
-      console.warn('[TerminalPage] Failed to add preset:', e);
+      logOnce('terminal-add-preset', '[TerminalPage] Failed to add preset:', e);
     }
   }, [newPreset, selectedProject, loadPresets]);
 
@@ -181,31 +209,78 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
             <span className="text-sm font-medium">DeskFlow Terminal</span>
             {projects.length > 0 && (
               <div className="flex items-center gap-2">
-                <select
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300"
-                >
-                  <option value="">Select Project...</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                {selectedProject && (
-                  <button
-                    onClick={async () => {
-                      const proj = projects.find(p => p.id === selectedProject);
-                      if (proj) {
-                        const termId = `term-${Date.now()}`;
-                        spawnTerminal(termId, proj.path);
-                      }
-                    }}
-                    className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded flex items-center gap-1"
+                <div className="flex flex-col">
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300"
                   >
-                    <Plus className="w-3 h-3" />
-                    Open Terminal
-                  </button>
-                )}
+                    <option value="">Select Project...</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {selectedProject && projects.find(p => p.id === selectedProject) && (
+                    <div className="text-xs text-zinc-500 mt-1 flex gap-2">
+                      <span>{projects.find(p => p.id === selectedProject)?.primary_language}</span>
+                      <span>{projects.find(p => p.id === selectedProject)?.vcs_type}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    console.log('[TerminalPage] Open Terminal clicked, selectedProject:', selectedProject);
+                    if (!selectedProject) {
+                      alert('Please select a project first');
+                      return;
+                    }
+                    const proj = projects.find(p => p.id === selectedProject);
+                    console.log('[TerminalPage] Found project:', proj);
+                    if (proj) {
+                      // Add terminal to layout first
+                      const termId = `term-${Date.now()}`;
+                      const newPane = {
+                        id: termId,
+                        type: 'leaf' as const,
+                        terminalId: termId,
+                        size: 50
+                      };
+                      
+                      // If layout is a single leaf, convert to split
+                      if (terminalLayout && terminalLayout.type === 'leaf') {
+                        const newLayout = {
+                          id: 'root',
+                          type: 'split' as const,
+                          splitType: 'horizontal' as const,
+                          direction: 'right' as const,
+                          size: 100,
+                          children: [terminalLayout, newPane]
+                        };
+                        setTerminalLayout(newLayout);
+                      } else {
+                        // Add to existing split layout
+                        // For simplicity, just create a new split layout
+                        const newLayout = {
+                          id: 'root',
+                          type: 'split' as const,
+                          splitType: 'horizontal' as const,
+                          direction: 'right' as const,
+                          size: 100,
+                          children: [terminalLayout || { id: 'root', type: 'leaf' as const, terminalId: 'term-initial', size: 50 }, newPane]
+                        };
+                        setTerminalLayout(newLayout);
+                      }
+                      
+                      // Then spawn the terminal
+                      console.log('[TerminalPage] Calling spawnTerminal with:', termId, proj.path);
+                      await spawnTerminal(termId, proj.path);
+                    }
+                  }}
+                  className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Open Terminal
+                </button>
               </div>
             )}
           </div>
@@ -213,6 +288,9 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
         
         <div className="flex-1 relative">
           <TerminalLayout spawnTerminal={spawnTerminal} onLayoutChange={handleLayoutChange} />
+          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs p-2 rounded">
+            Terminal Layout: {terminalLayout ? `${terminalLayout.type} (${terminalLayout.terminalId || 'split'})` : 'null'}
+          </div>
         </div>
       </div>
 
@@ -271,6 +349,26 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-2">
+            {/* Project Stats */}
+            {selectedProject && projects.find(p => p.id === selectedProject) && (
+              <div className="mb-4 p-2 bg-zinc-800/50 rounded-lg">
+                <div className="text-xs text-zinc-400 mb-2">Project Stats</div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Language:</span>
+                    <span className="text-zinc-300">{projects.find(p => p.id === selectedProject)?.primary_language || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">VCS:</span>
+                    <span className="text-zinc-300">{projects.find(p => p.id === selectedProject)?.vcs_type || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">IDE:</span>
+                    <span className="text-zinc-300">{projects.find(p => p.id === selectedProject)?.default_ide || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {activeTab === 'presets' && (
               <div>
                 <button

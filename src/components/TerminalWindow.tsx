@@ -5,6 +5,18 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
+declare global {
+  interface Window {
+    deskflowAPI?: {
+      writeTerminal: (terminalId: string, data: string) => Promise<{ success: boolean }>;
+      resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<{ success: boolean }>;
+      spawnTerminal: (terminalId: string, cwd: string) => Promise<{ success: boolean; error?: string }>;
+      killTerminal: (terminalId: string) => Promise<{ success: boolean }>;
+      onTerminalData?: (callback: (data: { terminalId: string; data: string }) => void) => void;
+    };
+  }
+}
+
 interface TerminalPaneProps {
   terminalId: string;
   onTerminalReady?: (terminalId: string, terminal: Terminal) => void;
@@ -18,6 +30,8 @@ export function TerminalPane({ terminalId, onTerminalReady, onFocus }: TerminalP
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    console.log('[TerminalPane] Mounting for terminalId:', terminalId);
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -59,7 +73,7 @@ export function TerminalPane({ terminalId, onTerminalReady, onFocus }: TerminalP
 
     terminal.onData((data) => {
       if (window.deskflowAPI) {
-        window.deskflowAPI.writeTerminal(terminalId, data);
+        window.deskflowAPI.terminalAPI?.write(terminalId, data);
       }
     });
 
@@ -70,11 +84,22 @@ export function TerminalPane({ terminalId, onTerminalReady, onFocus }: TerminalP
     }
 
     onTerminalReady?.(terminalId, terminal);
+    
+    // Check container dimensions and write test text
+    setTimeout(() => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        console.log('[TerminalPane] Container dimensions:', rect.width, 'x', rect.height);
+        
+        // Write test text directly to terminal to see if it renders
+        terminal.write('Terminal initialized. Waiting for shell...\r\n');
+      }
+    }, 100);
 
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
       if (window.deskflowAPI) {
-        window.deskflowAPI.resizeTerminal(terminalId, terminal.cols, terminal.rows);
+        window.deskflowAPI.terminalAPI?.resize(terminalId, terminal.cols, terminal.rows);
       }
     });
     resizeObserver.observe(containerRef.current);
@@ -82,13 +107,39 @@ export function TerminalPane({ terminalId, onTerminalReady, onFocus }: TerminalP
     return () => {
       resizeObserver.disconnect();
       terminal.dispose();
+      window.deskflowAPI.terminalAPI?.destroy(terminalId);
     };
   }, [terminalId]);
 
+  // Listen for data from the PTY
+  useEffect(() => {
+    if (!window.deskflowAPI) return;
+
+    const handleData = (data: { terminalId: string; data: string }) => {
+      if (data.terminalId === terminalId && terminalRef.current) {
+        terminalRef.current.write(data.data);
+      }
+    };
+
+    // Use the onTerminalData API
+    window.deskflowAPI.onTerminalData?.((data) => {
+      console.log('[TerminalPane] Data received:', data.terminalId, 'data length:', data.data.length);
+      handleData(data);
+    });
+
+    return () => {
+      // Note: The current IPC setup doesn't support removing individual listeners
+      // This is a known limitation - listeners accumulate but terminal instances are few
+      // If issues arise, we should modify the IPC to return an unsubscribe function
+    };
+  }, [terminalId]);
+
+  console.log('[TerminalPane] Rendering for terminalId:', terminalId);
   return (
     <div 
       ref={containerRef} 
-      className="w-full h-full bg-[#0d0d0d] overflow-hidden"
+      className="w-full h-full bg-[#0d0d0d] overflow-hidden relative"
+      style={{ minHeight: '300px', minWidth: '300px' }}
       onClick={() => onFocus && onFocus(terminalId)}
     />
   );
@@ -180,7 +231,15 @@ export function TerminalLayout({ initialLayout, onPaneClick, onLayoutChange, spa
   }, [layout, setLayout]);
 
   const handleTerminalReady = useCallback(async (terminalId: string, _terminal: Terminal) => {
-    await spawnTerminal(terminalId);
+    console.log('[TerminalLayout] Terminal ready:', terminalId);
+    // Only spawn if not already spawned
+    const alreadySpawned = localStorage.getItem('terminal-spawned-' + terminalId);
+    console.log('[TerminalLayout] Already spawned?', alreadySpawned);
+    if (!alreadySpawned) {
+      localStorage.setItem('terminal-spawned-' + terminalId, 'true');
+      const result = await spawnTerminal(terminalId);
+      console.log('[TerminalLayout] Spawn result:', result);
+    }
   }, [spawnTerminal]);
 
   useEffect(() => {
@@ -198,17 +257,19 @@ export function TerminalLayout({ initialLayout, onPaneClick, onLayoutChange, spa
       return (
         <div 
           key={node.id}
-          className={`relative flex ${direction?.type === 'horizontal' ? 'flex-row' : 'flex-col'}`}
-          style={{ flexBasis: `${node.size}%` }}
+          className={`relative flex flex-1 ${node.terminalId === activeTerminal ? 'ring-2 ring-green-500' : ''}`}
+          style={{ flexBasis: `${node.size}%`, minWidth: '100px', minHeight: '200px' }}
         >
-          <div className={`absolute inset-0 flex ${node.terminalId === activeTerminal ? 'ring-2 ring-green-500' : ''}`}>
-            <TerminalPane
-              terminalId={node.terminalId || node.id}
-              onTerminalReady={handleTerminalReady}
-              onFocus={setActiveTerminal}
-            />
+          <div className="absolute inset-0 flex flex-col">
+            <div className="flex-1 relative">
+              <TerminalPane
+                terminalId={node.terminalId || node.id}
+                onTerminalReady={handleTerminalReady}
+                onFocus={setActiveTerminal}
+              />
+            </div>
+            <SplitControls paneId={node.id} onSplit={(dir) => splitPane(node.id, dir)} />
           </div>
-          <SplitControls paneId={node.id} onSplit={(dir) => splitPane(node.id, dir)} />
         </div>
       );
     }
@@ -221,10 +282,11 @@ export function TerminalLayout({ initialLayout, onPaneClick, onLayoutChange, spa
       return (
         <div 
           key={node.id}
-          className={`flex ${node.splitType === 'horizontal' ? 'flex-row' : 'flex-col'} w-full h-full`}
+          className={`flex flex-1 ${node.splitType === 'horizontal' ? 'flex-row' : 'flex-col'}`}
+          style={{ width: '100%', height: '100%' }}
         >
           {node.children.map((child, idx) => (
-            <div key={idx} className="flex-1 relative">
+            <div key={idx} className="flex-1" style={{ minWidth: '100px', minHeight: '100px' }}>
               {renderPane(child, { type: node.splitType || 'horizontal', direction: idx === 0 ? 'left' : 'right' })}
             </div>
           ))}
@@ -245,7 +307,7 @@ export function TerminalLayout({ initialLayout, onPaneClick, onLayoutChange, spa
   }
 
   return (
-    <div className="w-full h-full bg-[#0d0d0d]">
+    <div className="w-full h-full bg-[#0d0d0d] flex flex-col" style={{ height: '100%', minHeight: '400px' }}>
       {layout && renderPane(layout)}
     </div>
   );
@@ -272,6 +334,13 @@ function SplitControls({ paneId, onSplit }: SplitControlsProps) {
       {showControls && (
         <>
           <button
+            className="absolute top-1 left-1 w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded pointer-events-auto opacity-50 hover:opacity-100"
+            onClick={() => onSplit({ type: 'vertical', direction: 'left' })}
+            title="Split Left"
+          >
+            ⊣
+          </button>
+          <button
             className="absolute top-1 right-8 w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded pointer-events-auto opacity-50 hover:opacity-100"
             onClick={() => onSplit({ type: 'vertical', direction: 'right' })}
             title="Split Right"
@@ -286,8 +355,15 @@ function SplitControls({ paneId, onSplit }: SplitControlsProps) {
             ✕
           </button>
           <button
+            className="absolute top-8 left-1 w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded pointer-events-auto opacity-50 hover:opacity-100"
+            onClick={() => onSplit({ type: 'horizontal', direction: 'top' })}
+            title="Split Top"
+          >
+            ⊤
+          </button>
+          <button
             className="absolute bottom-1 right-1 w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded pointer-events-auto opacity-50 hover:opacity-100"
-            onClick={() => onSplit({ type: 'vertical', direction: 'bottom' })}
+            onClick={() => onSplit({ type: 'horizontal', direction: 'bottom' })}
             title="Split Bottom"
           >
             ⊥

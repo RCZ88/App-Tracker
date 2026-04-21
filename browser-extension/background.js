@@ -76,6 +76,47 @@ async function loadState() {
   }
 }
 
+// --- Helper: Detect which browser the extension is running in ---
+function detectBrowserName() {
+  const ua = navigator.userAgent;
+  // Comet - check for Comet-specific patterns (based on user's Comet browser)
+  if (ua.includes('Comet') || ua.includes('comet')) return 'Comet';
+  // Arc browser
+  if (ua.includes('Arc')) return 'Arc';
+  // Microsoft Edge (must check before Chrome since Edge includes Chrome in UA)
+  if (ua.includes('Edg/')) return 'Edge';
+  // Opera (must check before Chrome since Opera includes Chrome in UA)
+  if (ua.includes('OPR/') || ua.includes('Opera')) return 'Opera';
+  // Brave (must check before Chrome since Brave includes Chrome in UA)
+  if (ua.includes('Brave')) return 'Brave';
+  // Vivaldi
+  if (ua.includes('Vivaldi')) return 'Vivaldi';
+  // Firefox
+  if (ua.includes('Firefox')) return 'Firefox';
+  // Chrome (generic - keep last since many browsers include Chrome)
+  if (ua.includes('Chrome')) return 'Chrome';
+  // Safari (keep last since some Chrome-based browsers may include Safari)
+  if (ua.includes('Safari')) return 'Safari';
+  return 'Unknown';
+}
+
+const BROWSER_NAME = detectBrowserName();
+
+// --- Send browser identification to DeskFlow ---
+async function identifyBrowser() {
+  try {
+    await fetch(`${DESKFLOW_SERVER}/browser-identify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ browser: BROWSER_NAME }),
+      signal: AbortSignal.timeout(2000)
+    });
+    console.log('[DeskFlow] 🏷️ Identified as:', BROWSER_NAME);
+  } catch (err) {
+    console.debug('[DeskFlow] Could not identify browser to server:', err.message);
+  }
+}
+
 // --- Helper: Extract domain from URL ---
 function extractDomain(url) {
   if (!url) return 'unknown';
@@ -450,7 +491,10 @@ async function onStartup() {
   // 2. Health check — verify DeskFlow server is running
   await healthCheck();
 
-  // 3. Check initial browser focus state
+  // 3. Identify which browser this extension is running in
+  await identifyBrowser();
+
+  // 4. Check initial browser focus state
   await checkBrowserFocus();
 
   // 4. Start focus check polling to monitor foreground app changes

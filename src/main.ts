@@ -1402,6 +1402,43 @@ function initializeStorage() {
             )
         `);
 
+        // Terminal presets
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS terminal_presets (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              command TEXT NOT NULL,
+              project_id TEXT,
+              working_directory TEXT,
+              category TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Terminal sessions
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS terminal_sessions (
+              id TEXT PRIMARY KEY,
+              preset_id TEXT,
+              project_id TEXT,
+              agent TEXT,
+              resume_id TEXT,
+              topic TEXT,
+              working_directory TEXT,
+              total_tokens INTEGER DEFAULT 0,
+              total_cost REAL DEFAULT 0,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Safe migrations for existing databases
+        try { db.exec('ALTER TABLE terminal_presets ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
+        try { db.exec('ALTER TABLE terminal_sessions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
+        try { db.exec('ALTER TABLE terminal_sessions ADD COLUMN total_tokens INTEGER DEFAULT 0'); } catch {}
+        try { db.exec('ALTER TABLE terminal_sessions ADD COLUMN total_cost REAL DEFAULT 0'); } catch {}
+
         console.log('[DeskFlow] ✅ SQLite database initialized at', dbPath);
         storageError = null;
     }
@@ -2295,6 +2332,8 @@ interface UserPreferences {
     browserTrackingPort?: number;
     browserTrackingEnabled?: boolean;
     browserExcludedDomains?: string[];
+    browserWithExtension?: string;
+    mainBrowser?: string;
     [key: string]: any;
 }
 let userPreferences: UserPreferences = {};
@@ -2913,35 +2952,51 @@ const KNOWN_BROWSERS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera',
 electron_1.ipcMain.handle('get-tracked-browsers', async () => {
     const browsers: string[] = [];
     try {
-        if (useJson && jsonLogs.length > 0) {
-            const trackedApps = new Set<string>();
-            jsonLogs.forEach(log => {
-                const appLower = log.app.toLowerCase();
-                if (KNOWN_BROWSERS.some(b => appLower.includes(b))) {
-                    const matchedBrowser = KNOWN_BROWSERS.find(b => appLower.includes(b));
-                    if (matchedBrowser) trackedApps.add(matchedBrowser);
-                }
-            });
-            browsers.push(...Array.from(trackedApps));
-        } else if (db) {
+        // Get ALL apps categorized as "Browser" from the database
+        if (db) {
             const rows = db.prepare(`
-                SELECT DISTINCT LOWER(app) as app FROM logs 
-                WHERE LOWER(app) LIKE '%chrome%' OR LOWER(app) LIKE '%firefox%' 
-                OR LOWER(app) LIKE '%safari%' OR LOWER(app) LIKE '%edge%' 
-                OR LOWER(app) LIKE '%brave%' OR LOWER(app) LIKE '%opera%' 
-                OR LOWER(app) LIKE '%vivaldi%' OR LOWER(app) LIKE '%arc%'
+                SELECT DISTINCT app FROM logs 
+                WHERE LOWER(category) = 'browser'
             `).all() as { app: string }[];
             rows.forEach(row => {
-                const matchedBrowser = KNOWN_BROWSERS.find(b => row.app.includes(b));
-                if (matchedBrowser && !browsers.includes(matchedBrowser)) {
-                    browsers.push(matchedBrowser);
+                if (row.app && !browsers.includes(row.app)) {
+                    browsers.push(row.app);
                 }
             });
+        } else if (useJson && jsonLogs.length > 0) {
+            const seen = new Set<string>();
+            jsonLogs.forEach(log => {
+                const cat = (log.category || '').toLowerCase();
+                if (cat === 'browser' && !seen.has(log.app)) {
+                    seen.add(log.app);
+                    browsers.push(log.app);
+                }
+            });
+        }
+        // Also check category config for apps mapped to "Browser" category
+        if (categoryConfig?.appCategoryMap) {
+            for (const [app, cat] of Object.entries(categoryConfig.appCategoryMap)) {
+                if (cat === 'Browser' && !browsers.includes(app)) {
+                    browsers.push(app);
+                }
+            }
         }
     } catch (err) {
         console.error('[DeskFlow] Error getting tracked browsers:', err);
     }
-    console.log('[DeskFlow] Tracked browsers from DB:', browsers);
+    // The browser with the extension should appear first in the list
+    const extensionBrowser = userPreferences.browserWithExtension;
+    if (extensionBrowser) {
+        const idx = browsers.findIndex(b => b.toLowerCase() === extensionBrowser.toLowerCase());
+        if (idx > 0) {
+            browsers.splice(idx, 1);
+            browsers.unshift(extensionBrowser);
+        } else if (idx === -1) {
+            // Add the extension browser even if not in DB yet
+            browsers.unshift(extensionBrowser);
+        }
+    }
+    console.log('[DeskFlow] Tracked browser apps:', browsers);
     return browsers;
 });
 
@@ -2977,6 +3032,12 @@ electron_1.ipcMain.handle('set-browser-excluded-domains', (event, domains) => {
     browserExcludedDomains = domains;
     userPreferences.browserExcludedDomains = domains;
     savePreferences();
+    return true;
+});
+electron_1.ipcMain.handle('set-browser-with-extension', (event, browser: string) => {
+    userPreferences.browserWithExtension = browser;
+    savePreferences();
+    console.log(`[DeskFlow] Browser with extension set to: ${browser}`);
     return true;
 });
 // Clean corrupted data - improved detection for multiple error types
@@ -3632,17 +3693,21 @@ electron_1.ipcMain.handle('open-project', async (event, projectId: string, ideId
             return { success: false, message: 'Project not found' };
         }
 
+        console.log('[DeskFlow] open-project: projectId=', projectId, 'ideId=', ideId, 'project.default_ide=', project.default_ide);
+
         // If no IDE specified, use project's default IDE
         const targetIde = ideId || project.default_ide;
+        console.log('[DeskFlow] open-project: targetIde=', targetIde);
 
         if (!targetIde) {
-            return { success: false, message: 'No IDE specified for this project' };
+            return { success: false, message: 'No IDE specified for this project. Please set a default IDE in project settings.' };
         }
 
         // Get IDE info
         const ide = db.prepare('SELECT * FROM ides WHERE id = ?').get(targetIde) as any;
+        console.log('[DeskFlow] open-project: ide=', ide);
         if (!ide) {
-            return { success: false, message: 'IDE not found' };
+            return { success: false, message: `IDE '${targetIde}' not found in database` };
         }
 
         // Build open command based on IDE
@@ -3675,7 +3740,7 @@ electron_1.ipcMain.handle('open-project', async (event, projectId: string, ideId
                 command = `"${ide.install_path}\\bin\\studio64.exe" "${project.path}"`;
                 break;
             case 'antigravity':
-                command = `agy "${project.path}"`;
+                command = `"${ide.install_path}" "${project.path}"`;
                 break;
             default:
                 // Try using the IDE's install path directly
@@ -3687,14 +3752,15 @@ electron_1.ipcMain.handle('open-project', async (event, projectId: string, ideId
         }
 
         // Execute the open command
-        exec(command, (err: any) => {
-            if (err) {
-                console.error('[DeskFlow] Failed to open project:', err);
-            }
-        });
-
-        console.log('[DeskFlow] Opening project:', project.name, 'in', ide.name);
-        return { success: true, ide: ide.name };
+        const { execSync } = require('child_process');
+        try {
+            execSync(command, { stdio: 'ignore', windowsHide: true });
+            console.log('[DeskFlow] Opening project:', project.name, 'in', ide.name);
+            return { success: true, ide: ide.name };
+        } catch (err: any) {
+            console.error('[DeskFlow] Failed to open project:', err.message);
+            return { success: false, message: err.message };
+        }
     } catch (err: any) {
         console.error('[DeskFlow] Open project error:', err);
         return { success: false, message: err.message };
@@ -3805,6 +3871,50 @@ electron_1.ipcMain.handle('get-project-tools', (event, projectId) => {
         `).all(projectId);
     } catch {
         return [];
+    }
+});
+
+// Calculate project health
+electron_1.ipcMain.handle('calculate-project-health', (event, projectId) => {
+    if (useJson) return { healthScore: 0, activityLevel: 'inactive', aiSessions: 0, commits: 0 };
+    try {
+        // Get recent activity
+        const recentSessions = db.prepare(`
+            SELECT COUNT(*) as count FROM terminal_sessions 
+            WHERE project_id = ? AND created_at >= datetime('now', '-7 days')
+        `).get(projectId);
+        
+        const recentCommits = db.prepare(`
+            SELECT COUNT(*) as count FROM commits 
+            WHERE project_id = ? AND committed_at >= datetime('now', '-7 days')
+        `).get(projectId);
+        
+        const aiUsage = db.prepare(`
+            SELECT COUNT(*) as count FROM ai_usage 
+            WHERE project_id = ? AND date >= date('now', '-7 days')
+        `).get(projectId);
+        
+        // Calculate health score (0-100)
+        let healthScore = 0;
+        healthScore += Math.min(30, (recentSessions.count || 0) * 10); // Max 30 for sessions
+        healthScore += Math.min(40, (recentCommits.count || 0) * 5); // Max 40 for commits  
+        healthScore += Math.min(30, (aiUsage.count || 0) * 3); // Max 30 for AI usage
+        
+        // Determine activity level
+        let activityLevel = 'inactive';
+        if (healthScore >= 70) activityLevel = 'active';
+        else if (healthScore >= 30) activityLevel = 'moderate';
+        else if (healthScore > 0) activityLevel = 'light';
+        
+        return {
+            healthScore,
+            activityLevel,
+            aiSessions: aiUsage.count || 0,
+            commits: recentCommits.count || 0
+        };
+    } catch (err) {
+        console.error('Failed to calculate project health:', err);
+        return { healthScore: 0, activityLevel: 'inactive', aiSessions: 0, commits: 0 };
     }
 });
 
@@ -4090,6 +4200,399 @@ electron_1.ipcMain.handle('sync-ai-usage', async () => {
     const results = await syncAllAIAgents(db);
 
     return { success: true, ...results };
+});
+
+// Terminal layout stubs (prevents console spam until full terminal feature is implemented)
+electron_1.ipcMain.handle('get-terminal-layouts', async (_event, projectId?: string) => {
+    if (!db) return [];
+    try {
+        const stmt = db.prepare('SELECT * FROM terminal_layouts WHERE project_id = ? OR project_id IS NULL ORDER BY updated_at DESC');
+        return stmt.all(projectId || null);
+    } catch {
+        return [];
+    }
+});
+
+electron_1.ipcMain.handle('save-terminal-layout', async (_event, data: any) => {
+    if (!db) return { success: false };
+    try {
+        const id = data.id || `layout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const exists = db.prepare('SELECT 1 FROM terminal_layouts WHERE id = ?').get(id);
+        if (exists) {
+            db.prepare(`
+                UPDATE terminal_layouts SET name = ?, layout_data = ?, project_id = ?, is_active = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(data.name, data.layoutData, data.projectId || null, data.isActive ? 1 : 0, id);
+        } else {
+            db.prepare(`
+                INSERT INTO terminal_layouts (id, name, layout_data, project_id, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).run(id, data.name, data.layoutData, data.projectId || null, data.isActive ? 1 : 0);
+        }
+        return { success: true, id };
+    } catch (err: any) {
+        console.error('[DeskFlow] save-terminal-layout error:', err.message);
+        return { success: false };
+    }
+});
+
+// Terminal preset handlers
+electron_1.ipcMain.handle('get-terminal-presets', async (_event, projectId?: string) => {
+    if (!db) return [];
+    try {
+        const stmt = db.prepare('SELECT * FROM terminal_presets WHERE project_id = ? OR project_id IS NULL ORDER BY updated_at DESC');
+        return stmt.all(projectId || null);
+    } catch {
+        return [];
+    }
+});
+
+electron_1.ipcMain.handle('add-terminal-preset', async (_event, preset: any) => {
+    if (!db) return { success: false };
+    try {
+        const id = `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        db.prepare(`
+            INSERT INTO terminal_presets (id, name, command, project_id, working_directory, category, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(id, preset.name, preset.command, preset.projectId || null, preset.workingDirectory || null, preset.category || null);
+        return { success: true, id };
+    } catch (err: any) {
+        console.error('[DeskFlow] add-terminal-preset error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('remove-terminal-preset', async (_event, presetId: string) => {
+    if (!db) return { success: false };
+    try {
+        db.prepare('DELETE FROM terminal_presets WHERE id = ?').run(presetId);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] remove-terminal-preset error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('execute-terminal-preset', async (_event, presetId: string, terminalId?: string) => {
+    if (!db) return { success: false };
+    try {
+        const preset = db.prepare('SELECT * FROM terminal_presets WHERE id = ?').get(presetId) as any;
+        if (!preset) return { success: false, error: 'Preset not found' };
+        
+        // Save as a session for tracking
+        const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        db.prepare(`
+            INSERT INTO terminal_sessions (id, preset_id, project_id, agent, topic, working_directory, created_at)
+            VALUES (?, ?, ?, 'preset', ?, ?, datetime('now'))
+        `).run(sessionId, presetId, preset.project_id, preset.name, preset.working_directory);
+        
+        return { success: true, sessionId, command: preset.command };
+    } catch (err: any) {
+        console.error('[DeskFlow] execute-terminal-preset error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('save-terminal-preset', async (_event, data: any) => {
+    if (!db) return { success: false };
+    try {
+        const id = data.id || `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const exists = db.prepare('SELECT 1 FROM terminal_presets WHERE id = ?').get(id);
+        if (exists) {
+            db.prepare(`
+                UPDATE terminal_presets SET name = ?, command = ?, project_id = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(data.name, data.command, data.projectId || null, id);
+        } else {
+            db.prepare(`
+                INSERT INTO terminal_presets (id, name, command, project_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).run(id, data.name, data.command, data.projectId || null);
+        }
+        return { success: true, id };
+    } catch (err: any) {
+        console.error('[DeskFlow] save-terminal-preset error:', err.message);
+        return { success: false };
+    }
+});
+
+// Terminal session stubs (PTY not implemented yet — returns empty data)
+// Inline node-pty based TerminalManager
+const terminalManager = {
+  terminals: new Map(),
+  spawn(id: string, cwd: string, cols: number = 80, rows: number = 24) {
+    try {
+      console.log('[TerminalManager] spawn called:', id, cwd, cols, rows);
+      if (this.terminals.has(id)) {
+        this.kill(id);
+      }
+      const os = require('os');
+      const pty = require('node-pty');
+      const shell = process.platform === 'win32' ? (process.env.COMSPEC || 'powershell.exe') : (process.env.SHELL || '/bin/bash');
+      const workingDir = cwd && cwd.length > 0 ? cwd : os.homedir();
+      console.log('[TerminalManager] spawning shell:', shell, 'in', workingDir);
+      const proc = pty.spawn(shell, [], { name: 'xterm-256color', cols, rows, cwd: workingDir, env: process.env });
+      console.log('[TerminalManager] PTY spawned, pid:', proc.pid);
+      const ip: any = {
+        write: (data: string) => proc.write(data),
+        resize: (c: number, r: number) => proc.resize(c, r),
+        kill: () => proc.kill(),
+        onData: (cb: (d: string) => void) => proc.onData(cb),
+        onExit: (cb: (code: number, sig: string) => void) => proc.onExit(cb),
+      };
+      this.terminals.set(id, { id, pty: ip, cwd });
+      console.log('[TerminalManager] terminal stored:', id, 'total terminals:', this.terminals.size);
+      return { success: true };
+    } catch (err: any) {
+      console.error('[TerminalManager] Spawn error:', err.message);
+      return { success: false, error: err.message };
+    }
+  },
+  write(id: string, data: string) {
+    const t = this.terminals.get(id);
+    if (t) { t.pty.write(data); return true; }
+    return false;
+  },
+  resize(id: string, cols: number, rows: number) {
+    const t = this.terminals.get(id);
+    if (t) { t.pty.resize(cols, rows); return true; }
+    return false;
+  },
+  kill(id: string) {
+    const t = this.terminals.get(id);
+    if (t) { try { t.pty.kill(); } catch {} this.terminals.delete(id); return true; }
+    return false;
+  },
+  getDataHandler(id: string, cb: (d: string) => void) {
+    const t = this.terminals.get(id);
+    if (t) t.pty.onData(cb);
+  },
+  getExitHandler(id: string, cb: (code: number, sig: string) => void) {
+    const t = this.terminals.get(id);
+    if (t) t.pty.onExit(cb);
+  }
+};
+
+electron_1.ipcMain.handle('terminal:create', async (_event, id: string, cwd: string, cols: number, rows: number) => {
+    try {
+        const { BrowserWindow } = require('electron');
+        const result = terminalManager.spawn(id, cwd, cols, rows);
+        if (result.success) {
+            // Set up data forwarding to the renderer
+            terminalManager.getDataHandler(id, (data: string) => {
+                const windows = BrowserWindow.getAllWindows();
+                for (const win of windows) {
+                    if (!win.isDestroyed()) {
+                        win.webContents.send('terminal:data', id, data);
+                    }
+                }
+            });
+            terminalManager.getExitHandler(id, () => {
+                const windows = BrowserWindow.getAllWindows();
+                for (const win of windows) {
+                    if (!win.isDestroyed()) {
+                        win.webContents.send('terminal:exit', id);
+                    }
+                }
+            });
+        }
+        return result;
+    } catch (err: any) {
+        console.error('[DeskFlow] terminal:create error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('terminal:write', async (_event, id: string, data: string) => {
+    const success = terminalManager.write(id, data);
+    return { success };
+});
+
+electron_1.ipcMain.handle('terminal:resize', async (_event, id: string, cols: number, rows: number) => {
+    const success = terminalManager.resize(id, cols, rows);
+    return { success };
+});
+
+electron_1.ipcMain.handle('terminal:destroy', async (_event, id: string) => {
+    const success = terminalManager.kill(id);
+    return { success };
+});
+
+// Legacy handlers - use terminal:data channel to match preload.ts onTerminalData
+electron_1.ipcMain.handle('spawn-terminal', async (_event, terminalId: string, cwd?: string) => {
+    const { BrowserWindow } = require('electron');
+    console.log('[DeskFlow] spawn-terminal called:', terminalId, cwd);
+    const result = terminalManager.spawn(terminalId, cwd || '', 80, 24);
+    console.log('[DeskFlow] spawn-terminal result:', result);
+    if (result.success) {
+        terminalManager.getDataHandler(terminalId, (data: string) => {
+            console.log('[DeskFlow] Terminal data received:', terminalId, 'length:', data.length, 'data preview:', data.substring(0, 50));
+            const windows = BrowserWindow.getAllWindows();
+            for (const win of windows) {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('terminal:data', terminalId, data);
+                    console.log('[DeskFlow] Sent terminal:data to window');
+                }
+            }
+        });
+        terminalManager.getExitHandler(terminalId, (exitCode: number, signal: string) => {
+            const windows = BrowserWindow.getAllWindows();
+            for (const win of windows) {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('terminal:exit', terminalId, exitCode, signal);
+                }
+            }
+        });
+    }
+    return result;
+});
+
+electron_1.ipcMain.handle('write-terminal', async (_event, terminalId: string, data: string) => {
+    const success = terminalManager.write(terminalId, data);
+    return { success };
+});
+
+electron_1.ipcMain.handle('resize-terminal', async (_event, terminalId: string, cols: number, rows: number) => {
+    const success = terminalManager.resize(terminalId, cols, rows);
+    return { success };
+});
+
+electron_1.ipcMain.handle('kill-terminal', async (_event, terminalId: string) => {
+    const success = terminalManager.kill(terminalId);
+    return { success };
+});
+
+electron_1.ipcMain.handle('get-terminal-sessions', async (_event, projectId?: string, limit?: number) => {
+    if (!db) return [];
+    try {
+        const stmt = db.prepare('SELECT * FROM terminal_sessions WHERE project_id = ? OR project_id IS NULL ORDER BY created_at DESC LIMIT ?');
+        return stmt.all(projectId || null, limit || 50);
+    } catch {
+        return [];
+    }
+});
+
+electron_1.ipcMain.handle('save-terminal-session', async (_event, session: any) => {
+    if (!db) return { success: false };
+    try {
+        const id = session.id || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        db.prepare(`
+            INSERT OR REPLACE INTO terminal_sessions (id, project_id, agent, resume_id, topic, working_directory, total_tokens, total_cost, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(id, session.projectId || null, session.agent, session.resumeId || null, session.topic || null, session.workingDirectory || null, session.totalTokens || 0, session.totalCost || 0);
+        return { success: true, id };
+    } catch (err: any) {
+        console.error('[DeskFlow] save-terminal-session error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('get-terminal-session-resume-id', async (_event, sessionId: string) => {
+    if (!db) return null;
+    try {
+        const session = db.prepare('SELECT resume_id FROM terminal_sessions WHERE id = ?').get(sessionId) as any;
+        return session?.resume_id || null;
+    } catch {
+        return null;
+    }
+});
+
+electron_1.ipcMain.handle('delete-terminal-layout', async (_event, layoutId: string) => {
+    if (!db) return { success: false };
+    try {
+        db.prepare('DELETE FROM terminal_layouts WHERE id = ?').run(layoutId);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] delete-terminal-layout error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+electron_1.ipcMain.handle('set-active-terminal-layout', async (_event, layoutId: string) => {
+    if (!db) return { success: false };
+    try {
+        db.prepare("UPDATE terminal_layouts SET is_active = 0 WHERE is_active = 1").run();
+        db.prepare('UPDATE terminal_layouts SET is_active = 1 WHERE id = ?').run(layoutId);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] set-active-terminal-layout error:', err.message);
+        return { success: false, error: err.message };
+    }
+});
+
+// Terminal window management - opens terminal in a new BrowserWindow
+const terminalWindows = new Map<string, any>();
+
+electron_1.ipcMain.handle('create-terminal-window', async (_event, options?: { terminalId?: string; cwd?: string }) => {
+    const { BrowserWindow } = require('electron');
+    const terminalId = options?.terminalId || `term-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Check if window already exists
+    if (terminalWindows.has(terminalId)) {
+        const existing = terminalWindows.get(terminalId);
+        existing.focus();
+        return { success: true, terminalId, windowId: existing.id };
+    }
+    
+    const terminalWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        title: 'DeskFlow Terminal',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path_1.default.join(__dirname, 'preload.cjs'),
+        },
+    });
+    
+    // Load terminal HTML (create a simple terminal viewer page)
+    const terminalHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DeskFlow Terminal</title>
+    <style>
+        body { margin: 0; padding: 10px; background: #1a1a1a; color: #fff; font-family: monospace; }
+        #output { white-space: pre-wrap; }
+        #input { width: 100%; background: #2a2a2a; border: none; color: #fff; padding: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div id="output"></div>
+    <input id="input" type="text" placeholder="Enter command..." autofocus />
+    <script>
+        const { ipcRenderer } = require('electron');
+        const output = document.getElementById('output');
+        const input = document.getElementById('input');
+        
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const cmd = input.value;
+                if (cmd) {
+                    output.textContent += '> ' + cmd + '\\n';
+                    ipcRenderer.send('terminal-command', cmd);
+                    input.value = '';
+                }
+            }
+        });
+        
+        ipcRenderer.on('terminal-output', (_event, data) => {
+            output.textContent += data + '\\n';
+        });
+    </script>
+</body>
+</html>
+    `;
+    
+    terminalWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(terminalHtml));
+    terminalWindows.set(terminalId, terminalWindow);
+    
+    terminalWindow.on('closed', () => {
+        terminalWindows.delete(terminalId);
+    });
+    
+    return { success: true, terminalId, windowId: terminalWindow.id };
 });
 
 // Debug: Check which AI agents are detected
@@ -4516,13 +5019,15 @@ electron_1.ipcMain.handle('save-file', async (event, options) => {
 // Helper to get OpenRouter API key (preferences > env var)
 function getOpenRouterApiKey(): string {
     // Check user preferences first (set via Settings UI)
-    const prefsKey = userPreferences?.openrouterApiKey || '';
+    let prefsKey = userPreferences?.openrouterApiKey || '';
+    prefsKey = prefsKey.trim().replace(/^["']|["']$/g, ''); // Strip quotes and whitespace
     if (prefsKey) {
         console.log('[DeskFlow] Using OpenRouter API key from preferences');
         return prefsKey;
     }
     // Fallback to environment variable (from .env file or OS env)
-    const envKey = process.env.OPENROUTER_API_KEY || '';
+    let envKey = process.env.OPENROUTER_API_KEY || '';
+    envKey = envKey.trim().replace(/^["']|["']$/g, ''); // Strip quotes and whitespace
     if (envKey) {
         console.log('[DeskFlow] Using OpenRouter API key from environment');
         return envKey;
@@ -4530,6 +5035,51 @@ function getOpenRouterApiKey(): string {
     console.warn('[DeskFlow] OpenRouter API key not found in preferences or environment');
     return '';
 }
+
+// Helper to extract JSON from AI response (handles markdown code blocks)
+function extractJsonFromResponse(content: string): any {
+    // Try to find JSON in markdown code blocks
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+        content = codeBlockMatch[1].trim();
+    }
+    // Remove any leading/trailing whitespace and newlines
+    content = content.trim();
+    // If it starts with { or [, try to parse it
+    if (content.startsWith('{') || content.startsWith('[')) {
+        try {
+            return JSON.parse(content);
+        } catch (e) {
+            console.error('[DeskFlow] Failed to parse extracted JSON:', e);
+        }
+    }
+    throw new Error('No valid JSON found in response');
+}
+
+// OpenRouter API base configuration
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODELS = [
+    'liquid/lfm-2.5-1.2b-instruct:free',
+    'anthropic/claude-3.5-sonnet',
+    'anthropic/claude-3-sonnet',
+    'openai/gpt-4o-mini',
+    'google/gemini-flash-1.5'
+];
+
+// System prompt for color generation
+const COLOR_SYSTEM_PROMPT = `You are a color palette expert. Your task is to generate brand-appropriate hex color codes for apps and websites.
+Rules:
+- Return ONLY valid JSON, no markdown, no explanations
+- Use vibrant but professional colors
+- Consider the app's purpose and brand identity
+- Always return 6-digit hex codes with # prefix`;
+
+// System prompt for categorization
+const CATEGORY_SYSTEM_PROMPT = `You are a productivity app categorization expert. Your task is to categorize apps and websites into predefined categories.
+Rules:
+- Return ONLY valid JSON, no markdown, no explanations
+- Use exactly these categories: IDE, AI Tools, Browser, Entertainment, Communication, Design, Productivity, Tools, Education, Developer Tools, Search Engine, News, Shopping, Social Media, Uncategorized, Other
+- Be accurate and consistent`;
 
 // Generate AI colors for apps/websites using OpenRouter API
 electron_1.ipcMain.handle('generate-ai-colors', async (event, apps: string[]) => {
@@ -4540,33 +5090,132 @@ electron_1.ipcMain.handle('generate-ai-colors', async (event, apps: string[]) =>
             return {};
         }
 
-        const prompt = `Generate brand-appropriate hex colors for these apps/websites. Return ONLY a JSON object with app names as keys and hex colors as values. No explanation, just JSON.
+        console.log(`[DeskFlow] Generating colors for ${apps.length} apps...`);
+
+        const userPrompt = `Generate brand-appropriate hex colors for these apps/websites. Return ONLY a JSON object with app names as keys and hex colors as values.
 
 Apps: ${apps.join(', ')}
 
 Example format: {"app1": "#FF5733", "app2": "#33FF57"}`;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetch(OPENROUTER_BASE_URL, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://deskflow.app',
+                'X-Title': 'DeskFlow',
             },
             body: JSON.stringify({
-                model: 'anthropic/claude-sonnet-4-5',
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 500,
+                model: OPENROUTER_MODELS[0],
+                messages: [
+                    { role: 'system', content: COLOR_SYSTEM_PROMPT },
+                    { role: 'user', content: userPrompt }
+                ],
+                max_tokens: 1000,
+                temperature: 0.7,
             }),
         });
 
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[DeskFlow] OpenRouter API error (${response.status}):`, errorText);
+            return {};
+        }
+
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '{}';
-        const colors = JSON.parse(content);
-        console.log('[DeskFlow] AI generated colors:', colors);
+        console.log('[DeskFlow] OpenRouter response:', JSON.stringify(data, null, 2));
+
+        if (data.error) {
+            console.error('[DeskFlow] OpenRouter returned error:', data.error);
+            return {};
+        }
+
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+            console.error('[DeskFlow] No content in OpenRouter response');
+            return {};
+        }
+
+        console.log('[DeskFlow] Raw AI response:', content);
+
+        const colors = extractJsonFromResponse(content);
+        console.log('[DeskFlow] Parsed colors:', colors);
         return colors;
-    } catch (err) {
-        console.error('[DeskFlow] AI color generation error:', err);
+    } catch (err: any) {
+        console.error('[DeskFlow] AI color generation error:', err.message);
         return {};
+    }
+});
+
+// Validate OpenRouter API key using their auth endpoint
+electron_1.ipcMain.handle('test-openrouter-key', async () => {
+    try {
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
+        if (!OPENROUTER_API_KEY) {
+            return { success: false, error: 'API key not set' };
+        }
+
+        console.log('[DeskFlow] Testing API key (first 20 chars):', OPENROUTER_API_KEY.substring(0, 20) + '...');
+        console.log('[DeskFlow] Key length:', OPENROUTER_API_KEY.length);
+        console.log('[DeskFlow] Key starts with "sk-or-v1-":', OPENROUTER_API_KEY.startsWith('sk-or-v1-'));
+
+        // First validate the key using OpenRouter's auth endpoint
+        const authResponse = await fetch('https://openrouter.ai/api/v1/auth/key', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            },
+        });
+
+        console.log('[DeskFlow] Auth check status:', authResponse.status);
+        
+        if (!authResponse.ok) {
+            const authError = await authResponse.text();
+            console.error('[DeskFlow] Auth check failed:', authError);
+            return { 
+                success: false, 
+                error: `Invalid API key. Please check your key at https://openrouter.ai/keys`,
+                details: authError
+            };
+        }
+
+        const authData = await authResponse.json();
+        console.log('[DeskFlow] Auth data:', authData);
+
+        // Now test with a simple completion
+        const response = await fetch(OPENROUTER_BASE_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://deskflow.app',
+                'X-Title': 'DeskFlow',
+            },
+            body: JSON.stringify({
+                model: OPENROUTER_MODELS[0], // Use first model for testing
+                messages: [
+                    { role: 'user', content: 'Say OK' }
+                ],
+                max_tokens: 10,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[DeskFlow] API test failed (${response.status}):`, errorText);
+            return { success: false, error: `HTTP ${response.status}: ${errorText}` };
+        }
+
+        const data = await response.json();
+        if (data.error) {
+            return { success: false, error: data.error.message || 'Unknown API error' };
+        }
+
+        return { success: true, model: data.model || 'openai/gpt-3.5-turbo' };
+    } catch (err: any) {
+        console.error('[DeskFlow] API test error:', err.message);
+        return { success: false, error: err.message };
     }
 });
 
@@ -4579,36 +5228,64 @@ electron_1.ipcMain.handle('generate-ai-categorization', async (event, items: Arr
             return [];
         }
 
+        console.log(`[DeskFlow] Generating categories for ${items.length} items...`);
+
         const itemsList = items.map(i => `${i.name} (current: ${i.category})`).join(', ');
         
-        const prompt = `Categorize these apps/websites into appropriate categories. Use these categories: IDE, AI Tools, Browser, Entertainment, Communication, Design, Productivity, Tools, Education, Developer Tools, Search Engine, News, Shopping, Social Media, Uncategorized, Other.
+        const userPrompt = `Categorize these apps/websites into appropriate categories. Use these categories: IDE, AI Tools, Browser, Entertainment, Communication, Design, Productivity, Tools, Education, Developer Tools, Search Engine, News, Shopping, Social Media, Uncategorized, Other.
 
 Items: ${itemsList}
 
-Return ONLY a JSON array of objects with "name" and "category" keys. No explanation, just JSON.
+Return ONLY a JSON array of objects with "name" and "category" keys.
 
 Example format: [{"name": "app1", "category": "Productivity"}, {"name": "app2", "category": "Entertainment"}]`;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetch(OPENROUTER_BASE_URL, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://deskflow.app',
+                'X-Title': 'DeskFlow',
             },
             body: JSON.stringify({
-                model: 'anthropic/claude-sonnet-4-5',
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 1000,
+                model: OPENROUTER_MODELS[0],
+                messages: [
+                    { role: 'system', content: CATEGORY_SYSTEM_PROMPT },
+                    { role: 'user', content: userPrompt }
+                ],
+                max_tokens: 2000,
+                temperature: 0.3,
             }),
         });
 
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[DeskFlow] OpenRouter API error (${response.status}):`, errorText);
+            return [];
+        }
+
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '[]';
-        const result = JSON.parse(content);
-        console.log('[DeskFlow] AI generated categories:', result);
+        console.log('[DeskFlow] OpenRouter response:', JSON.stringify(data, null, 2));
+
+        if (data.error) {
+            console.error('[DeskFlow] OpenRouter returned error:', data.error);
+            return [];
+        }
+
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+            console.error('[DeskFlow] No content in OpenRouter response');
+            return [];
+        }
+
+        console.log('[DeskFlow] Raw AI response:', content);
+
+        const result = extractJsonFromResponse(content);
+        console.log('[DeskFlow] Parsed categories:', result);
         return result;
-    } catch (err) {
-        console.error('[DeskFlow] AI categorization error:', err);
+    } catch (err: any) {
+        console.error('[DeskFlow] AI categorization error:', err.message);
         return [];
     }
 });
@@ -4662,6 +5339,26 @@ function startBrowserTrackingServer() {
                 app: currentApp,
                 isTracking: isBrowserTrackingEnabled
             }));
+        }
+        else if (req.method === 'POST' && req.url === '/browser-identify') {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', () => {
+                try {
+                    const data = JSON.parse(body);
+                    if (data.browser) {
+                        userPreferences.browserWithExtension = data.browser;
+                        savePreferences();
+                        console.log(`[DeskFlow] 🏷️ Browser extension identified as: ${data.browser}`);
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok', browser: data.browser }));
+                }
+                catch (err) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: 'Invalid JSON' }));
+                }
+            });
         }
         else if (req.method === 'POST' && req.url === '/browser-log') {
             // Live log streaming endpoint from extension

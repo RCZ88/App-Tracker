@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   setBrowserTracking: (enabled: boolean) => ipcRenderer.invoke('set-browser-tracking', enabled),
   getBrowserTrackingStatus: () => ipcRenderer.invoke('get-browser-tracking-status'),
   setBrowserExcludedDomains: (domains: string[]) => ipcRenderer.invoke('set-browser-excluded-domains', domains),
+  setBrowserWithExtension: (browser: string) => ipcRenderer.invoke('set-browser-with-extension', browser),
 
   // Productivity tracking
   getDailyProductivity: (date: string) => ipcRenderer.invoke('get-daily-productivity', date),
@@ -110,6 +111,7 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   // AI Features
   generateAIColors: (apps: string[]) => ipcRenderer.invoke('generate-ai-colors', apps),
   generateAICategorization: (items: Array<{name: string, category: string}>) => ipcRenderer.invoke('generate-ai-categorization', items),
+  testOpenRouterKey: () => ipcRenderer.invoke('test-openrouter-key'),
 
   // File operations
   saveFile: (options: { content: string; filename: string; fileType: string }) => ipcRenderer.invoke('save-file', options),
@@ -165,10 +167,24 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   resizeTerminal: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke('resize-terminal', terminalId, cols, rows),
   killTerminal: (terminalId: string) => ipcRenderer.invoke('kill-terminal', terminalId),
   onTerminalData: (callback: (data: { terminalId: string; data: string }) => void) => {
-    ipcRenderer.on('terminal-data', (_event, data) => callback(data));
+    ipcRenderer.on('terminal:data', (_event, terminalId, data) => callback({ terminalId, data }));
   },
-  onTerminalExit: (callback: (data: { terminalId: string; exitCode: number; signal: number }) => void) => {
-    ipcRenderer.on('terminal-exit', (_event, data) => callback(data));
+  onTerminalExit: (callback: (data: { terminalId: string; exitCode: number; signal: string }) => void) => {
+    ipcRenderer.on('terminal-exit', (_event, terminalId, exitCode, signal) => callback({ terminalId, exitCode, signal }));
+  },
+
+  // ========== New Terminal API (node-pty based) ==========
+  terminalAPI: {
+    create: (id: string, cwd: string, cols: number, rows: number) => ipcRenderer.invoke('terminal:create', id, cwd, cols, rows),
+    write: (id: string, data: string) => ipcRenderer.invoke('terminal:write', id, data),
+    resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke('terminal:resize', id, cols, rows),
+    destroy: (id: string) => ipcRenderer.invoke('terminal:destroy', id),
+    onData: (callback: (id: string, data: string) => void) => {
+      ipcRenderer.on('terminal:data', (_event, id, data) => callback(id, data));
+    },
+    removeDataListener: () => {
+      ipcRenderer.removeAllListeners('terminal:data');
+    }
   },
 
   // ========== Terminal Presets ==========

@@ -76,6 +76,7 @@ interface ProductivityPageProps {
   tierAssignments?: typeof DEFAULT_TIER_ASSIGNMENTS;
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
   domainKeywordRules?: Record<string, string[]>;
+  timeMode?: 'focus' | 'total';
 }
 
 interface AppStat {
@@ -132,7 +133,8 @@ export default function ProductivityPage({
   browserLogs: browserLogsProp = [],
   tierAssignments = DEFAULT_TIER_ASSIGNMENTS,
   selectedPeriod = 'week',
-  domainKeywordRules = {}
+  domainKeywordRules = {},
+  timeMode = 'total'
 }: ProductivityPageProps) {
   // Cleanup Chart.js instances on unmount to prevent memory leaks
   useEffect(() => {
@@ -190,29 +192,14 @@ export default function ProductivityPage({
     return stats;
   }, [browserLogsProp]);
 
-  // Compute productive websites grouped by domain for the websites section
-  const productiveWebsites = useMemo(() => {
-    // Filter logs to only include productive or smart websites
-    const filteredLogs = browserLogsProp.filter((log: any) => {
-      const domain = log.domain || '';
-      const category = WEBSITE_CATEGORY_MAP[log.category] || log.category || 'Other';
-      
-      // Include if category is productive
-      if (tierAssignments.productive.includes(category)) {
-        return true;
-      }
-      
-      // Include if domain is a "smart website" (has keyword rules)
-      if (domainKeywordRules[domain]) {
-        return true;
-      }
-      
-      return false;
-    });
+  // Compute all websites grouped by domain for the websites section
+  const allWebsites = useMemo(() => {
+    // Include ALL websites - no filtering
+    const allLogs = browserLogsProp;
 
     // Group by domain
     const grouped: Record<string, any[]> = {};
-    for (const log of filteredLogs) {
+    for (const log of allLogs) {
       const domain = (log as any).domain || 'Unknown';
       if (!grouped[domain]) {
         grouped[domain] = [];
@@ -253,12 +240,12 @@ export default function ProductivityPage({
 
   // Filtered websites based on tier filter
   const filteredWebsites = useMemo(() => {
-    return productiveWebsites.filter(site => {
+    return allWebsites.filter(site => {
       const siteTier = tierAssignments.productive.includes(site.dominantCategory) ? 'productive' :
         tierAssignments.distracting.includes(site.dominantCategory) ? 'distracting' : 'neutral';
       return tierFilter === 'all' || siteTier === tierFilter;
     });
-  }, [productiveWebsites, tierFilter, tierAssignments]);
+  }, [allWebsites, tierFilter, tierAssignments]);
 
   // Calculate combined productivity data
   const productivityData = useMemo(() => {
@@ -280,7 +267,7 @@ export default function ProductivityPage({
       duration_sec: (b.total_ms || 0) / 1000
     }));
 
-    // Combine all items
+    // Combine all items - ALWAYS include both apps and websites
     const allItems = [...appItems, ...browserItems];
 
     // Calculate totals by tier
@@ -332,14 +319,18 @@ export default function ProductivityPage({
     const appScore = appTotalSec > 0 ? ((appProductiveSec * 1.0 + appNeutralSec * 0.5) / appTotalSec) * 100 : 0;
     const webScore = websiteTotalSec > 0 ? ((webProductiveSec * 1.0 + webNeutralSec * 0.5) / websiteTotalSec) * 100 : 0;
 
-    // Top productive items (sorted by duration)
+    // Top items by tier (sorted by duration)
     const topProductive = [...tierTotals.productive.items]
       .sort((a, b) => b.duration_sec - a.duration_sec)
-      .slice(0, 5);
+      .slice(0, 10);
+
+    const topNeutral = [...tierTotals.neutral.items]
+      .sort((a, b) => b.duration_sec - a.duration_sec)
+      .slice(0, 10);
 
     const topDistracting = [...tierTotals.distracting.items]
       .sort((a, b) => b.duration_sec - a.duration_sec)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // Calculate sum of displayed items (for accurate header display)
     const displayedAppItems = topProductive.filter(i => i.type === 'app');
@@ -365,6 +356,7 @@ export default function ProductivityPage({
         distracting: { seconds: tierTotals.distracting.seconds, count: tierTotals.distracting.items.length }
       },
       topProductive,
+      topNeutral,
       topDistracting,
       items: allItems
     };
@@ -504,6 +496,87 @@ export default function ProductivityPage({
       direction
     };
   }, [dailyTrend, productivityData.score]);
+
+  // Peak hours calculation (average across all days in period)
+  const peakHours = useMemo(() => {
+    if (dailyTrend.length === 0) return null;
+    
+    // Group by hour of day (0-23) and calculate averages
+    const hourTotals: Record<number, { productive: number; neutral: number; distracting: number; count: number }> = {};
+    
+    // For 'today', use the hourly data directly
+    if (selectedPeriod === 'today') {
+      dailyTrend.forEach((d: any) => {
+        if (d.hour !== undefined) {
+          hourTotals[d.hour] = {
+            productive: d.productive,
+            neutral: d.neutral,
+            distracting: d.distracting,
+            count: 1
+          };
+        }
+      });
+    } else {
+      // For week/month, get hourly distribution - need to calculate from original logs
+      const now = new Date();
+      const days = selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 90;
+      const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      
+      // Aggregate by hour
+      const allLogs = [...(logs as any[]), ...(browserLogsProp as any[])];
+      allLogs.forEach((log: any) => {
+        const logTime = new Date(log.timestamp || log.start_time);
+        if (logTime >= startDate && logTime <= now) {
+          const hour = logTime.getHours();
+          const duration = (log.duration || 0);
+          const category = tierAssignments.productive.includes(log.category) ? 'productive' :
+            tierAssignments.distracting.includes(log.category) ? 'distracting' : 'neutral';
+          
+          if (!hourTotals[hour]) {
+            hourTotals[hour] = { productive: 0, neutral: 0, distracting: 0, count: 0 };
+          }
+          if (category === 'productive') hourTotals[hour].productive += duration;
+          else if (category === 'distracting') hourTotals[hour].distracting += duration;
+          else hourTotals[hour].neutral += duration;
+        }
+      });
+    }
+    
+    // Calculate scores for each hour
+    const hourScores = Object.entries(hourTotals).map(([hour, data]) => {
+      const total = data.productive + data.neutral + data.distracting;
+      const weighted = data.productive + (data.neutral * 0.5);
+      const score = total > 0 ? (weighted / total) * 100 : 0;
+      return {
+        hour: parseInt(hour),
+        score,
+        productive: data.productive,
+        neutral: data.neutral,
+        distracting: data.distracting,
+        total
+      };
+    }).sort((a, b) => b.score - a.score);
+    
+    if (hourScores.length === 0) return null;
+    
+    const mostProductive = hourScores[0];
+    const leastProductive = hourScores[hourScores.length - 1];
+    const avgScore = hourScores.reduce((sum, h) => sum + h.score, 0) / hourScores.length;
+    
+    // Format hour to 12h format
+    const formatHour = (h: number) => {
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return `${hour12}:00 ${suffix}`;
+    };
+    
+    return {
+      mostProductive: { hour: mostProductive.hour, label: formatHour(mostProductive.hour), score: Math.round(mostProductive.score), diff: Math.round(mostProductive.score - avgScore) },
+      leastProductive: { hour: leastProductive.hour, label: formatHour(leastProductive.hour), score: Math.round(leastProductive.score), diff: Math.round(leastProductive.score - avgScore) },
+      avgScore: Math.round(avgScore),
+      hourlyData: hourScores.sort((a, b) => a.hour - b.hour)
+    };
+  }, [dailyTrend, selectedPeriod, logs, browserLogsProp, tierAssignments]);
 
   // Chart data for daily trend
   const trendChartData = {
@@ -794,7 +867,7 @@ export default function ProductivityPage({
               Time Distribution
             </h2>
           </div>
-          <div className="h-64 flex items-center justify-center">
+          <div className="h-80 flex items-center justify-center">
             <Pie 
               data={distributionData}
               options={{
@@ -891,19 +964,13 @@ export default function ProductivityPage({
           
           <div className="space-y-3">
             {(() => {
-              // Filter items based on tierFilter
-              const filterItems = (items: typeof productivityData.topProductive) => {
-                if (tierFilter === 'all') return items;
-                return items.filter(item => {
-                  // Determine the tier of this item
-                  const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
-                    tierAssignments.distracting.includes(item.category) ? 'distracting' : 'neutral';
-                  return itemTier === tierFilter;
-                });
-              };
+              // Select correct array based on tierFilter
+              let sourceArray = productivityData.topProductive;
+              if (tierFilter === 'neutral') sourceArray = productivityData.topNeutral;
+              else if (tierFilter === 'distracting') sourceArray = productivityData.topDistracting;
+              else if (tierFilter === 'all') sourceArray = [...productivityData.topProductive, ...productivityData.topNeutral, ...productivityData.topDistracting];
               
-              const filteredItems = filterItems(productivityData.topProductive);
-              const apps = filteredItems.filter(i => i.type === 'app').slice(0, 5);
+              const apps = sourceArray.filter(i => i.type === 'app').slice(0, 5);
               
               return apps.length > 0 ? apps.map((item, idx) => {
                 const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
@@ -1122,6 +1189,82 @@ export default function ProductivityPage({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Peak Productivity Hours */}
+      {peakHours && (
+        <div className="glass rounded-3xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-emerald-400" />
+              Peak Productivity Hours
+            </h2>
+            <span className="text-xs text-zinc-500">Average across period</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Most Productive Hour */}
+            <div className="bg-emerald-500/10 rounded-2xl p-4 border border-emerald-500/30">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-zinc-400">Most Productive</span>
+              </div>
+              <div className="text-2xl font-bold text-emerald-400">{peakHours.mostProductive.label}</div>
+              <div className="text-sm text-zinc-400 mt-1">
+                {peakHours.mostProductive.score}% score
+                <span className="ml-2 text-emerald-400">
+                  {peakHours.mostProductive.diff > 0 ? `+${peakHours.mostProductive.diff}%` : `${peakHours.mostProductive.diff}%`}
+                </span>
+              </div>
+            </div>
+            
+            {/* Least Productive Hour */}
+            <div className="bg-red-500/10 rounded-2xl p-4 border border-red-500/30">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingDown className="w-4 h-4 text-red-400" />
+                <span className="text-sm text-zinc-400">Least Productive</span>
+              </div>
+              <div className="text-2xl font-bold text-red-400">{peakHours.leastProductive.label}</div>
+              <div className="text-sm text-zinc-400 mt-1">
+                {peakHours.leastProductive.score}% score
+                <span className="ml-2 text-red-400">
+                  {peakHours.leastProductive.diff > 0 ? `+${peakHours.leastProductive.diff}%` : `${peakHours.leastProductive.diff}%`}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Hourly bar chart */}
+          <div className="h-32">
+            <Bar 
+              data={{
+                labels: peakHours.hourlyData.map(h => {
+                  const suffix = h.hour >= 12 ? 'p' : 'a';
+                  const hour12 = h.hour === 0 ? 12 : h.hour > 12 ? h.hour - 12 : h.hour;
+                  return `${hour12}${suffix}`;
+                }),
+                datasets: [{
+                  label: 'Productivity Score',
+                  data: peakHours.hourlyData.map(h => h.score),
+                  backgroundColor: peakHours.hourlyData.map(h => 
+                    h.hour === peakHours.mostProductive.hour ? '#22c55e' :
+                    h.hour === peakHours.leastProductive.hour ? '#ef4444' : 'rgba(34, 197, 94, 0.5)'
+                  ),
+                  borderRadius: 4
+                }]
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { display: true, grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 } } },
+                  y: { display: false, min: 0, max: 100 }
+                }
+              }}
+            />
           </div>
         </div>
       )}

@@ -662,7 +662,7 @@
 
 ### Issue 30: Terminal Doesn't Match Spec
 
-**Status:** Not Started
+**Status:** AI Attempted Fix
 **Priority:** P1
 **Category:** Terminal
 
@@ -679,7 +679,7 @@
 
 **User's Quote:** "i dont think you get how the terminal works. so lets just work on that later."
 
-**Note:** Defer to later per user request. Need to rebuild terminal feature from scratch to match spec.
+**Note:** Defer to later per user request. Need to rebuild terminal feature from scratch to match spec. However, basic terminal functionality should now work after fixing event name mismatch in preload.ts.
 
 ---
 
@@ -689,5 +689,22 @@
 |----------|-----------|--------|
 | IDEProjects/Tools/Data | 7 | All Not Started |
 | IDEProjects/UI | 4 | All Not Started |
-| Terminal | 1 | Not Started |
-| **TOTAL** | **12** | **All Not Started**
+| Terminal | 1 | AI Attempted Fix |
+| **TOTAL** | **12** | **11 Not Started, 1 AI Attempted Fix** |
+
+---
+
+## 🎯 Next Steps
+
+### Terminal Functionality
+The terminal should now be functional after fixing the event name mismatch. Next steps:
+1. Test terminal spawning from IDE Projects > Open Workspace
+2. Verify data flows from PTY to xterm.js frontend
+3. Test user input (typing in terminal sends to PTY)
+4. Test terminal split/merge functionality
+5. Test presets and session tracking
+
+### Remaining Terminal Issues
+1. Issue 30: Terminal doesn't match spec (deferred per user request)
+2. Terminal cleanup - memory leaks from event listeners
+3. Terminal session persistence

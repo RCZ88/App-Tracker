@@ -48,9 +48,11 @@ function formatDuration(ms: number): string {
 
 interface BrowserActivityPageProps {
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
+  timeMode?: 'focus' | 'total';
+  tierAssignments?: { productive: string[]; neutral: string[]; distracting: string[] };
 }
 
-export default function BrowserActivityPage({ selectedPeriod = 'week' }: BrowserActivityPageProps) {
+export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode = 'total', tierAssignments: tierAssignmentsProp }: BrowserActivityPageProps) {
   const [domainStats, setDomainStats] = useState<any[]>([]);
   const [categoryStats, setCategoryStats] = useState<any[]>([]);
   const [browserLogs, setBrowserLogs] = useState<any[]>([]);
@@ -62,45 +64,79 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
   const [liveLogs, setLiveLogs] = useState<Array<{id: string; timestamp: number; domain: string; url?: string; title?: string; type: string; level?: string}>>([]);
   const [isLiveMode, setIsLiveMode] = useState(true);
-  const [mainBrowser, setMainBrowser] = useState<string>('chrome');
+  const [mainBrowser, setMainBrowser] = useState<string>('');
   const [availableBrowsers, setAvailableBrowsers] = useState<string[]>([]);
+  const [extensionBrowser, setExtensionBrowser] = useState<string>('');
 
-  // Detect browsers from tracked apps (only show browsers user has already opened)
+  // Detect browsers and load tracking browser preference
   useEffect(() => {
-    const detectBrowsers = async () => {
+    const init = async () => {
+      console.log('[BrowserActivity] Initializing browser tracking...');
       try {
-        if (window.deskflowAPI?.getTrackedBrowsers) {
-          const tracked = await window.deskflowAPI.getTrackedBrowsers();
-          if (tracked?.length > 0) {
-            setAvailableBrowsers(tracked);
-            return;
+        // Load browser with extension from preferences first
+        let extBrowser = '';
+        if (window.deskflowAPI?.getPreferences) {
+          const prefs = await window.deskflowAPI.getPreferences();
+          console.log('[BrowserActivity] Preferences loaded:', prefs);
+          if (prefs?.browserWithExtension) {
+            extBrowser = prefs.browserWithExtension;
+            setExtensionBrowser(extBrowser);
+            setMainBrowser(extBrowser);
+            console.log('[BrowserActivity] Extension browser from prefs:', extBrowser);
           }
+        } else {
+          console.log('[BrowserActivity] No getPreferences API');
+        }
+        
+        // Load available browsers (all known browsers + from DB)
+        if (window.deskflowAPI?.getTrackedBrowsers) {
+          let tracked = await window.deskflowAPI.getTrackedBrowsers();
+          console.log('[BrowserActivity] Tracked browsers from DB:', tracked);
+          
+          // Add known browsers if not already in list (case-insensitive check)
+          const knownBrowsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Brave', 'Opera', 'Vivaldi', 'Arc'];
+          knownBrowsers.forEach(b => {
+            const exists = tracked.some(t => t.toLowerCase() === b.toLowerCase());
+            if (!exists) {
+              tracked.push(b);
+              console.log('[BrowserActivity] Added known browser:', b);
+            }
+          });
+          
+          // If no main browser set yet, set to Chrome or first available
+          if (!extBrowser && tracked.length > 0) {
+            // Default to Chrome if available, otherwise first
+            const chromeIdx = tracked.findIndex(t => t.toLowerCase() === 'chrome');
+            setMainBrowser(chromeIdx >= 0 ? tracked[chromeIdx] : tracked[0]);
+            console.log('[BrowserActivity] Set main browser to:', chromeIdx >= 0 ? tracked[chromeIdx] : tracked[0]);
+          }
+          
+          // Remove duplicates (case-insensitive)
+          const seen = new Set<string>();
+          const uniqueBrowsers = tracked.filter(b => {
+            const key = b.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          
+          console.log('[BrowserActivity] Final unique browsers:', uniqueBrowsers);
+          setAvailableBrowsers(uniqueBrowsers);
+        } else {
+          console.log('[BrowserActivity] No getTrackedBrowsers API - using fallback');
+          // Fallback: show all known browsers
+          const knownBrowsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Brave', 'Opera', 'Vivaldi', 'Arc'];
+          setAvailableBrowsers(knownBrowsers);
+          if (!extBrowser) {
+            setMainBrowser('Chrome');
+          }
+          console.log('[BrowserActivity] Using fallback browsers:', knownBrowsers);
         }
       } catch (err) {
-        console.error('[DeskFlow] Error getting tracked browsers:', err);
-      }
-      setAvailableBrowsers(['chrome']);
-    };
-
-    detectBrowsers();
-  }, []);
-
-  // Load main browser from preferences
-  useEffect(() => {
-    const loadMainBrowser = async () => {
-      if (window.deskflowAPI?.getPreferences) {
-        const prefs = await window.deskflowAPI.getPreferences();
-        if (prefs?.mainBrowser) {
-          setMainBrowser(prefs.mainBrowser);
-        }
-      }
-      // Fallback to localStorage
-      const saved = localStorage.getItem('deskflow-main-browser');
-      if (saved) {
-        setMainBrowser(saved);
+        console.error('[BrowserActivity] Error initializing browser tracking:', err);
       }
     };
-    loadMainBrowser();
+    init();
   }, []);
   
   // Ref to track if component is still mounted - prevents state updates after unmount
@@ -316,7 +352,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
         labels: {
           color: '#d4d4d8',
           padding: 15,
-          font: { size: 12, color: '#d4d4d8' },
+          font: { size: 12, family: 'system-ui' },
           generateLabels: (chart: any) => {
             const data = chart.data;
             if (data.labels.length && data.datasets.length) {
@@ -328,7 +364,9 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
                   strokeStyle: data.datasets[0].borderColor,
                   lineWidth: 2,
                   hidden: false,
-                  index: i
+                  index: i,
+                  fontColor: '#d4d4d8',
+                  textStrokeColor: '#d4d4d8'
                 };
               });
             }
@@ -339,6 +377,11 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
       tooltip: {
         bodyColor: '#d4d4d8',
         titleColor: '#d4d4d8',
+        backgroundColor: 'rgba(24, 24, 27, 0.9)',
+        titleFont: { color: '#d4d4d8' },
+        bodyFont: { color: '#d4d4d8' },
+        borderColor: '#27272a',
+        borderWidth: 1,
         callbacks: {
           label: (ctx: any) => ` ${formatDuration(ctx.raw)}`
         }
@@ -409,21 +452,31 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
               onChange={async (e) => {
                 const newBrowser = e.target.value;
                 setMainBrowser(newBrowser);
-                if (window.deskflowAPI?.setPreference) {
-                  await window.deskflowAPI.setPreference('mainBrowser', newBrowser);
+                // Save this as the browser with extension
+                if (window.deskflowAPI?.setBrowserWithExtension) {
+                  await window.deskflowAPI.setBrowserWithExtension(newBrowser);
+                  setExtensionBrowser(newBrowser);
+                  console.log('[BrowserActivity] Saved extension browser:', newBrowser);
                 }
-                localStorage.setItem('deskflow-main-browser', newBrowser);
               }}
               className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
             >
-              {(availableBrowsers.length > 0 ? availableBrowsers : ['chrome']).map(browser => (
-                <option key={browser} value={browser}>
-                  {browser.charAt(0).toUpperCase() + browser.slice(1)}
-                </option>
-              ))}
+              {availableBrowsers.length === 0 ? (
+                <option value="">No browsers found</option>
+              ) : (
+                availableBrowsers.map(browser => {
+                  const isExtensionBrowser = browser.toLowerCase() === extensionBrowser.toLowerCase();
+                  console.log('[BrowserActivity] Rendering option:', browser, 'isExtension?', isExtensionBrowser);
+                  return (
+                    <option key={browser} value={browser}>
+                      {browser.charAt(0).toUpperCase() + browser.slice(1)}{isExtensionBrowser ? ' ★ (with extension)' : ''}
+                    </option>
+                  );
+                })
+              )}
             </select>
             <span className="text-xs text-zinc-500 ml-2">
-              Excludes {mainBrowser.charAt(0).toUpperCase() + mainBrowser.slice(1)} browsing time from stats (tracked via extension instead)
+              {mainBrowser ? `Excludes ${mainBrowser.charAt(0).toUpperCase() + mainBrowser.slice(1)} browsing time from stats (tracked via extension instead)` : 'Loading...'}
             </span>
           </div>
         </div>
@@ -636,8 +689,8 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
         {domainStats.length === 0 ? (
           <div className="text-center py-12 text-zinc-500">
             <Globe className="mx-auto w-12 h-12 mb-3 text-zinc-700" />
-            <div>No browsing data yet</div>
-            <div className="text-xs mt-1">Install the browser extension and start browsing to see data here</div>
+            <div>{timeMode === 'focus' ? 'No productive browsing data' : 'No browsing data yet'}</div>
+            <div className="text-xs mt-1">{timeMode === 'focus' ? 'Switch to Total mode to see all websites' : 'Install the browser extension and start browsing to see data here'}</div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
