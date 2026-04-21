@@ -4,6 +4,81 @@
 
 ### Commit Message
 ```
+feat: Add External Tracker - all phases complete with charts and custom activities
+```
+
+### Detailed Changes (ALL PHASES COMPLETE)
+
+#### Phase 1-2: Core Infrastructure & Sleep Tracking (COMPLETE)
+
+**Database Schema:**
+- `external_activities` table - Stores activity definitions (name, type, color, icon, default_duration, is_default, is_visible, sort_order)
+- `external_sessions` table - Stores completed sessions (activity_id, started_at, ended_at, duration_seconds, notes)
+- 8 default activities seeded on first run
+
+**IPC Handlers:**
+- `get-external-activities` - Fetch all activities
+- `add-external-activity` - Create new activity
+- `update-external-activity` - Update activity
+- `delete-external-activity` - Delete custom activity
+- `start-external-session` - Start tracking session
+- `stop-external-session` - Stop session with duration
+- `get-external-sessions` - Fetch sessions by period
+- `get-external-stats` - Get statistics by period
+- `get-sleep-trends` - Get sleep pattern data
+- `get-consistency-score` - Calculate consistency metrics
+
+**External Page:**
+- Activity grid with 8 default activities
+- Stopwatch mode for timed activities
+- Sleep mode with wake-up time picker (allows selecting past time)
+- Check-in mode for quick activities
+- Real-time timer display
+
+#### Phase 3: Statistics & Charts (COMPLETE)
+
+**Charts:**
+- Activity breakdown horizontal bar chart (by activity)
+- Weekly comparison line chart (multi-week)
+- "Charts" toggle button to show/hide
+- Chart.js integration
+
+**Consistency Score:**
+- 0-100 score based on variance from target
+- Trend indicator (↑↓-)
+- Color-coded display (green/amber/red)
+
+#### Phase 4: Custom Activities (COMPLETE)
+
+**Custom Activity Modal:**
+- Name input field
+- Type selector (Stopwatch/Sleep/Check-in)
+- Icon picker (10 icons)
+- Color picker (15 colors)
+- Default duration dropdown (for check-in)
+- Save to database
+
+#### Phase 5: Polish (COMPLETE)
+
+- Framer Motion animations (fade, scale transitions)
+- Smooth button hover effects
+- Modal animations
+
+**Files:**
+| File | Changes |
+|------|--------|
+| `src/main.ts` | +328 lines - DB tables + IPC handlers |
+| `src/preload.ts` | +19 lines - External API bindings |
+| `src/App.tsx` | +6 lines - ExternalPage import + route + sidebar |
+| `src/pages/ExternalPage.tsx` | +492 lines - Full component |
+| `agent/state.md` | Updated |
+
+---
+
+### Previous Commit
+
+### Commit Message
+```
 feat: External Tracker - non-laptop activity tracking with sleep deficit and consistency metrics
 ```
 
