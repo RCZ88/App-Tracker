@@ -1,8 +1,10 @@
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+    return (mod && mod.__importDefault) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// Load environment variables from .env file
+require('dotenv').config();
 const electron_1 = require("electron");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
@@ -142,6 +144,7 @@ interface ParsedSession {
     provider?: string;
     durationMs?: number;
     projectPath?: string;
+    messageCount?: number;
 }
 
 interface AIAgentPlugin {
@@ -217,6 +220,8 @@ const ClaudeCodePlugin: AIAgentPlugin = {
             let lastModel = '';
             let sessionId = '';
             let timestamp: Date | null = null;
+            let messageCount = 0;
+            let projectPath: string | undefined;
 
             for (const line of lines) {
                 try {
@@ -225,8 +230,14 @@ const ClaudeCodePlugin: AIAgentPlugin = {
                     if (!sessionId && entry.sessionId) sessionId = entry.sessionId;
                     if (!timestamp && entry.timestamp) timestamp = new Date(entry.timestamp);
                     if (!timestamp && entry.uuid) timestamp = new Date();
+                    if (!projectPath && entry.cwd) projectPath = entry.cwd;
 
                     const entryType = entry.type;
+                    // Count actual message exchanges
+                    if (entryType === 'user' || entryType === 'assistant') {
+                        messageCount++;
+                    }
+
                     let inputTokens = 0;
                     let outputTokens = 0;
                     let cacheRead = 0;
@@ -262,14 +273,16 @@ const ClaudeCodePlugin: AIAgentPlugin = {
                 } catch {}
             }
 
-            if (totalInput > 0 || totalOutput > 0) {
-                const homedir = require('os').homedir();
-                const projectsPrefix = path_1.default.join(homedir, '.claude', 'projects') + path_1.default.sep;
-                let projectPath: string | undefined;
-                if (filePath.startsWith(projectsPrefix)) {
-                    const relativePath = filePath.substring(projectsPrefix.length);
-                    const projectDir = relativePath.split(path_1.default.sep)[0];
-                    projectPath = projectDir;
+            if (totalInput > 0 || totalOutput > 0 || messageCount > 0) {
+                // If no cwd found in entries, derive from file path
+                if (!projectPath) {
+                    const homedir = require('os').homedir();
+                    const projectsPrefix = path_1.default.join(homedir, '.claude', 'projects') + path_1.default.sep;
+                    if (filePath.startsWith(projectsPrefix)) {
+                        const relativePath = filePath.substring(projectsPrefix.length);
+                        const projectDir = relativePath.split(path_1.default.sep)[0];
+                        projectPath = projectDir;
+                    }
                 }
 
                 sessions.push({
@@ -282,6 +295,7 @@ const ClaudeCodePlugin: AIAgentPlugin = {
                     model: lastModel || undefined,
                     provider: 'anthropic',
                     projectPath,
+                    messageCount: messageCount > 0 ? Math.floor(messageCount / 2) : undefined, // user+assistant pairs
                 });
             }
         } catch {}
@@ -290,17 +304,30 @@ const ClaudeCodePlugin: AIAgentPlugin = {
 
     async parseDir(dirPath: string): Promise<ParsedSession[]> {
         const sessions: ParsedSession[] = [];
+        const collectJsonlFiles = (currentDir: string): string[] => {
+            const files: string[] = [];
+            try {
+                const entries = fs_1.default.readdirSync(currentDir);
+                for (const entry of entries) {
+                    const fullPath = path_1.default.join(currentDir, entry);
+                    const stat = fs_1.default.statSync(fullPath);
+                    if (stat.isDirectory()) {
+                        files.push(...collectJsonlFiles(fullPath));
+                    } else if (entry.endsWith('.jsonl')) {
+                        files.push(fullPath);
+                    }
+                }
+            } catch {}
+            return files;
+        };
         try {
-            const projectDirs = fs_1.default.readdirSync(dirPath);
-            for (const projectDir of projectDirs) {
-                const projectPath = path_1.default.join(dirPath, projectDir);
-                if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
-
-                const files = fs_1.default.readdirSync(projectPath);
-                for (const file of files) {
-                    if (!file.endsWith('.jsonl')) continue;
-                    const sessionsFromFile = await this.parse(path_1.default.join(projectPath, file));
-                    sessions.push(...sessionsFromFile);
+            const allFiles = collectJsonlFiles(dirPath);
+            for (let i = 0; i < allFiles.length; i++) {
+                const sessionsFromFile = await this.parse(allFiles[i]);
+                sessions.push(...sessionsFromFile);
+                // Yield every 10 files to prevent UI freeze
+                if (i % 10 === 0) {
+                    await new Promise<void>(resolve => setImmediate(resolve));
                 }
             }
         } catch {}
@@ -391,6 +418,7 @@ const OpenCodePlugin: AIAgentPlugin = {
                     provider: g.provider,
                     durationMs: undefined,
                     projectPath: sessionInfo?.directory,
+                    messageCount: g.count > 0 ? g.count : undefined,
                 });
             }
 
@@ -641,6 +669,7 @@ const QwenPlugin: AIAgentPlugin = {
             let totalThoughtsTokens = 0;
             let model: string | undefined;
             let projectPath: string | undefined;
+            let messageCount = 0;
 
             for (const line of lines) {
                 try {
@@ -649,6 +678,11 @@ const QwenPlugin: AIAgentPlugin = {
                     if (!sessionTimestamp && entry.timestamp) sessionTimestamp = new Date(entry.timestamp);
                     if (!projectPath && entry.cwd) projectPath = entry.cwd;
                     if (!model && entry.model) model = entry.model;
+
+                    // Count actual messages (user + assistant exchanges)
+                    if (entry.type === 'user' || entry.type === 'assistant') {
+                        messageCount++;
+                    }
 
                     if (entry.type === 'system' && entry.subtype === 'ui_telemetry') {
                         const uiEvent = entry.systemPayload?.uiEvent;
@@ -669,7 +703,7 @@ const QwenPlugin: AIAgentPlugin = {
                 } catch {}
             }
 
-            if (totalInputTokens > 0 || totalOutputTokens > 0) {
+            if (totalInputTokens > 0 || totalOutputTokens > 0 || messageCount > 0) {
                 sessions.push({
                     sessionId: sessionId || String(Date.now()),
                     timestamp: sessionTimestamp || new Date(),
@@ -680,6 +714,7 @@ const QwenPlugin: AIAgentPlugin = {
                     model,
                     provider: 'alibaba',
                     projectPath,
+                    messageCount: messageCount > 0 ? Math.floor(messageCount / 2) : undefined,
                 });
             }
         } catch {}
@@ -691,6 +726,7 @@ const QwenPlugin: AIAgentPlugin = {
         try {
             if (!fs_1.default.existsSync(dirPath)) return sessions;
             const projectDirs = fs_1.default.readdirSync(dirPath);
+            let fileCount = 0;
             for (const projectDir of projectDirs) {
                 const projectPath = path_1.default.join(dirPath, projectDir);
                 if (!fs_1.default.statSync(projectPath).isDirectory()) continue;
@@ -701,6 +737,11 @@ const QwenPlugin: AIAgentPlugin = {
                     if (file.endsWith('.jsonl')) {
                         const fromFile = await this.parse(path_1.default.join(chatsPath, file));
                         sessions.push(...fromFile);
+                        fileCount++;
+                        // Yield every 10 files to prevent UI freeze
+                        if (fileCount % 10 === 0) {
+                            await new Promise<void>(resolve => setImmediate(resolve));
+                        }
                     }
                 }
             }
@@ -878,6 +919,9 @@ const AI_AGENT_PLUGINS: AIAgentPlugin[] = [
     AiderPlugin,
 ];
 
+// Yield control back to the event loop to prevent UI freezing
+const yieldToEventLoop = () => new Promise<void>(resolve => setImmediate(resolve));
+
 // Unified sync function using plugins
 async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
     const results: Record<string, number> = {};
@@ -887,6 +931,9 @@ async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send('ai-sync-progress', { agent: plugin.id, name: plugin.name, status: 'detecting' });
             }
+
+            // Yield between plugins so UI stays responsive
+            await yieldToEventLoop();
 
             const isDetected = await plugin.detect();
             console.log(`[DeskFlow] ${plugin.name} detected: ${isDetected}`);
@@ -923,32 +970,49 @@ async function syncAllAIAgents(db: any): Promise<Record<string, number>> {
                     mainWindow.webContents.send('ai-sync-progress', { agent: plugin.id, name: plugin.name, status: 'saving', count: sessions.length });
                 }
 
-                for (const session of sessions) {
-                    const id = `${plugin.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    const date = session.timestamp.toISOString().split('T')[0];
-                    const cost = calculateCost(session);
+                if (sessions.length === 0) continue;
+
+                // Batch inserts in a transaction for massive speedup
+                const insertBatch = db!.prepare(`
+                    INSERT OR IGNORE INTO ai_usage (id, tool, date, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, model, message_count, project_path)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                const batchSize = 100;
+                for (let i = 0; i < sessions.length; i += batchSize) {
+                    const batch = sessions.slice(i, i + batchSize);
 
                     try {
-                        db!.prepare(`
-                            INSERT OR IGNORE INTO ai_usage (id, tool, date, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, model)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        `).run(
-                            id,
-                            plugin.id,
-                            date,
-                            session.inputTokens,
-                            session.outputTokens,
-                            session.cacheWriteTokens || 0,
-                            session.cacheReadTokens || 0,
-                            cost,
-                            session.model || null
-                        );
-                        results[plugin.id] = (results[plugin.id] || 0) + 1;
+                        db!.transaction(() => {
+                            for (const session of batch) {
+                                const id = `${plugin.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                                const date = session.timestamp.toISOString().split('T')[0];
+                                const cost = calculateCost(session);
+
+                                insertBatch.run(
+                                    id,
+                                    plugin.id,
+                                    date,
+                                    session.inputTokens,
+                                    session.outputTokens,
+                                    session.cacheWriteTokens || 0,
+                                    session.cacheReadTokens || 0,
+                                    cost,
+                                    session.model || null,
+                                    session.messageCount || 0,
+                                    session.projectPath || null
+                                );
+                                results[plugin.id] = (results[plugin.id] || 0) + 1;
+                            }
+                        })();
                     } catch (dbErr: any) {
                         if (!dbErr.message.includes('UNIQUE constraint')) {
                             console.error(`[DeskFlow] ${plugin.name} DB insert error:`, dbErr.message);
                         }
                     }
+
+                    // Yield every batch so the UI doesn't freeze
+                    await yieldToEventLoop();
                 }
             }
 
@@ -1265,11 +1329,17 @@ function initializeStorage() {
         cache_read_tokens INTEGER DEFAULT 0,
         cost_usd REAL DEFAULT 0,
         model TEXT,
+        message_count INTEGER DEFAULT 0,
+        project_path TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+        // Safe migration for existing databases
+        try { db.exec('ALTER TABLE ai_usage ADD COLUMN message_count INTEGER DEFAULT 0'); } catch {}
+        try { db.exec('ALTER TABLE ai_usage ADD COLUMN project_path TEXT'); } catch {}
         db.exec('CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage(date)');
         db.exec('CREATE INDEX IF NOT EXISTS idx_ai_usage_tool ON ai_usage(tool)');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_ai_usage_project_path ON ai_usage(project_path)');
 
         // Commit metrics
         db.exec(`
@@ -1318,6 +1388,19 @@ function initializeStorage() {
       )
     `);
         db.exec('CREATE INDEX IF NOT EXISTS idx_dora_project ON dora_metrics(project_id)');
+
+        // Terminal layouts
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS terminal_layouts (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              project_id TEXT,
+              layout_data TEXT,
+              is_active INTEGER DEFAULT 0,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
         console.log('[DeskFlow] ✅ SQLite database initialized at', dbPath);
         storageError = null;
@@ -2765,6 +2848,103 @@ electron_1.ipcMain.handle('get-browser-category-stats', (event, period?: 'today'
         return [];
     }
 });
+electron_1.ipcMain.handle('get-available-browsers', async () => {
+    const browsers: string[] = [];
+    const platform = process.platform;
+    
+    try {
+        if (platform === 'win32') {
+            const browserPaths: Record<string, string> = {
+                'chrome': path_1.default.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+                'firefox': path_1.default.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Mozilla Firefox', 'firefox.exe'),
+                'edge': path_1.default.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+                'brave': path_1.default.join(process.env.LOCALAPPDATA || '', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+                'opera': path_1.default.join(process.env.APPDATA || '', 'Opera Software', 'Opera Stable', 'opera.exe'),
+                'vivaldi': path_1.default.join(process.env.LOCALAPPDATA || '', 'Vivaldi', 'Application', 'vivaldi.exe'),
+            };
+            
+            for (const [browser, browserPath] of Object.entries(browserPaths)) {
+                try {
+                    await fs_1.default.promises.access(browserPath);
+                    browsers.push(browser);
+                } catch {
+                    // Browser not found at that path
+                }
+            }
+        } else if (platform === 'darwin') {
+            const macBrowserPaths: Record<string, string> = {
+                'chrome': '/Applications/Google Chrome.app',
+                'firefox': '/Applications/Firefox.app',
+                'safari': '/Applications/Safari.app',
+                'brave': '/Applications/Brave Browser.app',
+                'arc': '/Applications/Arc.app',
+                'edge': '/Applications/Microsoft Edge.app',
+                'opera': '/Applications/Opera.app',
+                'vivaldi': '/Applications/Vivaldi.app',
+            };
+            
+            for (const [browser, browserPath] of Object.entries(macBrowserPaths)) {
+                try {
+                    await fs_1.default.promises.access(browserPath);
+                    browsers.push(browser);
+                } catch {
+                    // Browser not found
+                }
+            }
+        } else {
+            // Linux
+            browsers.push('chrome', 'firefox', 'brave', 'edge', 'chromium');
+        }
+    } catch (err) {
+        console.error('[DeskFlow] Error detecting browsers:', err);
+    }
+    
+    // Always include Chrome as fallback if none found
+    if (browsers.length === 0) {
+        browsers.push('chrome', 'firefox', 'edge');
+    }
+    
+    console.log('[DeskFlow] Detected browsers:', browsers);
+    return browsers;
+});
+
+const KNOWN_BROWSERS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'vivaldi', 'arc'];
+
+electron_1.ipcMain.handle('get-tracked-browsers', async () => {
+    const browsers: string[] = [];
+    try {
+        if (useJson && jsonLogs.length > 0) {
+            const trackedApps = new Set<string>();
+            jsonLogs.forEach(log => {
+                const appLower = log.app.toLowerCase();
+                if (KNOWN_BROWSERS.some(b => appLower.includes(b))) {
+                    const matchedBrowser = KNOWN_BROWSERS.find(b => appLower.includes(b));
+                    if (matchedBrowser) trackedApps.add(matchedBrowser);
+                }
+            });
+            browsers.push(...Array.from(trackedApps));
+        } else if (db) {
+            const rows = db.prepare(`
+                SELECT DISTINCT LOWER(app) as app FROM logs 
+                WHERE LOWER(app) LIKE '%chrome%' OR LOWER(app) LIKE '%firefox%' 
+                OR LOWER(app) LIKE '%safari%' OR LOWER(app) LIKE '%edge%' 
+                OR LOWER(app) LIKE '%brave%' OR LOWER(app) LIKE '%opera%' 
+                OR LOWER(app) LIKE '%vivaldi%' OR LOWER(app) LIKE '%arc%'
+            `).all() as { app: string }[];
+            rows.forEach(row => {
+                const matchedBrowser = KNOWN_BROWSERS.find(b => row.app.includes(b));
+                if (matchedBrowser && !browsers.includes(matchedBrowser)) {
+                    browsers.push(matchedBrowser);
+                }
+            });
+        }
+    } catch (err) {
+        console.error('[DeskFlow] Error getting tracked browsers:', err);
+    }
+    console.log('[DeskFlow] Tracked browsers from DB:', browsers);
+    return browsers;
+});
+
 electron_1.ipcMain.handle('get-browser-tracking', () => {
     return isBrowserTrackingEnabled;
 });
@@ -3759,7 +3939,7 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
             ides: [],
             tools: [],
             projects: [],
-            aiUsage: { totalTokens: 0, totalCost: 0, byTool: {} },
+            aiUsage: { totalTokens: 0, totalCost: 0, totalMessages: 0, byTool: {} },
             commits: { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 }
         };
     }
@@ -3769,9 +3949,14 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
         const tools = db.prepare('SELECT * FROM tools ORDER BY category, name').all();
         const projects = db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC LIMIT 10').all();
         const aiUsage = db.prepare(`
-            SELECT tool, SUM(input_tokens + output_tokens) as tokens, SUM(cost_usd) as cost, COUNT(*) as session_count
+            SELECT tool,
+                   SUM(input_tokens + output_tokens) as tokens,
+                   SUM(cost_usd) as cost,
+                   COUNT(*) as session_count,
+                   SUM(message_count) as messageCount,
+                   MAX(date) as lastUsed,
+                   GROUP_CONCAT(DISTINCT model) as models
             FROM ai_usage
-            WHERE date >= date('now', '-30 days')
             GROUP BY tool
         `).all();
         const commits = db.prepare(`
@@ -3780,21 +3965,106 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
             WHERE date >= datetime('now', '-30 days')
         `).get();
 
+        // Daily breakdown per tool for charts (real message_count)
+        const aiUsageDaily = db.prepare(`
+            SELECT tool, date,
+                   SUM(input_tokens + output_tokens) as tokens,
+                   SUM(cost_usd) as cost,
+                   COUNT(*) as session_count,
+                   SUM(message_count) as messageCount
+            FROM ai_usage
+            GROUP BY tool, date
+            ORDER BY date DESC
+        `).all();
+
+        // Project breakdown per tool
+        const aiUsageProjects = db.prepare(`
+            SELECT tool, project_path,
+                   SUM(input_tokens + output_tokens) as tokens,
+                   SUM(message_count) as messageCount,
+                   COUNT(*) as session_count
+            FROM ai_usage
+            WHERE project_path IS NOT NULL AND project_path != ''
+            GROUP BY tool, project_path
+            ORDER BY tokens DESC
+        `).all();
+
+        // Model breakdown per tool
+        const aiUsageModels = db.prepare(`
+            SELECT tool, model,
+                   SUM(input_tokens + output_tokens) as tokens,
+                   SUM(message_count) as messageCount,
+                   COUNT(*) as session_count
+            FROM ai_usage
+            WHERE model IS NOT NULL AND model != ''
+            GROUP BY tool, model
+            ORDER BY tokens DESC
+        `).all();
+
         const byTool: Record<string, any> = {};
         let totalTokens = 0;
         let totalCost = 0;
+        let totalMessages = 0;
 
         for (const row of aiUsage) {
-            byTool[row.tool] = { tokens: row.tokens, cost: row.cost, sessions: row.session_count };
-            totalTokens += row.tokens;
-            totalCost += row.cost;
+            const models = row.models ? row.models.split(',').filter((m: string) => m) : [];
+            byTool[row.tool] = {
+                tokens: row.tokens || 0,
+                cost: row.cost || 0,
+                sessions: row.session_count || 0,
+                messageCount: row.messageCount || 0,
+                lastUsed: row.lastUsed || null,
+                models,
+                daily: {},
+                projects: [],
+                modelBreakdown: []
+            };
+            totalTokens += (row.tokens || 0);
+            totalCost += (row.cost || 0);
+            totalMessages += (row.messageCount || 0);
+        }
+
+        // Populate daily breakdown
+        for (const row of aiUsageDaily) {
+            if (byTool[row.tool]) {
+                byTool[row.tool].daily[row.date] = {
+                    tokens: row.tokens || 0,
+                    cost: row.cost || 0,
+                    sessions: row.session_count || 0,
+                    messageCount: row.messageCount || 0
+                };
+            }
+        }
+
+        // Populate project breakdown
+        for (const row of aiUsageProjects) {
+            if (byTool[row.tool]) {
+                byTool[row.tool].projects.push({
+                    path: row.project_path,
+                    tokens: row.tokens || 0,
+                    messageCount: row.messageCount || 0,
+                    sessions: row.session_count || 0
+                });
+            }
+        }
+
+        // Populate model breakdown
+        for (const row of aiUsageModels) {
+            if (byTool[row.tool]) {
+                byTool[row.tool].modelBreakdown.push({
+                    model: row.model,
+                    tokens: row.tokens || 0,
+                    messageCount: row.messageCount || 0,
+                    sessions: row.session_count || 0
+                });
+            }
         }
 
         return {
             ides,
             tools,
             projects,
-            aiUsage: { totalTokens, totalCost, byTool },
+            aiUsage: { totalTokens, totalCost, totalMessages, byTool },
             commits: {
                 totalCommits: commits?.count || 0,
                 totalAdditions: commits?.additions || 0,
@@ -3807,7 +4077,7 @@ electron_1.ipcMain.handle('get-ide-projects-overview', () => {
             ides: [],
             tools: [],
             projects: [],
-            aiUsage: { totalTokens: 0, totalCost: 0, byTool: {} },
+            aiUsage: { totalTokens: 0, totalCost: 0, totalMessages: 0, byTool: {} },
             commits: { totalCommits: 0, totalAdditions: 0, totalDeletions: 0 }
         };
     }
@@ -4241,6 +4511,108 @@ electron_1.ipcMain.handle('save-file', async (event, options) => {
         return { success: false, message: err.message };
     }
 });
+
+// ========== AI Features ==========
+// Helper to get OpenRouter API key (preferences > env var)
+function getOpenRouterApiKey(): string {
+    // Check user preferences first (set via Settings UI)
+    const prefsKey = userPreferences?.openrouterApiKey || '';
+    if (prefsKey) {
+        console.log('[DeskFlow] Using OpenRouter API key from preferences');
+        return prefsKey;
+    }
+    // Fallback to environment variable (from .env file or OS env)
+    const envKey = process.env.OPENROUTER_API_KEY || '';
+    if (envKey) {
+        console.log('[DeskFlow] Using OpenRouter API key from environment');
+        return envKey;
+    }
+    console.warn('[DeskFlow] OpenRouter API key not found in preferences or environment');
+    return '';
+}
+
+// Generate AI colors for apps/websites using OpenRouter API
+electron_1.ipcMain.handle('generate-ai-colors', async (event, apps: string[]) => {
+    try {
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
+        if (!OPENROUTER_API_KEY) {
+            console.warn('[DeskFlow] OpenRouter API key not set');
+            return {};
+        }
+
+        const prompt = `Generate brand-appropriate hex colors for these apps/websites. Return ONLY a JSON object with app names as keys and hex colors as values. No explanation, just JSON.
+
+Apps: ${apps.join(', ')}
+
+Example format: {"app1": "#FF5733", "app2": "#33FF57"}`;
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'anthropic/claude-sonnet-4-5',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 500,
+            }),
+        });
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || '{}';
+        const colors = JSON.parse(content);
+        console.log('[DeskFlow] AI generated colors:', colors);
+        return colors;
+    } catch (err) {
+        console.error('[DeskFlow] AI color generation error:', err);
+        return {};
+    }
+});
+
+// Generate AI categorization for apps/websites using OpenRouter API
+electron_1.ipcMain.handle('generate-ai-categorization', async (event, items: Array<{name: string, category: string}>) => {
+    try {
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
+        if (!OPENROUTER_API_KEY) {
+            console.warn('[DeskFlow] OpenRouter API key not set');
+            return [];
+        }
+
+        const itemsList = items.map(i => `${i.name} (current: ${i.category})`).join(', ');
+        
+        const prompt = `Categorize these apps/websites into appropriate categories. Use these categories: IDE, AI Tools, Browser, Entertainment, Communication, Design, Productivity, Tools, Education, Developer Tools, Search Engine, News, Shopping, Social Media, Uncategorized, Other.
+
+Items: ${itemsList}
+
+Return ONLY a JSON array of objects with "name" and "category" keys. No explanation, just JSON.
+
+Example format: [{"name": "app1", "category": "Productivity"}, {"name": "app2", "category": "Entertainment"}]`;
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'anthropic/claude-sonnet-4-5',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 1000,
+            }),
+        });
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || '[]';
+        const result = JSON.parse(content);
+        console.log('[DeskFlow] AI generated categories:', result);
+        return result;
+    } catch (err) {
+        console.error('[DeskFlow] AI categorization error:', err);
+        return [];
+    }
+});
+
 // --- Browser Tracking HTTP Server ---
 function startBrowserTrackingServer() {
     if (!isBrowserTrackingEnabled) {
@@ -4256,6 +4628,18 @@ function startBrowserTrackingServer() {
                 try {
                     const data = JSON.parse(body);
                     handleBrowserData(data);
+                    // Stream live event to renderer if window exists
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('browser-tracking-event', {
+                            type: 'browser-data',
+                            domain: data.domain,
+                            url: data.url,
+                            title: data.title,
+                            duration: data.active_duration_ms,
+                            is_browser_focused: data.is_browser_focused,
+                            timestamp: Date.now()
+                        });
+                    }
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ status: 'ok' }));
                 }
@@ -4278,6 +4662,32 @@ function startBrowserTrackingServer() {
                 app: currentApp,
                 isTracking: isBrowserTrackingEnabled
             }));
+        }
+        else if (req.method === 'POST' && req.url === '/browser-log') {
+            // Live log streaming endpoint from extension
+            let logBody = '';
+            req.on('data', chunk => { logBody += chunk.toString(); });
+            req.on('end', () => {
+                try {
+                    const log = JSON.parse(logBody);
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('browser-tracking-event', {
+                            type: 'live-log',
+                            message: log.message,
+                            level: log.level,
+                            domain: log.domain,
+                            url: log.url,
+                            timestamp: log.timestamp || Date.now()
+                        });
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok' }));
+                }
+                catch (err) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: 'Invalid JSON' }));
+                }
+            });
         }
         else {
             res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -4307,6 +4717,11 @@ function handleBrowserData(data) {
         return;
     if (!data.domain || !data.url)
         return;
+    // Check if browser is actually focused - don't track if user is on another app
+    if (data.is_browser_focused === false) {
+        console.log('[DeskFlow] ⏸️ Browser not focused, skipping tracking for:', data.domain);
+        return;
+    }
     // Check if domain is excluded
     if (categorizeDomain(data.domain, data.title, data.url) === 'Excluded') {
         console.log('[DeskFlow] 🚫 Excluded domain skipped:', data.domain);
@@ -4381,15 +4796,12 @@ function handleBrowserData(data) {
     }
     else {
         // No active session for this domain — create new one
-        // CRITICAL FIX: Be more defensive with new session duration
-        // If this is a tab switch (is_periodic = false), duration is total time on that tab - use it
-        // If this is periodic sync and we somehow have no session, it's an error - skip
+        // FIX: Allow first periodic sync to create a new session
         let newSessionDuration;
         if (data.is_periodic) {
-            // This shouldn't happen - periodic sync should always have existingSession
-            // Skip to prevent duplicate entries
-            console.warn(`[DeskFlow] ⚠️ Periodic sync without existing session for ${data.domain}, skipping`);
-            return;
+            // First periodic sync for this domain - use the delta as session duration
+            newSessionDuration = Math.min(data.delta_ms || data.active_duration_ms, MAX_LOGGED_SESSION_MS);
+            console.log(`[DeskFlow] 📝 First sync for ${data.domain}: creating new session with ${Math.floor((newSessionDuration || 0) / 1000)}s`);
         }
         // Tab switch - duration is total time on previous tab, use it
         newSessionDuration = Math.min(sessionDuration, MAX_LOGGED_SESSION_MS);

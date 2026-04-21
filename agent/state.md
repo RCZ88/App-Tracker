@@ -6,13 +6,449 @@
 
 ## 📊 Current Status
 
-**Version:** 1.37
-**Last Updated:** 2026-04-19
+**Version:** 1.48
+**Last Updated:** 2026-04-21
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-21 — Settings Page Grid Layout, API Key & Save Bar
+
+**What Changed:**
+1. ✅ Fixed AI API key loading: Added `dotenv` package, loaded `.env` file in main.ts
+2. ✅ Added `getOpenRouterApiKey()` helper: checks preferences first, then env var fallback
+3. ✅ Added OpenRouter API key input field in Settings > General tab (password type, saves to preferences)
+4. ✅ Redesigned Colors tab with responsive grid: 2 cols mobile, 3 cols tablet, 4 cols desktop
+5. ✅ Colors tab now shows ALL items without scrolling container (grid layout fills space)
+6. ✅ Added counter badge to Colors tab header (shows `{count} apps/websites`)
+7. ✅ Implemented Discord-style bottom save bar: fixed to bottom, slide-up animation, shows "You have unsaved changes" with Reset and Save Changes buttons
+8. ✅ Connected unsaved changes warning modal in App.tsx (already existed) to SettingsPage via `onHasChangesChange={setSettingsHasChanges}`
+9. ✅ Removed duplicate warning modal from SettingsPage (App.tsx handles it)
+10. ✅ Removed floating Save button from header (replaced by bottom bar)
+
+**Files Modified:**
+- `src/main.ts` - Added dotenv config, `getOpenRouterApiKey()` helper, updated AI handlers
+- `src/pages/SettingsPage.tsx` - Added API key input, grid layout, bottom save bar, removed duplicate modal
+- `src/App.tsx` - Passed `onHasChangesChange={setSettingsHasChanges}` to SettingsPage
+- `package.json` - Added `dotenv` dependency
+
+**Why:** User requested: grid layout for colors (not scroll list), API key editable in UI, Discord-style save bar, better space usage
+
+**Result:**
+- Colors tab shows responsive grid with 2-4 columns based on screen size
+- OpenRouter API key can be set in Settings > General (persists to preferences)
+- AI features now work with key from either preferences or .env file
+- Discord-style bottom bar appears when unsaved changes exist
+- App-level warning modal shows when navigating away with unsaved changes
+
+### 2026-04-21 — Settings Page UI Revamp & Redesign
+
+**What Changed:**
+1. ✅ Removed duplicate "Category Assignments" vertical list section (150+ lines deleted)
+2. ✅ Category tab: Added Show More/Less button to expand app carousel from 5 items → 15 items (3 rows)
+3. ✅ Category tab: Added individual sparkle AI buttons on each app/website card (subtle, always visible, top-right corner)
+4. ✅ Category tab: Styled Magic Category button with flat design (removed gradients, using `bg-zinc-800 hover:bg-zinc-700 border border-zinc-600`)
+5. ✅ Colors tab: Complete redesign - now shows ALL apps/websites in compact list layout (no pagination, no hiding)
+6. ✅ Colors tab: Each item shows color bar, name, category badge, and individual sparkle AI button
+7. ✅ Colors tab: Scrollable container with `max-h-[500px]` for all items
+8. ✅ Colors tab: Kept Apps/Websites toggle and search filter
+9. ✅ Colors tab: Styled Magic Color button with flat design (no gradients)
+10. ✅ Added `appCarouselExpanded` and `domainCarouselExpanded` state variables
+11. ✅ Cleaned up unused variables: `colorExpanded`, `openColorPicker`, `maxAppPage`, `maxDomainPage`
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Major redesign of Category and Colors tabs
+
+**Why:** User requested: no duplicate sections, expand to show more items (5→15), individual AI buttons per item, flat/professional button design, show ALL colors without hiding
+
+**Result:**
+- Category tab: Clean carousel with expand button (5→15 items), individual AI sparkle buttons, flat Magic Category button
+- Colors tab: Compact scrollable list showing ALL apps/websites with color bars, category badges, individual AI sparkle buttons, flat Magic Color button
+- No more duplicate sections
+- Professional flat design throughout
+
+### 2026-04-21 — Settings Page Complete Features Implementation
+
+**What Changed:**
+1. ✅ Fixed ColorPicker component to use rectangle/line style (w-16 h-3 / w-20 h-4) instead of circles
+2. ✅ Added Apps/Websites toggle to Colors tab with colorTab state
+3. ✅ Added expandable 5x3 grid layout for app colors (5 items default, 15 expanded)
+4. ✅ Added Show More/Show Less button with ChevronUp/ChevronDown icons
+5. ✅ Added Magic Color button with Sparkles icon and AI generation flow
+6. ✅ Added Magic Category button to Applications and Websites sections
+7. ✅ Added color search filter input in Colors tab
+8. ✅ Added all required state variables: colorTab, colorExpanded, colorSearchFilter, openColorPicker, generatingColors, pendingColors, preAiColors, generatingCategories, pendingCategories, preAiCategories
+9. ✅ Added generateAIColors and generateAICategorization to preload.ts
+10. ✅ Added generate-ai-colors and generate-ai-categorization IPC handlers to main.ts using OpenRouter API
+11. ✅ Added Sparkles and ChevronUp imports to SettingsPage.tsx
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Complete Colors tab redesign with rectangle color pickers, 5x3 grid, Apps/Websites toggle, Magic Color button, expandable layout
+- `src/preload.ts` - Added generateAIColors and generateAICategorization API bindings
+- `src/main.ts` - Added OpenRouter API integration for AI color generation and AI categorization
+
+**Why:** Settings page was missing required features from documentation: rectangle color pickers, expandable grids, Apps/Websites toggle, and Magic Color/Category AI features
+
+**Result:**
+- Color pickers are now line/rectangle style (not circles)
+- Colors tab shows 5 apps by default, expandable to 15
+- Toggle between Apps and Websites color editing
+- Magic Color button generates brand-appropriate colors via AI
+- Magic Category button auto-categorizes apps/websites via AI
+- Search filter for finding specific apps/websites
+
+### 2026-04-21 — IDE Projects AI Charts & Agent Analytics Restoration
+
+**What Changed:**
+1. ✅ Fixed ALL bar charts not rendering — added `BarElement` and `LineElement` to `ChartJS.register()` (was missing, causing silent failures)
+2. ✅ Added `message_count` and `project_path` columns to `ai_usage` table with safe ALTER TABLE migration
+3. ✅ Fixed Claude Code parser to recursively scan subdirectories (including `subagents/`) for all `.jsonl` files
+4. ✅ Fixed Qwen parser to count actual user+assistant message exchanges
+5. ✅ Fixed OpenCode parser to extract message counts from SQLite database
+6. ✅ Updated `get-ide-projects-overview` to return REAL `messageCount` (was aliasing token sum as messages)
+7. ✅ Added project breakdown per AI agent (which projects each AI is used on)
+8. ✅ Added model breakdown per AI agent (which models were used and how much)
+9. ✅ Enhanced agent detail popup: widened to `max-w-4xl`, added 6 top metrics (tokens, messages, cost, sessions, tokens/msg, cost/session)
+10. ✅ Added Project Breakdown section to agent popup
+11. ✅ Added Model Breakdown section to agent popup
+12. ✅ Added Multi-Agent Comparison chart with grouped bars + agent selector checkboxes
+13. ✅ Added sparklines (7-day token trend) to each active agent card
+14. ✅ Added AI Leaderboard cards: Most Active + Most Efficient
+15. ✅ Added Export CSV button for AI usage data
+16. ✅ **Fixed app freeze during AI sync** — added `setImmediate` yielding between plugins and every 10 files during parsing
+17. ✅ **Massive sync speedup** — wrapped DB inserts in transactions with 100-record batches (was 1 insert = 1 disk write)
+18. ✅ Added yielding to Claude and Qwen `parseDir` loops so large directories don't block the main thread
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` — Fixed ChartJS.register, enhanced agent popup, added comparison chart, sparklines, leaderboard, export
+- `src/main.ts` — Fixed Claude/Qwen/OpenCode parsers, added DB columns, updated overview query with project/model breakdowns
+
+**Why:** User reported AI charts were completely broken (no rendering), message counts were actually token counts, Claude subagents were missed, and agent popup lacked detail
+
+**Result:**
+- All bar charts now render correctly on overview, AI tab, agent popup, and comparison
+- Message counts are actual message exchanges, not token sums
+- Claude Code now reads ALL `.jsonl` files including nested `subagents/` directories
+- Agent popup shows rich breakdown: projects, models, efficiency metrics
+- Users can compare multiple AIs side-by-side with grouped bar chart
+- Agent cards show 7-day sparkline trend
+
+### 2026-04-21 — Browser Tracking Fix + Live Logs + Productivity Redesign
+
+**What Changed:**
+1. ✅ Fixed multi-window browser tracking bug: `chrome.windows.onFocusChanged` handler now uses `windowId` from event instead of `currentWindow: true`
+2. ✅ Fixed browser data not saving: first periodic sync now creates a new session instead of being skipped
+3. ✅ Fixed browser tracking when not focused: desktop app now checks `is_browser_focused` flag and skips data when browser is not active
+4. ✅ Added Live Activity Logs to dashboard showing app/browser/IDE detection events in real-time
+5. ✅ Added `/browser-log` HTTP endpoint for streaming live events from extension to desktop
+6. ✅ Added `onBrowserTrackingEvent` IPC channel for renderer communication
+7. ✅ Added BrowserActivityPage Live Detection panel with save-to-txt button
+8. ✅ Added auto-refresh (10s) to BrowserActivityPage for live data updates
+9. ✅ Added Refresh button to DatabasePage
+10. ✅ Redesigned Total Time calculation: browser apps now excluded from app time (tracked via browser extension instead)
+11. ✅ Added "Main Browser" setting in Settings > General (dropdown with Chrome/Firefox/Edge/etc.)
+12. ✅ Centralized ALL_BROWSER_APPS list in main.ts with `getMainBrowser()`/`isMainBrowserApp()` helpers
+13. ✅ ProductivityPage redesign: Apps vs Websites comparison with productivity scores per type
+14. ✅ ProductivityPage now shows per-type productivity bars (productive/neutral/distracting for apps vs websites)
+15. ✅ Insights card now shows App Time, Website Time, and Total Tracked
+16. ✅ Fixed missing terminal APIs in preload.ts (getTerminalLayouts, spawnTerminal, etc.)
+
+**Files Modified:**
+- `browser-extension/background.js` - Fixed windowId in onFocusChanged handler
+- `src/main.ts` - Added ALL_BROWSER_APPS, is_browser_focused check, /browser-log endpoint, browser tracking event streaming
+- `src/preload.ts` - Added terminal APIs, onBrowserTrackingEvent
+- `src/App.tsx` - Added liveActivityLogs state, BROWSER_APPS exclusion from timeByCategory/timeBreakdown, live activity panel on dashboard
+- `src/pages/BrowserActivityPage.tsx` - Added Live Detection panel, auto-refresh, save-to-txt
+- `src/pages/ProductivityPage.tsx` - Apps vs Websites comparison, per-type productivity scores, progress bars
+- `src/pages/DatabasePage.tsx` - Added Refresh button
+- `src/pages/SettingsPage.tsx` - Added Main Browser dropdown setting with persistence
+
+**Why:** 
+1. Browser tracking wasn't working for chess/other websites because `currentWindow:true` queried the extension popup instead of the actual browser window
+2. First periodic sync was skipped due to `is_periodic=true` check, preventing new sessions from being created
+3. Browser data was being recorded even when browser wasn't focused, causing incorrect "website" tracking
+4. Total time was double-counting: browser app time + website time = inflated totals
+5. Terminal page was crashing due to missing APIs in preload
+
+**Result:** 
+- Browser tracking now correctly identifies which browser window is focused across multiple instances
+- Website data is properly recorded and shows up in BrowserActivityPage with auto-refresh
+- Dashboard "Total Time" no longer double-counts browser app time
+- Productivity page shows clear Apps vs Websites comparison with individual productivity scores
+- Main Browser can be configured in Settings to exclude from app tracking
+
+**What Changed:**
+1. ✅ Removed all project detail popup/modal (lines 1858-1952) - NO MORE POPUPS
+2. ✅ Converted project cards to expandable accordion style (click chevron to expand)
+3. ✅ Added inline expanded sections: Health Score, Git info, Recent Sessions, Presets, Tools
+4. ✅ Single "Open in IDE" + "Open Workspace" buttons per card (removed duplicate)
+5. ✅ Lazy-load project details on first expand (better performance)
+6. ✅ Added health %, session count, tool count badges tocollapsed view
+7. ✅ Fixed missing TerminalPage import (was causing ReferenceError)
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Complete redesign of project cards
+
+**Why:** User complained popup showed too little info and wanted expandable cards instead of popup
+
+**Result:** Projects now show rich inline expandable cards with Health, Git, Sessions, Presets, Tools - NO POPUPS required
+
+**Related Issues:**
+- Resolves: "Project detail popup shows too little" (was: project details modal)
+
+### 2026-04-20 — Settings Page Line-Style Redesign
+
+**What Changed:**
+1. ✅ Converted app carousel to vertical line-style list (no more arrows)
+2. ✅ Added App/Website toggle button
+3. ✅ Both apps and websites now show in scrollable list
+4. ✅ Click to edit category inline
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Converted Application section to line style
+
+**Why:** User said Settings reverted to old carousel design
+
+**Result:** Settings now shows apps/websites in vertical list with toggle
+
+### 2026-04-20 — Productivity Page Filter Fix
+
+**What Changed:**
+1. Removed "Show All" button from category filter
+2. Changed default filter from 'all' to 'productive'
+3. Fixed layout: buttons now horizontally laid out (was incorrectly stacked vertically)
+4. Removed 'all' from tierFilter type — only 3 categories now: productive, neutral, distracting
+5. Changed website data source from pre-filtered to all-websites (so all categories work)
+
+**Files Modified:**
+- `src/pages/ProductivityPage.tsx` - Fixed filter UI and logic
+
+**Why:** User reported weird layout and apps not showing correctly when "Show All" was clicked
+
+**Result:** Initially loads productive apps/websites; filter buttons displayed in a row; all 3 categories now filter correctly
+
+### 2026-04-20 — Browser Activity Page - Main Browser Config
+
+**What Changed:**
+1. Added main browser selector dropdown to Browser Activity page
+2. Dropdown detects available browsers via IPC (checks actual browser executables)
+3. Shows info text: "Excludes [browser] browsing time from stats (tracked via extension instead)"
+
+**Files Modified:**
+- `src/pages/BrowserActivityPage.tsx` - Added browser detection and selector UI
+- `src/main.ts` - Added `get-available-browsers` IPC handler
+
+**Why:** Main browser config should be on Browser page, not Settings
+
+### 2026-04-20 — Settings Page Duplicate Fix
+
+**What Changed:**
+1. Added `motion` import to framer-motion (was only `AnimatePresence`)
+2. Hid duplicate category tab block with `{false && ...}` instead of deleting (prevents breaking file)
+3. Kept all carousel features intact
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Added motion import, hid duplicate
+
+**Why:** The duplicate was causing old design to render over new
+
+**Result:** Settings now shows carousel design, no duplicate
+
+### 2026-04-20 — Settings Page Duplicate Removed
+
+**What Changed:**
+1. Removed duplicate `{activeTab === 'category'}` block that was causing old design to render over new
+2. The file had TWO category tab sections - first one (new carousel) and second one (old list)
+3. Deleted the old duplicate section
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Removed 220+ lines of duplicate old design
+
+**Why:** The Settings page was showing old "Category Assignments" list design because of duplicate code blocks
+
+**Result:** Settings now shows carousel design with no duplicate
+
+### 2026-04-20 — Pie Chart Time Formatting (BrowserActivityPage)
+
+**What Changed:**
+1. Category pie chart now stores raw ms (not minutes)
+2. Tooltip now correctly shows formatted duration
+3. Legend now shows formatted duration per category
+
+**Files Modified:**
+- `src/pages/BrowserActivityPage.tsx` - Fixed categoryChartData and categoryPieOptions
+
+**Result:** Pie chart hover shows "2h 30m" instead of raw numbers
+
+---
+
+### 2026-04-20 — AI Color Magic (v1.44)
+
+**What Changed:**
+1. Added OpenRouter API integration in main.ts for auto-generating colors
+2. "Magic Color" button in Settings → Colors tab
+3. Creates .env.example with OPENROUTER_API_KEY placeholder
+
+**Files Modified:**
+- `src/main.ts` - Added generate-ai-colors IPC handler
+- `src/preload.ts` - Added generateAIColors to API
+- `.env.example` - Created with API key placeholder
+
+**Why:** Users can auto-generate colors for all apps/websites using AI
+
+**Result:** Click "Magic Color" button to generate brand-appropriate colors for all items
+
+### 2026-04-19 — Terminal Features UI (v1.44)
+
+**What Changed:**
+1. Layout persistence: Now saves to SQLite (not localStorage), restores on restart
+2. TerminalPage sidebar: Presets tab (add/edit/delete/execute commands)
+3. Sessions tab: Shows past sessions with date, agent, topic, cost
+4. Resume button: Injects resume command (claude resume <id> or opencode resume <id>)
+5. Close button on panes: Added ✕ button to close splits
+6. Project filter dropdown in terminal header
+
+**Files Modified:**
+- `src/hooks/useTerminalLayout.ts` - SQLite persistence instead of localStorage
+- `src/components/TerminalWindow.tsx` - Close button, loading state, event listener
+- `src/pages/TerminalPage.tsx` - COMPLETELY REWRITTEN: sidebar with Presets/Sessions tabs
+
+**Result:** Full terminal workspace with command presets and session history in sidebar
+
+### 2026-04-19 — Planetary/Galaxy Category Fix (v1.44)
+
+**What Changed:**
+1. Fixed `computePlanets()` in OrbitSystem.tsx - Now reads database category from log.category BEFORE falling back to hardcoded APP_CATEGORIES dict
+2. Fixed `computeWebsitePlanets()` - Same priority fix: user override → database category → 'Uncategorized'
+3. Fixed ActivityLog interface in OrbitSystem.tsx - Added missing browser fields (is_browser_tracking, domain, url, duration_ms)
+
+**Files Modified:**
+- `src/components/OrbitSystem.tsx` - Lines 554-557 (computePlanets), 2033-2035 (computeWebsitePlanets), 341-353 (interface)
+
+**Why:** Planetary/Galaxy visualizations were using hardcoded APP_CATEGORIES dict instead of the actual category stored in the database. The priority is now: user override → database category → fallback dict → 'Other'
+
+**Result:** Planetary (Apps) and Galaxy (Websites) now show the same categories as the Apps page and Database
+
+### 2026-04-19 — Fixed Website List Always Loads All Sites (v1.44)
+
+**What Changed:**
+1. Added new IPC handler `get-all-browser-domain-stats` that queries all website data without time filtering
+2. Added `allWebsiteStats` state in App.tsx that loads once on mount
+3. Updated Settings page to use all-time data regardless of period selection
+4. Both Category and Colors tabs now show all websites from the database
+
+**Files Modified:**
+- `src/main.ts` - Added `getAllBrowserDomainStats()` function and IPC handler
+- `src/preload.ts` - Added `getAllBrowserDomainStats` API
+- `src/App.tsx` - Added `allWebsiteStats` state and loading effect
+
+**Result:** Website lists in Settings now show ALL websites from database, ignoring time period selection
+
+### 2026-04-19 — Expandable App/Website Carousels (v1.43)
+
+**What Changed:**
+1. Added expandable carousel to Applications section: Click expand button to show 3 rows of 5 (15 apps) vs 1 row of 5
+2. Added expandable carousel to Websites section: Same functionality
+3. Carousel resets to page 0 when expanding/collapsing to prevent out-of-bounds
+
+**Files Modified:**
+- `src/pages/SettingsPage.tsx` - Added appCarouselExpanded, domainCarouselExpanded state; modified carousel rendering
+
+**Result:** Carousels now show 15 items when expanded, 5 items when collapsed
+
+### 2026-04-19 — Terminal Features + Database Fix (v1.43)
+
+**What Changed:**
+1. Database: Wrapped ALTER TABLE in try-catch to prevent data loss when columns already exist
+2. Terminal layouts: Added persistence via localStorage hook
+3. Terminal presets: Added SQLite table + IPC handlers
+4. Terminal sessions: Added SQLite table + IPC handlers for resume
+5. Project health: Added health score calculation IPC
+6. Fixed duplicate Add Project modal in Projects tab
+
+**Files Modified:**
+- `src/main.ts` - New tables (terminal_layouts, terminal_presets, terminal_sessions), new IPC handlers
+- `src/preload.ts` - Added terminal preset/session/layout APIs
+- `src/App.tsx` - Added terminal API types
+- `src/hooks/useTerminalLayout.ts` - NEW: Layout persistence hook
+- `agent/debugging.md` - Added ALTER TABLE pattern
+
+### 2026-04-19 — IDE Projects Fixes (v1.42)
+
+**What Changed:**
+1. Fixed duplicate tools: Tool IDs now deterministic (e.g., `git`, `npm-google/gemini-cli`) instead of `tool-${Date.now()}`
+2. Added Reset Tools button: Clears all tools from DB, allows fresh re-scan
+3. Fixed Add Project modal: Added error display, loading state, proper feedback
+4. Fixed AI chart: Backend now returns `daily` breakdown per tool for chart rendering
+5. Removed "How Counts" from Tools tab, added to each AI agent detail modal
+6. Removed duplicate Add Project button from header
+
+**Files Modified:**
+- `src/main.ts` - Deterministic tool IDs, reset-tools handler, daily breakdown query
+- `src/preload.ts` - Added resetTools API
+- `src/App.tsx` - Added resetTools type
+- `src/pages/IDEProjectsPage.tsx` - Multiple UI fixes
+
+**What Changed:**
+1. Added 8 new issues to PROBLEMS.md (Issues #23-#30)
+2. Created fix plan document at `agent/docs/ide-fixes-plan.md`
+3. Issues include: duplicate tools, broken Add Project modal, AI chart not updating
+
+**Files Modified:**
+- `agent/PROBLEMS.md` - Added Issues #23-#30
+- `agent/docs/ide-fixes-plan.md` - New fix plan document
+
+### 2026-04-19 — IDE Projects UI Fixes (v1.40)
+
+**What Changed:**
+1. Added "Add Project" button to main header (always visible)
+2. Created modal dialog for adding projects from any tab
+3. Added "Terminal" to sidebar navigation for Terminal Window access
+4. Simplified button styling - removed colorful gradients, using clean zinc/indigo theme
+5. Used flex-wrap for buttons to prevent crowding in one row
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Simplified header, added modal
+- `src/App.tsx` - Added Terminal to sidebar items
+
+### 2026-04-19 — IDE Help Page (v1.39)
+
+**What Changed:**
+1. Created dedicated help page for IDE Projects (`/ide-help` route)
+2. Added Help button link in IDE Projects page header
+3. Comprehensive help content covering all features
+
+**Files Added:**
+- `src/pages/IDEHelpPage.tsx` - Help page with expandable topics
+
+**Files Modified:**
+- `src/pages/IDEProjectsPage.tsx` - Added Help button link
+- `src/App.tsx` - Added `/ide-help` route
+
+**Why:** User requested a separate help/features page for IDE Projects since there's a lot of functionality that was confusing to discover
+
+### 2026-04-19 — Terminal Window Feature (v1.38 — Initial)
+
+**What Changed:**
+1. Added multi-window support to Electron - Terminal Window opens alongside main DeskFlow window
+2. Added PTY backend using `node-pty` - Spawns pseudo-terminals that stream to frontend
+3. Added xterm.js integration - Terminal emulator in React via `@xterm/xterm`
+4. Added recursive tiling layout structure in frontend (`TerminalLayout` component)
+5. Added `/terminal` route to access Terminal Window UI
+
+**Files Added:**
+- `src/components/TerminalWindow.tsx` - Terminal pane and tiling layout components
+- `src/pages/TerminalPage.tsx` - Terminal Window page with xterm.js
+- `src/node-pty.d.ts` - TypeScript declarations for node-pty
+
+**Files Modified:**
+- `src/main.ts` - Added Terminal Window creation and PTY management IPC handlers
+- `src/preload.ts` - Added terminal IPC bridge (`spawnTerminal`, `writeTerminal`, `resizeTerminal`, `killTerminal`, `onTerminalData`, `onTerminalExit`)
+- `src/App.tsx` - Added TerminalPage import and route
+
+**Why:** First step toward spec goal of "AI Agent Terminal Manager" - creating the Execution Environment (Terminal Window) that will run AI agents like Claude, OpenCode, etc.
 
 ### 2026-04-19 — Heatmap: Fix missing today data + show live session
 
@@ -1594,8 +2030,16 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.31 | 2026-04-18 | Context maintenance infrastructure: Fixed empty GRAPH_REPORT.md, created maintain-context skill, rewrote AGENTS.md |
 | 1.32 | 2026-04-18 | IDE Projects: Added folder picker for project path, improved JetBrains detection using `where` command |
 | 1.33 | 2026-04-18 | AI Agent Data Storage Research: Documented storage locations for Claude Code, Cursor, OpenCode, etc. Fixed Claude Code and Cursor parsing to match actual data formats |
+| 1.38 | 2026-04-19 | Terminal Window Feature: Multi-window Electron + PTY backend (node-pty) + xterm.js frontend + recursive tiling layout |
+| 1.39 | 2026-04-19 | IDE Help Page: Created /ide-help route with comprehensive help content and added Help button in IDE Projects |
+| 1.40 | 2026-04-19 | Settings page overhaul: Line-style color picker, App/Website toggle, expand/collapse, all data shown |
+| 1.41 | 2026-04-19 | Color picker click anywhere to open, removed duplicate Category Assignments |
+| 1.42 | 2026-04-19 | Fixed Category Assignments section deletion bug |
+| 1.44 | 2026-04-20 | AI Color Magic: OpenRouter SDK integration for auto-generating colors with confirm/undo flow |
+| 1.45 | 2026-04-20 | Projects Page Redesign: Removed popup modal, converted to expandable accordion cards with rich inline details (Health, Git, Sessions, Presets, Tools) |
+| 1.46 | 2026-04-20 | Settings Page Fix: Converted app carousel to line-style list with App/Website toggle |
 
 ---
 
-**Last Updated:** 2026-04-18 (v1.33)
+**Last Updated:** 2026-04-20 (v1.46)
 **Maintained By:** AI Development Team

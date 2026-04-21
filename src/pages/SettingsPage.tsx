@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   Settings, Database, Clock, Download, Trash2, RefreshCw, 
   ChevronRight, X, Plus, GripVertical, Palette, Check, ChevronDown, Globe,
-  ChevronLeft, Search, AlertTriangle
+  ChevronLeft, Search, AlertTriangle, Sparkles, ChevronUp
 } from 'lucide-react';
 import {
   DndContext,
@@ -122,15 +122,15 @@ function ColorPicker({ value, onChange, size = 'md' }: { value: string; onChange
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen]);
 
-  const sizeClass = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
+  const sizeClass = size === 'sm' ? 'w-16 h-3' : 'w-20 h-4';
 
   return (
     <>
       <div ref={ref} className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`${sizeClass} rounded-full cursor-pointer border-2 border-zinc-600 hover:border-zinc-400 transition-all hover:scale-110 shadow-md`}
-          style={{ backgroundColor: value }}
+          className={`${sizeClass} rounded cursor-pointer border-2 border-zinc-600 hover:border-zinc-400 transition-all hover:scale-110 shadow-md`}
+          style={{ backgroundColor: value, borderRadius: '4px' }}
           title="Click to change color"
         />
       </div>
@@ -464,6 +464,16 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
         } catch { /* ignore */ }
       }
       
+      // Load OpenRouter API key from preferences
+      if (window.deskflowAPI?.getPreferences) {
+        try {
+          const prefs = await window.deskflowAPI.getPreferences();
+          if (prefs?.openrouterApiKey) {
+            setOpenRouterApiKey(prefs.openrouterApiKey);
+          }
+        } catch { /* ignore */ }
+      }
+      
       setAppCategoryOverrides(overrides);
       setDomainCategoryOverrides(domainOverrides);
     };
@@ -558,6 +568,11 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     localStorage.setItem('deskflow-app-category-overrides', JSON.stringify(appCategoryOverrides));
     localStorage.setItem('deskflow-domain-category-overrides', JSON.stringify(domainCategoryOverrides));
     localStorage.setItem('deskflow-animation-speed', animationSpeed);
+    
+    // Save OpenRouter API key to preferences
+    if (openRouterApiKey && window.deskflowAPI?.setPreference) {
+      await window.deskflowAPI.setPreference('openrouterApiKey', openRouterApiKey);
+    }
     
     // Save keyword-based productivity rules
     for (const [domain, keywords] of Object.entries(domainKeywords)) {
@@ -707,10 +722,21 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
   const [editingDomainCategory, setEditingDomainCategory] = useState<string | null>(null);
   const [appCarouselIndex, setAppCarouselIndex] = useState(0);
   const [domainCarouselIndex, setDomainCarouselIndex] = useState(0);
+  const [appCarouselExpanded, setAppCarouselExpanded] = useState(false);
+  const [domainCarouselExpanded, setDomainCarouselExpanded] = useState(false);
   const [appSearchQuery, setAppSearchQuery] = useState('');
   const [domainSearchQuery, setDomainSearchQuery] = useState('');
   const [appSearchFilter, setAppSearchFilter] = useState('');
   const [domainSearchFilter, setDomainSearchFilter] = useState('');
+  const [colorTab, setColorTab] = useState<'apps' | 'websites'>('apps');
+  const [colorSearchFilter, setColorSearchFilter] = useState('');
+  const [generatingColors, setGeneratingColors] = useState(false);
+  const [pendingColors, setPendingColors] = useState<Record<string, string>>({});
+  const [preAiColors, setPreAiColors] = useState<Record<string, string>>({});
+  const [generatingCategories, setGeneratingCategories] = useState(false);
+  const [pendingCategories, setPendingCategories] = useState<Record<string, string>>({});
+  const [preAiCategories, setPreAiCategories] = useState<Record<string, string>>({});
+  const [openRouterApiKey, setOpenRouterApiKey] = useState('');
   
   // Keyword-based productivity categorization state
   const [keywordEnabledDomains, setKeywordEnabledDomains] = useState<string[]>([]);
@@ -732,9 +758,6 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     ? domainStats.filter((s: any) => s.domain.toLowerCase().includes(domainSearchFilter.toLowerCase()))
     : domainStats;
 
-  const maxAppPage = Math.max(0, Math.ceil(filteredAppStats.length / ITEMS_PER_PAGE) - 1);
-  const maxDomainPage = Math.max(0, Math.ceil(filteredDomainStats.length / ITEMS_PER_PAGE) - 1);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -749,20 +772,6 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
           </h1>
           <p className="text-xs text-zinc-500 mt-1">Track and customize your app usage</p>
         </div>
-        <AnimatePresence>
-          {hasChanges && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={saveChanges}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg font-medium hover:from-emerald-400 hover:to-emerald-500 transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center gap-2 text-sm"
-            >
-              <Check className="w-3.5 h-3.5" />
-              Save
-            </motion.button>
-          )}
-        </AnimatePresence>
       </div>
 
       <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-xl">
@@ -897,7 +906,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
             </DndContext>
           </div>
 
-          {/* Applications Section - Carousel with Arrow Buttons */}
+          {/* Applications Section - Carousel with Expandable Grid */}
           <div className="glass rounded-3xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -909,70 +918,154 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   <span className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-md">{filteredAppStats.length} apps</span>
                 )}
               </div>
-              {appStats.length > 0 && (
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    type="text"
-                    placeholder="Search apps..."
-                    value={appSearchFilter}
-                    onChange={(e) => { setAppSearchFilter(e.target.value); setAppCarouselIndex(0); }}
-                    className="pl-8 pr-3 py-1.5 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 w-36"
-                  />
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setPreAiCategories({ ...appCategoryOverrides });
+                    setGeneratingCategories(true);
+                    try {
+                      const itemsToCategorize = appStats.map((a: any) => ({
+                        name: a.app,
+                        category: getAppDisplayCategory(a)
+                      }));
+                      if (window.deskflowAPI?.generateAICategorization) {
+                        const result = await window.deskflowAPI.generateAICategorization(itemsToCategorize);
+                        const newOverrides = { ...appCategoryOverrides };
+                        result.forEach((item: any) => {
+                          newOverrides[item.name] = item.category;
+                        });
+                        setPendingCategories(newOverrides);
+                        setGeneratingCategories(false);
+                      }
+                    } catch (err) {
+                      console.error('Magic Category failed:', err);
+                      setGeneratingCategories(false);
+                    }
+                  }}
+                  disabled={generatingCategories}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {generatingCategories ? 'Generating...' : 'Magic Category'}
+                </button>
+                {appStats.length > 0 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      type="text"
+                      placeholder="Search apps..."
+                      value={appSearchFilter}
+                      onChange={(e) => { setAppSearchFilter(e.target.value); setAppCarouselIndex(0); }}
+                      className="pl-8 pr-3 py-1.5 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 w-36"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             
             {filteredAppStats.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => { const current = appCarouselIndex; if (current > 0) setAppCarouselIndex(current - 1); }}
-                  disabled={appCarouselIndex === 0}
-                  className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                
-                <div className="flex-1 flex gap-2 overflow-hidden justify-center">
-                  {filteredAppStats.slice(appCarouselIndex * ITEMS_PER_PAGE, appCarouselIndex * ITEMS_PER_PAGE + ITEMS_PER_PAGE).map((app: any) => {
-                    const displayCategory = getAppDisplayCategory(app);
-                    const categoryColor = getCategoryColor(displayCategory);
-                    const isEditing = editingAppCategory === app.app;
-                    
-                    return (
-                      <div key={app.app} className="relative flex-1 min-w-[120px]">
-                        {isEditing && (
-                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-transparent border-t-emerald-400" />
-                        )}
-                        <button
-                          onClick={() => setEditingAppCategory(isEditing ? null : app.app)}
-                          className={`w-full flex flex-col items-center p-3 rounded-xl border transition-all group ${
-                            isEditing 
-                              ? 'bg-zinc-700/60 border-2 border-emerald-500/60' 
-                              : 'bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 hover:border-zinc-500'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 w-full">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: categoryColor }} />
-                            <span className="text-xs text-zinc-200 group-hover:text-white truncate flex-1">{app.app}</span>
-                          </div>
-                          <span className="text-xs px-1.5 py-0.5 rounded mt-1.5" style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}>
-                            {displayCategory}
-                          </span>
-                        </button>
-                      </div>
-                    );
-                  })}
+              <>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => { const current = appCarouselIndex; if (current > 0) setAppCarouselIndex(current - 1); }}
+                    disabled={appCarouselIndex === 0}
+                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  
+                  <div className={`flex-1 grid gap-2 ${appCarouselExpanded ? 'grid-cols-5' : 'grid-cols-5'}`}>
+                    {filteredAppStats.slice(
+                      appCarouselIndex * (appCarouselExpanded ? 15 : ITEMS_PER_PAGE), 
+                      appCarouselIndex * (appCarouselExpanded ? 15 : ITEMS_PER_PAGE) + (appCarouselExpanded ? 15 : ITEMS_PER_PAGE)
+                    ).map((app: any) => {
+                      const displayCategory = getAppDisplayCategory(app);
+                      const categoryColor = getCategoryColor(displayCategory);
+                      const isEditing = editingAppCategory === app.app;
+                      
+                      return (
+                        <div key={app.app} className="relative">
+                          <button
+                            onClick={() => setEditingAppCategory(isEditing ? null : app.app)}
+                            className={`w-full flex flex-col items-center p-3 rounded-xl border transition-all group ${
+                              isEditing 
+                                ? 'bg-zinc-700/60 border-2 border-emerald-500/60' 
+                                : 'bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 hover:border-zinc-500'
+                            }`}
+                          >
+                            {/* Individual AI Sparkle Button */}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  if (window.deskflowAPI?.generateAICategorization) {
+                                    const result = await window.deskflowAPI.generateAICategorization([{
+                                      name: app.app,
+                                      category: displayCategory
+                                    }]);
+                                    if (result.length > 0) {
+                                      changeAppCategory(app.app, result[0].category);
+                                    }
+                                  }
+                                } catch (err) {
+                                  console.error('Individual AI categorize failed:', err);
+                                }
+                              }}
+                              className="absolute top-1.5 right-1.5 p-1 rounded bg-white/10 hover:bg-white/20 text-white/40 hover:text-white transition-all opacity-60 hover:opacity-100 z-10"
+                              title="AI Categorize"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                            </button>
+                            
+                            <div className="flex items-center gap-1.5 w-full pr-5">
+                              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: categoryColor }} />
+                              <span className="text-xs text-zinc-200 group-hover:text-white truncate flex-1">{app.app}</span>
+                            </div>
+                            <span className="text-xs px-1.5 py-0.5 rounded mt-1.5" style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}>
+                              {displayCategory}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <button 
+                    onClick={() => { 
+                      const itemsPerView = appCarouselExpanded ? 15 : ITEMS_PER_PAGE;
+                      const maxPage = Math.max(0, Math.ceil(filteredAppStats.length / itemsPerView) - 1);
+                      if (appCarouselIndex < maxPage) setAppCarouselIndex(appCarouselIndex + 1); 
+                    }}
+                    disabled={appCarouselIndex >= Math.max(0, Math.ceil(filteredAppStats.length / (appCarouselExpanded ? 15 : ITEMS_PER_PAGE)) - 1)}
+                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
                 
-                <button 
-                  onClick={() => { if (appCarouselIndex < maxAppPage) setAppCarouselIndex(appCarouselIndex + 1); }}
-                  disabled={appCarouselIndex >= maxAppPage}
-                  className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+                {/* Show More/Less Button */}
+                {filteredAppStats.length > 5 && (
+                  <button
+                    onClick={() => {
+                      setAppCarouselExpanded(!appCarouselExpanded);
+                      setAppCarouselIndex(0);
+                    }}
+                    className="mt-3 w-full py-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg text-sm text-zinc-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {appCarouselExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" />
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        Show More
+                      </>
+                    )}
+                  </button>
+                )}
+              </>
             ) : (
               <div className="text-center py-8 text-zinc-500">
                 <Clock className="w-6 h-6 mx-auto mb-2 opacity-50" />
@@ -1029,7 +1122,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
             )}
           </div>
 
-          {/* Websites Section - Carousel with Arrow Buttons */}
+          {/* Websites Section - Carousel with Expandable Grid */}
           <div className="glass rounded-3xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1041,70 +1134,160 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   <span className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-md">{filteredDomainStats.length} sites</span>
                 )}
               </div>
-              {domainStats.length > 0 && (
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    type="text"
-                    placeholder="Search sites..."
-                    value={domainSearchFilter}
-                    onChange={(e) => { setDomainSearchFilter(e.target.value); setDomainCarouselIndex(0); }}
-                    className="pl-8 pr-3 py-1.5 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 w-36"
-                  />
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setPreAiCategories({ ...domainCategoryOverrides });
+                    setGeneratingCategories(true);
+                    try {
+                      const itemsToCategorize = domainStats.map((d: any) => ({
+                        name: d.domain,
+                        category: domainCategoryOverrides[d.domain] || d.category || 'Other'
+                      }));
+                      if (window.deskflowAPI?.generateAICategorization) {
+                        const result = await window.deskflowAPI.generateAICategorization(itemsToCategorize);
+                        const newOverrides = { ...domainCategoryOverrides };
+                        result.forEach((item: any) => {
+                          newOverrides[item.name] = item.category;
+                        });
+                        setPendingCategories(newOverrides);
+                        setGeneratingCategories(false);
+                      }
+                    } catch (err) {
+                      console.error('Magic Category failed:', err);
+                      setGeneratingCategories(false);
+                    }
+                  }}
+                  disabled={generatingCategories}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {generatingCategories ? 'Generating...' : 'Magic Category'}
+                </button>
+                {domainStats.length > 0 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      type="text"
+                      placeholder="Search sites..."
+                      value={domainSearchFilter}
+                      onChange={(e) => { setDomainSearchFilter(e.target.value); setDomainCarouselIndex(0); }}
+                      className="pl-8 pr-3 py-1.5 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 w-36"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             
             {filteredDomainStats.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => { const current = domainCarouselIndex; if (current > 0) setDomainCarouselIndex(current - 1); }}
-                  disabled={domainCarouselIndex === 0}
-                  className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                
-                <div className="flex-1 flex gap-2 overflow-hidden justify-center">
-                  {filteredDomainStats.slice(domainCarouselIndex * ITEMS_PER_PAGE, domainCarouselIndex * ITEMS_PER_PAGE + ITEMS_PER_PAGE).map((site: any) => {
-                    const displayCategory = domainCategoryOverrides[site.domain] || site.category || 'Other';
-                    const categoryColor = getCategoryColor(displayCategory);
-                    const isEditing = editingDomainCategory === site.domain;
-                    
-                    return (
-                      <div key={site.domain} className="relative flex-1 min-w-[120px]">
-                        {isEditing && (
-                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-transparent border-t-emerald-400" />
-                        )}
-                        <button
-                          onClick={() => setEditingDomainCategory(isEditing ? null : site.domain)}
-                          className={`w-full flex flex-col items-center p-3 rounded-xl border transition-all group ${
-                            isEditing 
-                              ? 'bg-zinc-700/60 border-2 border-emerald-500/60' 
-                              : 'bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 hover:border-zinc-500'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 w-full">
-                            <Globe className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                            <span className="text-xs text-zinc-200 group-hover:text-white truncate flex-1">{site.domain}</span>
-                          </div>
-                          <span className="text-xs px-1.5 py-0.5 rounded mt-1.5" style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}>
-                            {displayCategory}
-                          </span>
-                        </button>
-                      </div>
-                    );
-                  })}
+              <>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => { const current = domainCarouselIndex; if (current > 0) setDomainCarouselIndex(current - 1); }}
+                    disabled={domainCarouselIndex === 0}
+                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  
+                  <div className="flex-1 grid grid-cols-5 gap-2">
+                    {filteredDomainStats.slice(
+                      domainCarouselIndex * (domainCarouselExpanded ? 15 : ITEMS_PER_PAGE), 
+                      domainCarouselIndex * (domainCarouselExpanded ? 15 : ITEMS_PER_PAGE) + (domainCarouselExpanded ? 15 : ITEMS_PER_PAGE)
+                    ).map((site: any) => {
+                      const displayCategory = domainCategoryOverrides[site.domain] || site.category || 'Other';
+                      const categoryColor = getCategoryColor(displayCategory);
+                      const isEditing = editingDomainCategory === site.domain;
+                      
+                      return (
+                        <div key={site.domain} className="relative">
+                          <button
+                            onClick={() => setEditingDomainCategory(isEditing ? null : site.domain)}
+                            className={`w-full flex flex-col items-center p-3 rounded-xl border transition-all group ${
+                              isEditing 
+                                ? 'bg-zinc-700/60 border-2 border-emerald-500/60' 
+                                : 'bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 hover:border-zinc-500'
+                            }`}
+                          >
+                            {/* Individual AI Sparkle Button */}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  if (window.deskflowAPI?.generateAICategorization) {
+                                    const result = await window.deskflowAPI.generateAICategorization([{
+                                      name: site.domain,
+                                      category: displayCategory
+                                    }]);
+                                    if (result.length > 0) {
+                                      const updated = { ...domainCategoryOverrides, [site.domain]: result[0].category };
+                                      setDomainCategoryOverrides(updated);
+                                      if (window.deskflowAPI?.setDomainCategory) {
+                                        await window.deskflowAPI.setDomainCategory(site.domain, result[0].category);
+                                      }
+                                      setHasChanges(true);
+                                      onHasChangesChange(true);
+                                    }
+                                  }
+                                } catch (err) {
+                                  console.error('Individual AI categorize failed:', err);
+                                }
+                              }}
+                              className="absolute top-1.5 right-1.5 p-1 rounded bg-white/10 hover:bg-white/20 text-white/40 hover:text-white transition-all opacity-60 hover:opacity-100 z-10"
+                              title="AI Categorize"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                            </button>
+                            
+                            <div className="flex items-center gap-1.5 w-full pr-5">
+                              <Globe className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                              <span className="text-xs text-zinc-200 group-hover:text-white truncate flex-1">{site.domain}</span>
+                            </div>
+                            <span className="text-xs px-1.5 py-0.5 rounded mt-1.5" style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}>
+                              {displayCategory}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <button 
+                    onClick={() => { 
+                      const itemsPerView = domainCarouselExpanded ? 15 : ITEMS_PER_PAGE;
+                      const maxPage = Math.max(0, Math.ceil(filteredDomainStats.length / itemsPerView) - 1);
+                      if (domainCarouselIndex < maxPage) setDomainCarouselIndex(domainCarouselIndex + 1); 
+                    }}
+                    disabled={domainCarouselIndex >= Math.max(0, Math.ceil(filteredDomainStats.length / (domainCarouselExpanded ? 15 : ITEMS_PER_PAGE)) - 1)}
+                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
                 
-                <button 
-                  onClick={() => { if (domainCarouselIndex < maxDomainPage) setDomainCarouselIndex(domainCarouselIndex + 1); }}
-                  disabled={domainCarouselIndex >= maxDomainPage}
-                  className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+                {/* Show More/Less Button */}
+                {filteredDomainStats.length > 5 && (
+                  <button
+                    onClick={() => {
+                      setDomainCarouselExpanded(!domainCarouselExpanded);
+                      setDomainCarouselIndex(0);
+                    }}
+                    className="mt-3 w-full py-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg text-sm text-zinc-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {domainCarouselExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" />
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        Show More
+                      </>
+                    )}
+                  </button>
+                )}
+              </>
             ) : (
               <div className="text-center py-8 text-zinc-500">
                 <Globe className="w-6 h-6 mx-auto mb-2 opacity-50" />
@@ -1490,6 +1673,20 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                 </div>
 
                 <div>
+                  <label className="text-sm font-medium text-zinc-400 mb-2 block">OpenRouter API Key</label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      placeholder="sk-or-v1-..."
+                      value={openRouterApiKey}
+                      onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+                    />
+                    <p className="text-xs text-zinc-500 mt-1.5">Required for Magic Color and Magic Category AI features</p>
+                  </div>
+                </div>
+
+                <div>
                   <label className="text-sm font-medium text-zinc-400 mb-2 block">Animation Speed</label>
                   <div className="flex gap-1.5">
                     {(['slow', 'normal', 'instant'] as const).map((speed) => (
@@ -1557,154 +1754,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
         </div>
       )}
 
-      {activeTab === 'category' && (
-        <div className="space-y-4">
-          <div className="glass rounded-3xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold">Data Sync Mode</h2>
-                <p className="text-xs text-zinc-500">Choose how categories are applied to your data</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDataSyncMode('forward')}
-                className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition ${
-                  dataSyncMode === 'forward'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 border border-transparent'
-                }`}
-              >
-                <div className="font-medium">Forward Only</div>
-                <div className="text-xs mt-1 opacity-70">New data uses updated categories</div>
-              </button>
-              <button
-                onClick={() => setDataSyncMode('refactor')}
-                className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition ${
-                  dataSyncMode === 'refactor'
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    : 'bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 border border-transparent'
-                }`}
-              >
-                <div className="font-medium">Refactor All Data</div>
-                <div className="text-xs mt-1 opacity-70">Update existing data to match categories</div>
-              </button>
-            </div>
-            {dataSyncMode === 'refactor' && (
-              <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <p className="text-xs text-amber-200">This will update all existing data to match your category settings. This action cannot be undone.</p>
-              </div>
-            )}
-            {syncStatus !== 'idle' && (
-              <div className={`mt-3 text-xs px-3 py-2 rounded-lg ${
-                syncStatus === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
-                syncStatus === 'error' ? 'bg-red-500/10 text-red-400' :
-                'bg-zinc-800/50 text-zinc-400'
-              }`}>
-                {syncMessage}
-              </div>
-            )}
-          </div>
 
-          <div className="glass rounded-3xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold">Category Assignments</h2>
-                <p className="text-xs text-zinc-500">Click an app to reassign its category</p>
-              </div>
-              {appStats.length > 0 && (
-                <span className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-md">{appStats.slice(0, 30).length} apps</span>
-              )}
-            </div>
-            <div className="space-y-1 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin">
-              {appStats.length > 0 ? (
-                appStats.slice(0, 30).map((app: any) => {
-                  const displayCategory = getAppDisplayCategory(app);
-                  const categoryColor = getCategoryColor(displayCategory);
-                  const isEditing = editingAppCategory === app.app;
-                  
-                  return (
-                    <div key={app.app} className="relative">
-                      <button
-                        onClick={() => setEditingAppCategory(isEditing ? null : app.app)}
-                        className="w-full flex items-center justify-between py-2 px-3 bg-zinc-800/30 hover:bg-zinc-800/60 rounded-lg transition-all group"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div 
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: categoryColor }}
-                          />
-                          <span className="text-sm text-zinc-200 group-hover:text-white truncate max-w-[180px]">{app.app}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="text-xs px-2 py-0.5 rounded-md"
-                            style={{ 
-                              backgroundColor: `${categoryColor}20`,
-                              color: categoryColor 
-                            }}
-                          >
-                            {displayCategory}
-                          </span>
-                          <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${isEditing ? 'rotate-180' : ''}`} />
-                        </div>
-                      </button>
-                      
-                      <AnimatePresence>
-                        {isEditing && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pt-2 pb-1 px-1 grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-                              {DEFAULT_CATEGORIES.map((cat) => {
-                                const catColor = getCategoryColor(cat);
-                                const isSelected = displayCategory === cat;
-                                return (
-                                  <button
-                                    key={cat}
-                                    onClick={() => changeAppCategory(app.app, cat)}
-                                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs transition-all ${
-                                      isSelected 
-                                        ? 'ring-2 ring-white/20' 
-                                        : 'hover:bg-zinc-700/50'
-                                    }`}
-                                    style={{ 
-                                      backgroundColor: `${catColor}15`,
-                                      border: `1px solid ${isSelected ? catColor : 'transparent'}`,
-                                      color: catColor 
-                                    }}
-                                  >
-                                    <div 
-                                      className="w-2 h-2 rounded-full"
-                                      style={{ backgroundColor: catColor }}
-                                    />
-                                    <span className="truncate">{cat}</span>
-                                    {isSelected && <Check className="w-3 h-3 ml-auto flex-shrink-0" />}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-12 text-zinc-500">
-                  <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No apps tracked yet</p>
-                  <p className="text-xs mt-1">Start using apps to see them here</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {activeTab === 'colors' && (
         <div className="space-y-4">
@@ -1735,7 +1785,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
             </div>
           </div>
 
-          {/* App Colors Section */}
+          {/* App/Website Colors Section */}
           <div className="glass rounded-3xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1743,39 +1793,195 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   <Palette className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">Application Colors</h2>
-                  <p className="text-xs text-zinc-500">Planet colors</p>
+                  <h2 className="text-lg font-semibold">{colorTab === 'apps' ? 'Application' : 'Website'} Colors</h2>
+                  <p className="text-xs text-zinc-500">Individual colors</p>
                 </div>
+                {/* Counter Badge */}
+                <span className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-md">
+                  {(colorTab === 'apps' ? appStats : domainStats).length} {colorTab}
+                </span>
               </div>
-              {appStats.length > 0 && (
-                <span className="text-xs text-zinc-500">{appStats.slice(0, 30).length} apps</span>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setPreAiColors({ ...localAppColors });
+                    setGeneratingColors(true);
+                    try {
+                      const appsToColor = colorTab === 'apps' 
+                        ? appStats.map((a: any) => a.app)
+                        : domainStats.map((d: any) => d.domain);
+                      if (window.deskflowAPI?.generateAIColors) {
+                        const generated = await window.deskflowAPI.generateAIColors(appsToColor);
+                        setPendingColors(generated);
+                        setGeneratingColors(false);
+                      }
+                    } catch (err) {
+                      console.error('Magic Color failed:', err);
+                      setGeneratingColors(false);
+                    }
+                  }}
+                  disabled={generatingColors}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {generatingColors ? 'Generating...' : 'Magic Color'}
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
-              {appStats.length > 0 ? (
-                appStats.slice(0, 30).map((app: any) => (
-                  <div key={app.app} className="flex items-center gap-2 p-2.5 bg-zinc-800/40 hover:bg-zinc-800/70 rounded-lg border border-zinc-700/30 hover:border-zinc-600 transition-all group">
-                    <ColorPicker 
-                      value={getAppColor(app.app)} 
-                      onChange={(color) => handleAppColorChange(app.app, color)}
-                      size="sm"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-zinc-300 group-hover:text-white font-medium truncate">{app.app}</div>
-                      <div className="text-xs text-zinc-500 truncate">{app.category}</div>
+
+            {/* Apps/Websites Toggle */}
+            <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-xl mb-4 w-fit">
+              <button
+                onClick={() => setColorTab('apps')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  colorTab === 'apps' 
+                    ? 'bg-zinc-800 text-white shadow-sm' 
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                }`}
+              >
+                Apps
+              </button>
+              <button
+                onClick={() => setColorTab('websites')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  colorTab === 'websites' 
+                    ? 'bg-zinc-800 text-white shadow-sm' 
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                }`}
+              >
+                Websites
+              </button>
+            </div>
+
+            {/* Search Filter */}
+            <div className="mb-4 relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                placeholder={`Search ${colorTab}...`}
+                value={colorSearchFilter}
+                onChange={(e) => setColorSearchFilter(e.target.value)}
+                className="w-full sm:w-64 pl-8 pr-3 py-2 text-sm bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+
+            {/* Responsive Grid Layout - ALL Items */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {(colorTab === 'apps' ? appStats : domainStats)
+                .filter((item: any) => colorSearchFilter === '' || (colorTab === 'apps' ? item.app : item.domain).toLowerCase().includes(colorSearchFilter.toLowerCase()))
+                .map((item: any) => {
+                  const name = colorTab === 'apps' ? item.app : item.domain;
+                  const color = localAppColors[name] || '#888888';
+                  const category = colorTab === 'apps' ? item.category : (item.category || 'Other');
+                  const categoryColor = getCategoryColor(category);
+                  return (
+                    <div key={name} className="relative flex flex-col p-3 bg-zinc-800/40 hover:bg-zinc-800/70 rounded-xl border border-zinc-700/30 hover:border-zinc-600 transition-all group">
+                      {/* Individual AI Sparkle Button */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            if (window.deskflowAPI?.generateAIColors) {
+                              const generated = await window.deskflowAPI.generateAIColors([name]);
+                              if (generated[name]) {
+                                handleAppColorChange(name, generated[name]);
+                              }
+                            }
+                          } catch (err) {
+                            console.error('Individual AI color failed:', err);
+                          }
+                        }}
+                        className="absolute top-2 right-2 p-1 rounded bg-white/10 hover:bg-white/20 text-white/40 hover:text-white transition-all opacity-60 hover:opacity-100 z-10"
+                        title="AI Color"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                      </button>
+                      
+                      {/* Color Bar at Top */}
+                      <div className="mb-2">
+                        <ColorPicker 
+                          value={color} 
+                          onChange={(newColor) => handleAppColorChange(name, newColor)}
+                          size="sm"
+                        />
+                      </div>
+                      
+                      {/* App Name */}
+                      <div className="text-xs text-zinc-300 group-hover:text-white font-medium truncate mb-1 pr-5">{name}</div>
+                      
+                      {/* Category Badge */}
+                      <span 
+                        className="text-[10px] px-1.5 py-0.5 rounded-md self-start"
+                        style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}
+                      >
+                        {category}
+                      </span>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center py-10 text-zinc-500">
-                  <Clock className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No apps tracked yet</p>
-                </div>
-              )}
+                  );
+                })}
             </div>
           </div>
         </div>
       )}
+      {/* Discord-style Bottom Save Bar */}
+      <AnimatePresence>
+        {hasChanges && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-700/50 shadow-2xl shadow-black/50"
+          >
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-sm text-zinc-300">You have unsaved changes</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    // Reset all changes to original state
+                    setTierAssignments(() => {
+                      if (typeof window !== 'undefined') {
+                        const saved = localStorage.getItem('deskflow-tier-assignments');
+                        if (saved) {
+                          try { return JSON.parse(saved); } catch { /* ignore */ }
+                        }
+                      }
+                      return DEFAULT_TIER_ASSIGNMENTS;
+                    });
+                    setLocalAppColors(() => {
+                      if (typeof window !== 'undefined') {
+                        const saved = localStorage.getItem('deskflow-planet-colors');
+                        if (saved) {
+                          try { return JSON.parse(saved); } catch { /* ignore */ }
+                        }
+                      }
+                      return appColors;
+                    });
+                    setLocalCategoryOrder(categoryOrder);
+                    setAppCategoryOverrides({});
+                    setDomainCategoryOverrides({});
+                    setHasChanges(false);
+                    onHasChangesChange(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={saveChanges}
+                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-emerald-500/25 flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }

@@ -6,14 +6,17 @@ import {
   Home, Monitor, Globe, Code2, BarChart3, Settings, Play, Pause, Clock,
   Download, Trash2, Award, Zap, Users, Info, Database, CheckCircle, XCircle, AlertTriangle,
   Shield, ShieldAlert, ToggleLeft, ToggleRight, PieChart, CreditCard, Target,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Calendar, Terminal, Save
 } from 'lucide-react';
+import { format as dateFormat } from 'date-fns';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 import BrowserActivityPage from './pages/BrowserActivityPage';
 import ProductivityPage from './pages/ProductivityPage';
 import DatabasePage from './pages/DatabasePage';
 import IDEProjectsPage from './pages/IDEProjectsPage';
+import IDEHelpPage from './pages/IDEHelpPage';
+import TerminalPage from './pages/TerminalPage';
 
 // Lazy load OrbitSystem - it's heavy and should only load when needed
 const OrbitSystem = lazy(() => import('./components/OrbitSystem').then(module => ({ default: module.default })));
@@ -75,6 +78,7 @@ declare global {
     deskflowAPI?: {
       onForegroundChange: (cb: (data: any) => void) => void;
       onTrackingHeartbeat: (cb: (data: any) => void) => void;
+      onBrowserTrackingEvent: (cb: (data: any) => void) => void;
       getLogs: () => Promise<any[]>;
       getLogsByPeriod: (period: 'today' | 'week' | 'month' | 'all') => Promise<any[]>;
       getStats: () => Promise<any[]>;
@@ -96,6 +100,7 @@ declare global {
       // Browser tracking
       getBrowserLogs: () => Promise<any[]>;
       getBrowserDomainStats: () => Promise<any[]>;
+      getAllBrowserDomainStats: () => Promise<any[]>;
       getBrowserCategoryStats: () => Promise<any[]>;
       setBrowserTracking: (enabled: boolean) => Promise<boolean>;
       getBrowserTrackingStatus: () => Promise<{
@@ -131,6 +136,7 @@ declare global {
       scanTools: () => Promise<any[]>;
       getTools: (category?: string) => Promise<any[]>;
       getToolCategories: () => Promise<{ category: string }[]>;
+      resetTools: () => Promise<{ success: boolean; message: string }>;
       addProject: (data: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string; defaultIde?: string }) => Promise<{ success: boolean; id?: string; name?: string; message?: string }>;
       getProjects: () => Promise<any[]>;
       getProjectTools: (projectId: string) => Promise<any[]>;
@@ -148,6 +154,30 @@ declare global {
       getDORAMetrics: (projectId: string, period?: 'week' | 'month') => Promise<any>;
       getCommitHistory: (projectId: string, limit?: number) => Promise<any[]>;
       getContributorStats: (projectId: string) => Promise<any>;
+      // Terminal Window
+      createTerminalWindow: () => Promise<boolean>;
+      spawnTerminal: (terminalId: string, cwd?: string) => Promise<boolean>;
+      writeTerminal: (terminalId: string, data: string) => Promise<boolean>;
+      resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<boolean>;
+      killTerminal: (terminalId: string) => Promise<boolean>;
+      onTerminalData: (callback: (data: { terminalId: string; data: string }) => void) => void;
+      onTerminalExit: (callback: (data: { terminalId: string; exitCode: number; signal: number }) => void) => void;
+      // Terminal Presets
+      getTerminalPresets: (projectId?: string) => Promise<any[]>;
+      addTerminalPreset: (preset: { projectId?: string; name: string; command: string; workingDirectory?: string; category?: string }) => Promise<{ success: boolean; id?: string; message?: string }>;
+      removeTerminalPreset: (presetId: string) => Promise<{ success: boolean; message?: string }>;
+      executeTerminalPreset: (presetId: string, terminalId?: string) => Promise<{ success: boolean; command?: string; terminalId?: string; message?: string }>;
+      // Terminal Layouts
+      saveTerminalLayout: (layout: { id?: string; name: string; layoutData: string; isActive?: boolean }) => Promise<{ success: boolean; id?: string; message?: string }>;
+      getTerminalLayouts: (projectId?: string) => Promise<any[]>;
+      deleteTerminalLayout: (layoutId: string) => Promise<{ success: boolean; message?: string }>;
+      setActiveTerminalLayout: (layoutId: string) => Promise<{ success: boolean; message?: string }>;
+      // Terminal Sessions
+      saveTerminalSession: (session: { projectId?: string; agent: string; resumeId?: string; topic?: string; workingDirectory?: string; totalTokens?: number; totalCost?: number }) => Promise<{ success: boolean; id?: string }>;
+      getTerminalSessions: (projectId?: string, limit?: number) => Promise<any[]>;
+      getTerminalSessionResumeId: (sessionId: string) => Promise<string | null>;
+      // Project Health
+      calculateProjectHealth: (projectId: string) => Promise<{ healthScore: number; activityLevel: string; aiSessions: number; commits: number }>;
     };
   }
 }
@@ -319,6 +349,11 @@ function App() {
   const [appStats, setAppStats] = useState<any[]>([]); // Per-app detailed stats
   const [browserCategoryStats, setBrowserCategoryStats] = useState<any[]>([]); // Browser domain/category stats
   const [browserLogs, setBrowserLogs] = useState<ActivityLog[]>([]); // Browser tracking logs (website data)
+  const [allWebsiteStats, setAllWebsiteStats] = useState<any[]>([]); // All time website stats for Settings
+
+  // Live activity logs for dashboard
+  const [liveActivityLogs, setLiveActivityLogs] = useState<Array<{id: string; timestamp: number; type: 'app' | 'browser' | 'ide'; name: string; category?: string; title?: string; url?: string}>>([]);
+  const liveActivityLogsRef = useRef<Array<{id: string; timestamp: number; type: 'app' | 'browser' | 'ide'; name: string; category?: string; title?: string; url?: string}>>([]);
 
   // Reusable function to load data from Electron/SQLite
   const loadData = async () => {
@@ -396,6 +431,19 @@ function App() {
         setCurrentApp(data.app);
         setSessionStart(new Date(data.timestamp));
         setElapsedTime(0);
+        
+        // Add to live activity logs
+        const newLog = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+          type: 'app' as const,
+          name: data.app,
+          category: data.category,
+          title: data.title
+        };
+        liveActivityLogsRef.current = [...liveActivityLogsRef.current.slice(-49), newLog];
+        setLiveActivityLogs([...liveActivityLogsRef.current]);
+        
         // Refresh logs - update allLogs but let the useEffect handle logs filtering
         window.deskflowAPI?.getLogs().then(electronLogs => {
           const formattedLogs: ActivityLog[] = electronLogs.map((log: any) => ({
@@ -422,6 +470,28 @@ function App() {
       window.deskflowAPI.onTrackingHeartbeat((data) => {
         // Don't update isTracking from heartbeat - let user control it
         if (data.currentApp) setCurrentApp(data.currentApp);
+      });
+    }
+
+    // Listen for browser tracking live events
+    if (window.deskflowAPI && typeof window.deskflowAPI.onBrowserTrackingEvent === 'function') {
+      window.deskflowAPI.onBrowserTrackingEvent((data) => {
+        // Skip browser events if browser is not focused (user is in another app)
+        if (data.is_browser_focused === false) {
+          return; // Don't add stale browser logs when user is elsewhere
+        }
+        if (data.type === 'browser-data' || data.type === 'live-log') {
+          const newLog = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: data.timestamp || Date.now(),
+            type: 'browser' as const,
+            name: data.domain,
+            title: data.title,
+            url: data.url
+          };
+          liveActivityLogsRef.current = [...liveActivityLogsRef.current.slice(-49), newLog];
+          setLiveActivityLogs([...liveActivityLogsRef.current]);
+        }
       });
     }
   }, []);
@@ -534,13 +604,14 @@ function App() {
       filtered = allLogs;
     }
 
-    // Include apps (including browsers like Chrome, Edge, Firefox) but exclude actual websites
-    // Browser apps should be included, website tracking (is_browser_tracking) should be excluded
+    // Include apps (excluding main browser, which is tracked via websites) but exclude actual websites
     const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
+    const mainBrowser = (window.deskflowAPI as any)?.getPreferences ? 'chrome' : 'chrome';
     const appLogs = filtered.filter(log => {
       // Exclude actual website tracking data
       if (log.is_browser_tracking) return false;
-      // Include everything else including browser apps
+      // Exclude main browser app (tracked via browser extension instead)
+      if (BROWSER_APPS.some(b => log.app.toLowerCase().includes(b))) return false;
       return true;
     });
 
@@ -607,40 +678,33 @@ function App() {
     return stats.sort((a, b) => b.total_ms - a.total_ms);
   }, [allLogs, categoryOverrides]);
 
-  // Compute ALL TIME website stats from browser logs (for Settings page)
+  // Compute ALL TIME website stats from allWebsiteStats (loaded once, no time filter)
   const allTimeWebsiteStats = useMemo(() => {
-    // Group browser logs by domain
-    const grouped: Record<string, { total_ms: number; sessions: number; first_seen: string; last_seen: string; category: string; title?: string }> = {};
-    for (const log of browserLogs) {
-      const domain = log.domain || log.app; // domain is the website
-      const category = categoryOverrides[domain?.toLowerCase()] || log.category || 'Other';
+    // Group by domain - allWebsiteStats already has aggregated data
+    const grouped: Record<string, { total_ms: number; sessions: number; category: string; title?: string }> = {};
+    for (const stat of allWebsiteStats) {
+      const domain = stat.domain;
+      const category = categoryOverrides[domain?.toLowerCase()] || stat.category || 'Other';
       if (!grouped[domain]) {
         grouped[domain] = { 
-          total_ms: 0, 
-          sessions: 0, 
-          first_seen: log.timestamp.toISOString(), 
-          last_seen: log.timestamp.toISOString(), 
+          total_ms: stat.total_ms || 0, 
+          sessions: stat.sessions || 0, 
           category,
-          title: log.title 
+          title: stat.title 
         };
       }
-      grouped[domain].total_ms += log.duration * 1000;
-      grouped[domain].sessions += 1;
-      if (log.timestamp.toISOString() < grouped[domain].first_seen) grouped[domain].first_seen = log.timestamp.toISOString();
-      if (log.timestamp.toISOString() > grouped[domain].last_seen) grouped[domain].last_seen = log.timestamp.toISOString();
-      if (log.title) grouped[domain].title = log.title;
     }
 
     // Convert to array
     const stats = Object.entries(grouped).map(([domain, data]) => ({
-      app: domain, // Use 'app' field for consistency with UI
+      app: domain,
       domain,
       ...data,
       avg_session_ms: data.sessions > 0 ? data.total_ms / data.sessions : 0
     }));
 
     return stats.sort((a, b) => b.total_ms - a.total_ms);
-  }, [browserLogs, categoryOverrides]);
+  }, [allWebsiteStats, categoryOverrides]);
 
   // NO separate logs loading - we filter allLogs locally for display
   // allLogs is set once on mount and never changes (preserves heatmap)
@@ -666,6 +730,16 @@ function App() {
       }).catch(err => console.warn('[DeskFlow] Failed to load browser logs:', err));
     }
   }, [selectedPeriod]);
+
+  // Load ALL website stats (no time filter) for Settings page
+  useEffect(() => {
+    if (window.deskflowAPI?.getAllBrowserDomainStats) {
+      window.deskflowAPI.getAllBrowserDomainStats().then(stats => {
+        setAllWebsiteStats(stats);
+        console.log('[DeskFlow] Loaded all website stats:', stats.length, 'sites');
+      }).catch(err => console.warn('[DeskFlow] Failed to load all website stats:', err));
+    }
+  }, []);
 
   // Load tier assignments on mount
   const [tierAssignments, setTierAssignments] = useState<{ productive: string[]; neutral: string[]; distracting: string[] } | null>(null);
@@ -1152,10 +1226,12 @@ function App() {
 
   // Compute time by category - includes both desktop apps AND websites
   const timeByCategory = useMemo(() => {
+    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
     const categoryTime: Record<string, number> = {};
     
-    // Desktop apps
+    // Desktop apps (excluding main browser - tracked as websites instead)
     filteredLogs.forEach(log => {
+      if (BROWSER_APPS.some(b => log.app.toLowerCase().includes(b))) return;
       const cat = log.category || 'Uncategorized';
       categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
     });
@@ -1214,8 +1290,10 @@ function App() {
   }, [timeByCategory, tierAssignments]);
   
   // Compute breakdown for display (apps vs websites)
+  // Apps excludes the main browser since that's tracked via websites
   const timeBreakdown = useMemo(() => {
-    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
+    const BROWSER_APPS = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'google chrome', 'microsoft edge', 'arc', 'vivaldi', 'comet'];
+    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking && !BROWSER_APPS.some(b => l.app.toLowerCase().includes(b))).reduce((sum, l) => sum + l.duration, 0);
     const websitesTime = filteredLogs.filter(l => l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
     return { apps: appsTime, websites: websitesTime };
   }, [filteredLogs]);
@@ -1493,9 +1571,9 @@ Trend: +14% vs. yesterday. Keep it up!`;
     { icon: Target, label: 'Productivity', path: '/productivity' },
     { icon: Globe, label: 'Browser Activity', path: '/browser' },
     { icon: Code2, label: 'IDE Projects', path: '/ide' },
+    { icon: Terminal, label: 'Terminal', path: '/terminal' },
     { icon: BarChart3, label: 'Insights', path: '/reports' },
     { icon: Database, label: 'Database', path: '/database' },
-    { icon: CreditCard, label: 'Pricing', path: '/pricing' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
@@ -1731,7 +1809,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
               <button
                 onClick={() => setTimeMode('total')}
                 className={`px-3 py-1.5 rounded-full transition flex items-center gap-1.5 ${timeMode === 'total' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-400 hover:text-white'}`}
-                title="Total Time: All apps + websites combined"
+                title="Total Time: Apps + Websites (browser app excluded to avoid double-counting)"
               >
                 <Clock className="w-3 h-3" />
                 Total
@@ -1898,6 +1976,60 @@ Trend: +14% vs. yesterday. Keep it up!`;
                     </div>
                   </div>
 
+                  {/* Live Activity Logs */}
+                  <div className="glass rounded-3xl p-6 border border-zinc-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Terminal className="text-emerald-400" size={20} />
+                        <span className="font-medium">Live Activity</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const content = liveActivityLogs
+                            .map(log => `[${dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}] ${log.type.toUpperCase()}: ${log.name} ${log.category ? `(${log.category})` : ''} ${log.title ? `- ${log.title}` : ''}`)
+                            .join('\n');
+                          const blob = new Blob([content], { type: 'text/plain' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `activity-logs-${dateFormat(new Date(), 'yyyy-MM-dd-HHmmss')}.txt`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        disabled={liveActivityLogs.length === 0}
+                        className="px-3 py-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Save size={12} />
+                        Save
+                      </button>
+                    </div>
+                    <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3 h-40 overflow-y-auto font-mono text-xs">
+                      {liveActivityLogs.length === 0 ? (
+                        <div className="text-zinc-500 text-center py-6">Waiting for activity...</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {liveActivityLogs.slice().reverse().map((log) => (
+                            <div key={log.id} className="flex items-start gap-2">
+                              <span className="text-zinc-600 shrink-0">
+                                {dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}
+                              </span>
+                              <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                log.type === 'browser' ? 'bg-blue-500/20 text-blue-400' :
+                                log.type === 'ide' ? 'bg-purple-500/20 text-purple-400' :
+                                'bg-emerald-500/20 text-emerald-400'
+                              }`}>
+                                {log.type.toUpperCase()}
+                              </span>
+                              <span className="text-zinc-300">{log.name}</span>
+                              {log.category && <span className="text-zinc-600">({log.category})</span>}
+                              {log.title && <span className="text-zinc-500 truncate">{log.title}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="glass rounded-3xl p-8 w-full">
                     <div className="flex items-center justify-between mb-4">
                       <div className="text-xl font-semibold">Activity Visualization</div>
@@ -1923,8 +2055,10 @@ Trend: +14% vs. yesterday. Keep it up!`;
                             {weekOffset !== 0 && (
                               <button
                                 onClick={() => setWeekOffset(0)}
-                                className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs transition"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition hover:scale-105"
+                                title="Jump to today"
                               >
+                                <Calendar className="w-3.5 h-3.5" />
                                 Today
                               </button>
                             )}
@@ -1976,6 +2110,10 @@ Trend: +14% vs. yesterday. Keep it up!`;
               <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} />} />
               {/* IDE Page */}
               <Route path="/ide" element={<IDEProjectsPage />} />
+
+              <Route path="/ide-help" element={<IDEHelpPage />} />
+
+              <Route path="/terminal" element={<TerminalPage />} />
               {/* Reports/Insights Page */}
               <Route path="/reports" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Insights and reports are coming soon</div></div></div>} />
               {/* Database Page */}
@@ -1983,7 +2121,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
               {/* Pricing Page */}
               <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
               {/* Settings Page */}
-              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} />} />
+              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} onHasChangesChange={setSettingsHasChanges} />} />
             </Routes>
           </AnimatePresence>
 

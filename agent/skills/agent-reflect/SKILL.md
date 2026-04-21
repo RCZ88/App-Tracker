@@ -20,6 +20,7 @@ Transform any AI assistant into a continuously improving partner. Every correcti
 - At session boundaries or before context compaction
 - When successful patterns are worth preserving
 - After discovering non-obvious solutions or workarounds
+- After making mistakes that caused regressions
 
 ## Workflow
 
@@ -69,7 +70,7 @@ Map each signal to the appropriate target based on detected platform:
 
 See [agent_mappings.md](agent_mappings.md) for platform-specific mapping rules.
 
-### Step 4: Check for Skill-Worthy Signals
+### Step 3: Check for Skill-Worthy Signals
 
 Some learnings should become new skills rather than agent updates:
 
@@ -79,6 +80,11 @@ Some learnings should become new skills rather than agent updates:
 - Workaround discovered through experimentation
 - Configuration insight (differs from documented)
 - Reusable pattern (helps in similar situations)
+
+**Also check for "Never do X" patterns:**
+- Any HIGH confidence signal with "never" MUST be added to AGENTS.md "Never" section
+- Any HIGH confidence signal with "always" MUST be added to AGENTS.md "Always" section
+- Mistakes that caused data loss or regressions MUST be documented in debugging.md
 
 **Quality Gates (must pass all):**
 - [ ] Reusable: Will help with future tasks
@@ -117,6 +123,15 @@ Present findings in structured format:
 + New rule from learning
 ```
 
+### Change 2: Update AGENTS.md (Mandatory for HIGH signals)
+**Target**: `agent/AGENTS.md`
+**Section**: Common Mistakes to Avoid → ❌ Never / ✅ Always
+**Confidence**: HIGH
+
+```diff
++ **Run [specific operation] without [safety check]**
+```
+
 ## Review Prompt
 Apply these changes? (Y/N/modify/1,2,3)
 ```
@@ -125,8 +140,9 @@ Apply these changes? (Y/N/modify/1,2,3)
 
 **On `Y` (approve):**
 1. Apply each change using Edit tool
-2. Commit with descriptive message (if using git)
-3. Update metrics
+2. If "never do X" signal detected: MUST update AGENTS.md "Never" section
+3. Commit with descriptive message (if using git)
+4. Update metrics
 
 **On `N` (reject):**
 1. Discard proposed changes

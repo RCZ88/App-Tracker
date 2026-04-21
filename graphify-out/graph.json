@@ -9,7 +9,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L1",
       "id": "complete",
-      "community": 4
+      "community": 6
     },
     {
       "label": "beep()",
@@ -17,7 +17,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L15",
       "id": "complete_beep",
-      "community": 4
+      "community": 6
     },
     {
       "label": "speak()",
@@ -25,7 +25,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L42",
       "id": "complete_speak",
-      "community": 4
+      "community": 6
     },
     {
       "label": "main()",
@@ -33,7 +33,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L90",
       "id": "complete_main",
-      "community": 4
+      "community": 6
     },
     {
       "label": "Play a simple system beep.",
@@ -41,7 +41,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L16",
       "id": "complete_rationale_16",
-      "community": 4
+      "community": 6
     },
     {
       "label": "Speak text using offline TTS (pyttsx3 if available).     Falls back to system TT",
@@ -49,7 +49,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L43",
       "id": "complete_rationale_43",
-      "community": 4
+      "community": 6
     },
     {
       "label": "electron.vite.config.ts",
@@ -57,7 +57,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\electron.vite.config.ts",
       "source_location": "L1",
       "id": "electron_vite_config",
-      "community": 17
+      "community": 13
     },
     {
       "label": "eslint.config.js",
@@ -65,7 +65,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\eslint.config.js",
       "source_location": "L1",
       "id": "eslint_config",
-      "community": 18
+      "community": 14
     },
     {
       "label": "vite.config.ts",
@@ -73,7 +73,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\vite.config.ts",
       "source_location": "L1",
       "id": "vite_config",
-      "community": 19
+      "community": 15
     },
     {
       "label": "graphify-pipeline.py",
@@ -81,7 +81,7 @@
       "source_file": "agent\\docs\\graphify\\graphify-pipeline.py",
       "source_location": "L1",
       "id": "graphify_pipeline",
-      "community": 13
+      "community": 11
     },
     {
       "label": "Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline",
@@ -89,7 +89,7 @@
       "source_file": "agent\\docs\\graphify\\graphify-pipeline.py",
       "source_location": "L1",
       "id": "graphify_pipeline_rationale_1",
-      "community": 13
+      "community": 11
     },
     {
       "label": "graphify_maintain.py",
@@ -97,7 +97,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L1",
       "id": "graphify_maintain",
-      "community": 5
+      "community": 7
     },
     {
       "label": "rebuild_code_fix()",
@@ -105,7 +105,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L6",
       "id": "graphify_maintain_rebuild_code_fix",
-      "community": 5
+      "community": 7
     },
     {
       "label": "validate_report()",
@@ -113,7 +113,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L119",
       "id": "graphify_maintain_validate_report",
-      "community": 5
+      "community": 7
     },
     {
       "label": "sync_to_vault()",
@@ -121,7 +121,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L208",
       "id": "graphify_maintain_sync_to_vault",
-      "community": 5
+      "community": 7
     },
     {
       "label": "Check GRAPH_REPORT.md exists and has content. Regenerate if broken.",
@@ -129,7 +129,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L120",
       "id": "graphify_maintain_rationale_120",
-      "community": 5
+      "community": 7
     },
     {
       "label": "Sync graphify-out/ to Obsidian vault.",
@@ -137,12 +137,12 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L209",
       "id": "graphify_maintain_rationale_209",
-      "community": 5
+      "community": 7
     },
     {
       "label": "background.js",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L1",
       "id": "background",
       "community": 3
@@ -150,7 +150,7 @@
     {
       "label": "saveState()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L30",
       "id": "background_savestate",
       "community": 3
@@ -158,7 +158,7 @@
     {
       "label": "loadState()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L47",
       "id": "background_loadstate",
       "community": 3
@@ -166,7 +166,7 @@
     {
       "label": "extractDomain()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L80",
       "id": "background_extractdomain",
       "community": 3
@@ -174,7 +174,7 @@
     {
       "label": "sanitizeUrl()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L91",
       "id": "background_sanitizeurl",
       "community": 3
@@ -182,7 +182,7 @@
     {
       "label": "shouldExclude()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L102",
       "id": "background_shouldexclude",
       "community": 3
@@ -190,7 +190,7 @@
     {
       "label": "sendToDeskFlow()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L120",
       "id": "background_sendtodeskflow",
       "community": 3
@@ -198,7 +198,7 @@
     {
       "label": "healthCheck()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L149",
       "id": "background_healthcheck",
       "community": 3
@@ -206,7 +206,7 @@
     {
       "label": "checkBrowserFocus()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L167",
       "id": "background_checkbrowserfocus",
       "community": 3
@@ -214,7 +214,7 @@
     {
       "label": "startFocusCheckPolling()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L193",
       "id": "background_startfocuscheckpolling",
       "community": 3
@@ -222,7 +222,7 @@
     {
       "label": "updateActiveTab()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L200",
       "id": "background_updateactivetab",
       "community": 3
@@ -230,7 +230,7 @@
     {
       "label": "logPreviousSession()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L246",
       "id": "background_logprevioussession",
       "community": 3
@@ -238,7 +238,7 @@
     {
       "label": "periodicSync()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L277",
       "id": "background_periodicsync",
       "community": 3
@@ -246,8 +246,8 @@
     {
       "label": "onStartup()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L442",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L444",
       "id": "background_onstartup",
       "community": 3
     },
@@ -257,183 +257,183 @@
       "source_file": "src\\App.tsx",
       "source_location": "L1",
       "id": "app",
-      "community": 0
+      "community": 2
     },
     {
       "label": "generateDistinctColors()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L228",
+      "source_location": "L258",
       "id": "app_generatedistinctcolors",
-      "community": 0
+      "community": 2
     },
     {
       "label": "hslToHex()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L240",
+      "source_location": "L270",
       "id": "app_hsltohex",
-      "community": 0
+      "community": 2
     },
     {
       "label": "loadData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L324",
+      "source_location": "L359",
       "id": "app_loaddata",
-      "community": 0
+      "community": 2
     },
     {
       "label": "loadOverrides()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L460",
+      "source_location": "L530",
       "id": "app_loadoverrides",
-      "community": 0
+      "community": 2
     },
     {
       "label": "reloadOverrides()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L492",
+      "source_location": "L562",
       "id": "app_reloadoverrides",
-      "community": 0
+      "community": 2
     },
     {
       "label": "handleStorage()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L503",
+      "source_location": "L573",
       "id": "app_handlestorage",
-      "community": 0
+      "community": 2
     },
     {
       "label": "loadDbTables()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L716",
+      "source_location": "L790",
       "id": "app_loaddbtables",
-      "community": 0
+      "community": 2
     },
     {
       "label": "handleActivity()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L900",
+      "source_location": "L974",
       "id": "app_handleactivity",
-      "community": 0
+      "community": 2
     },
     {
       "label": "handleFocus()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L921",
+      "source_location": "L995",
       "id": "app_handlefocus",
-      "community": 0
+      "community": 2
     },
     {
       "label": "handleVisibilityChange()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L931",
+      "source_location": "L1005",
       "id": "app_handlevisibilitychange",
-      "community": 0
+      "community": 2
     },
     {
       "label": "switchApp()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1000",
+      "source_location": "L1074",
       "id": "app_switchapp",
-      "community": 0
+      "community": 2
     },
     {
       "label": "toggleTracking()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1028",
+      "source_location": "L1102",
       "id": "app_toggletracking",
-      "community": 0
+      "community": 2
     },
     {
       "label": "clearToday()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1065",
+      "source_location": "L1139",
       "id": "app_cleartoday",
-      "community": 0
+      "community": 2
     },
     {
       "label": "cleanCorruptedData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1091",
+      "source_location": "L1165",
       "id": "app_cleancorrupteddata",
-      "community": 0
+      "community": 2
     },
     {
       "label": "getTotalTime()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1120",
+      "source_location": "L1194",
       "id": "app_gettotaltime",
-      "community": 0
+      "community": 2
     },
     {
       "label": "getAppDistribution()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1231",
+      "source_location": "L1309",
       "id": "app_getappdistribution",
-      "community": 0
+      "community": 2
     },
     {
       "label": "generateAISummary()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1286",
+      "source_location": "L1364",
       "id": "app_generateaisummary",
-      "community": 0
+      "community": 2
     },
     {
       "label": "exportData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1328",
+      "source_location": "L1406",
       "id": "app_exportdata",
-      "community": 0
+      "community": 2
     },
     {
       "label": "clearData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1394",
+      "source_location": "L1472",
       "id": "app_cleardata",
-      "community": 0
+      "community": 2
     },
     {
       "label": "formatTime()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1469",
+      "source_location": "L1547",
       "id": "app_formattime",
-      "community": 0
+      "community": 2
     },
     {
       "label": "formatDuration()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1478",
+      "source_location": "L1556",
       "id": "app_formatduration",
-      "community": 0
+      "community": 2
     },
     {
       "label": "getHeatColor()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1508",
+      "source_location": "L1586",
       "id": "app_getheatcolor",
-      "community": 0
+      "community": 2
     },
     {
       "label": "main.tsx",
@@ -441,303 +441,319 @@
       "source_file": "src\\main.tsx",
       "source_location": "L1",
       "id": "main",
-      "community": 2
+      "community": 0
     },
     {
       "label": "getModelPricing()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L174",
+      "source_location": "L175",
       "id": "main_getmodelpricing",
-      "community": 12
+      "community": 0
     },
     {
       "label": "calculateCost()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L180",
+      "source_location": "L181",
       "id": "main_calculatecost",
-      "community": 12
+      "community": 0
+    },
+    {
+      "label": "yieldToEventLoop()",
+      "file_type": "code",
+      "source_file": "src\\main.ts",
+      "source_location": "L921",
+      "id": "main_yieldtoeventloop",
+      "community": 0
     },
     {
       "label": "syncAllAIAgents()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L882",
+      "source_location": "L924",
       "id": "main_syncallaiagents",
-      "community": 12
+      "community": 0
     },
     {
       "label": "loadCategoryConfig()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L997",
+      "source_location": "L1059",
       "id": "main_loadcategoryconfig",
-      "community": 7
+      "community": 0
     },
     {
       "label": "saveCategoryConfig()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1046",
+      "source_location": "L1108",
       "id": "main_savecategoryconfig",
-      "community": 7
+      "community": 0
     },
     {
       "label": "getTierForCategory()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1054",
+      "source_location": "L1116",
       "id": "main_gettierforcategory",
-      "community": 14
+      "community": 0
     },
     {
       "label": "initializeStorage()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1067",
+      "source_location": "L1129",
       "id": "main_initializestorage",
-      "community": 2
+      "community": 0
     },
     {
       "label": "saveJsonLogs()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1350",
+      "source_location": "L1431",
       "id": "main_savejsonlogs",
-      "community": 10
+      "community": 0
     },
     {
       "label": "addLog()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1361",
+      "source_location": "L1442",
       "id": "main_addlog",
-      "community": 10
+      "community": 0
     },
     {
       "label": "updateAggregates()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1400",
+      "source_location": "L1481",
       "id": "main_updateaggregates",
-      "community": 10
+      "community": 0
     },
     {
       "label": "getLogs()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1453",
+      "source_location": "L1534",
       "id": "main_getlogs",
-      "community": 2
+      "community": 0
     },
     {
       "label": "getStats()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1476",
+      "source_location": "L1557",
       "id": "main_getstats",
-      "community": 2
+      "community": 0
     },
     {
       "label": "categorizeApp()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1553",
+      "source_location": "L1634",
       "id": "main_categorizeapp",
-      "community": 7
+      "community": 0
     },
     {
       "label": "calculateProductivityScore()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1572",
+      "source_location": "L1653",
       "id": "main_calculateproductivityscore",
-      "community": 14
+      "community": 0
     },
     {
       "label": "categorizeDomain()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1612",
+      "source_location": "L1693",
       "id": "main_categorizedomain",
-      "community": 7
+      "community": 0
     },
     {
       "label": "pollForeground()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1709",
+      "source_location": "L1790",
       "id": "main_pollforeground",
-      "community": 7
+      "community": 0
     },
     {
       "label": "createTray()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1784",
+      "source_location": "L1865",
       "id": "main_createtray",
-      "community": 2
+      "community": 0
     },
     {
       "label": "createWindow()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L1862",
+      "source_location": "L1943",
       "id": "main_createwindow",
-      "community": 2
+      "community": 0
     },
     {
       "label": "loadPreferences()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2219",
+      "source_location": "L2300",
       "id": "main_loadpreferences",
-      "community": 2
+      "community": 0
     },
     {
       "label": "savePreferences()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2232",
+      "source_location": "L2313",
       "id": "main_savepreferences",
-      "community": 2
+      "community": 0
     },
     {
       "label": "updateAllAggregates()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2385",
+      "source_location": "L2466",
       "id": "main_updateallaggregates",
-      "community": 2
+      "community": 0
     },
     {
       "label": "execAsync()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2885",
+      "source_location": "L3063",
       "id": "main_execasync",
-      "community": 2
+      "community": 0
     },
     {
       "label": "expandPath()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2900",
+      "source_location": "L3078",
       "id": "main_expandpath",
-      "community": 2
+      "community": 0
     },
     {
       "label": "pathExists()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2911",
+      "source_location": "L3089",
       "id": "main_pathexists",
-      "community": 2
+      "community": 0
     },
     {
       "label": "addIde()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L2926",
+      "source_location": "L3104",
       "id": "main_addide",
-      "community": 2
+      "community": 0
     },
     {
       "label": "findExe()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L3095",
+      "source_location": "L3273",
       "id": "main_findexe",
-      "community": 2
+      "community": 0
     },
     {
       "label": "execPromise()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L3282",
+      "source_location": "L3460",
       "id": "main_execpromise",
-      "community": 2
+      "community": 0
     },
     {
       "label": "execSyncSafe()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L3294",
+      "source_location": "L3472",
       "id": "main_execsyncsafe",
-      "community": 2
+      "community": 0
     },
     {
       "label": "scanProjectTools()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L3525",
+      "source_location": "L3703",
       "id": "main_scanprojecttools",
-      "community": 2
+      "community": 0
     },
     {
       "label": "hasChatsSubdir()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L3848",
+      "source_location": "L4116",
       "id": "main_haschatssubdir",
-      "community": 2
+      "community": 0
     },
     {
       "label": "startBrowserTrackingServer()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4245",
+      "source_location": "L4597",
       "id": "main_startbrowsertrackingserver",
-      "community": 15
+      "community": 0
     },
     {
       "label": "handleBrowserData()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4305",
+      "source_location": "L4695",
       "id": "main_handlebrowserdata",
-      "community": 10
+      "community": 0
     },
     {
       "label": "startBrowserSessionFlushTimer()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4442",
+      "source_location": "L4834",
       "id": "main_startbrowsersessionflushtimer",
-      "community": 15
+      "community": 0
     },
     {
       "label": "stopBrowserSessionFlushTimer()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4459",
+      "source_location": "L4851",
       "id": "main_stopbrowsersessionflushtimer",
-      "community": 2
+      "community": 0
     },
     {
       "label": "getBrowserLogs()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4466",
+      "source_location": "L4858",
       "id": "main_getbrowserlogs",
-      "community": 2
+      "community": 0
     },
     {
       "label": "getBrowserDomainStats()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4504",
+      "source_location": "L4896",
       "id": "main_getbrowserdomainstats",
-      "community": 2
+      "community": 0
     },
     {
       "label": "getBrowserCategoryStats()",
       "file_type": "code",
       "source_file": "src\\main.ts",
-      "source_location": "L4554",
+      "source_location": "L4946",
       "id": "main_getbrowsercategorystats",
-      "community": 2
+      "community": 0
+    },
+    {
+      "label": "node-pty.d.ts",
+      "file_type": "code",
+      "source_file": "src\\node-pty.d.ts",
+      "source_location": "L1",
+      "id": "node_pty_d",
+      "community": 16
     },
     {
       "label": "preload.ts",
@@ -745,15 +761,15 @@
       "source_file": "src\\preload.ts",
       "source_location": "L1",
       "id": "preload",
-      "community": 16
+      "community": 12
     },
     {
       "label": "handler()",
       "file_type": "code",
       "source_file": "src\\preload.ts",
-      "source_location": "L139",
+      "source_location": "L148",
       "id": "preload_handler",
-      "community": 16
+      "community": 12
     },
     {
       "label": "OrbitSystem.tsx",
@@ -772,10 +788,26 @@
       "community": 1
     },
     {
+      "label": "seededRandom()",
+      "file_type": "code",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L67",
+      "id": "orbitsystem_seededrandom",
+      "community": 1
+    },
+    {
+      "label": "createSeededRandom()",
+      "file_type": "code",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L73",
+      "id": "orbitsystem_createseededrandom",
+      "community": 1
+    },
+    {
       "label": "GalaxyDustCloud()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L69",
+      "source_location": "L82",
       "id": "orbitsystem_galaxydustcloud",
       "community": 1
     },
@@ -783,7 +815,7 @@
       "label": "setStoredAnimationSpeed()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L337",
+      "source_location": "L335",
       "id": "orbitsystem_setstoredanimationspeed",
       "community": 1
     },
@@ -791,7 +823,7 @@
       "label": "FPSCounter()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L394",
+      "source_location": "L396",
       "id": "orbitsystem_fpscounter",
       "community": 1
     },
@@ -799,7 +831,7 @@
       "label": "getDistinctColor()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L471",
+      "source_location": "L473",
       "id": "orbitsystem_getdistinctcolor",
       "community": 1
     },
@@ -807,7 +839,7 @@
       "label": "getCategoryColor()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L476",
+      "source_location": "L478",
       "id": "orbitsystem_getcategorycolor",
       "community": 1
     },
@@ -815,7 +847,7 @@
       "label": "computePlanets()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L484",
+      "source_location": "L486",
       "id": "orbitsystem_computeplanets",
       "community": 1
     },
@@ -823,7 +855,7 @@
       "label": "hexToRgb()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L659",
+      "source_location": "L699",
       "id": "orbitsystem_hextorgb",
       "community": 1
     },
@@ -831,7 +863,7 @@
       "label": "adjustColor()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L669",
+      "source_location": "L709",
       "id": "orbitsystem_adjustcolor",
       "community": 1
     },
@@ -839,23 +871,15 @@
       "label": "hashString()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L679",
+      "source_location": "L719",
       "id": "orbitsystem_hashstring",
-      "community": 1
-    },
-    {
-      "label": "seededRandom()",
-      "file_type": "code",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L691",
-      "id": "orbitsystem_seededrandom",
       "community": 1
     },
     {
       "label": "for()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L1253",
+      "source_location": "L1286",
       "id": "orbitsystem_for",
       "community": 1
     },
@@ -863,7 +887,7 @@
       "label": "getSystemPosition()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2203",
+      "source_location": "L2262",
       "id": "orbitsystem_getsystemposition",
       "community": 1
     },
@@ -871,7 +895,7 @@
       "label": "handleInteractionStart()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2605",
+      "source_location": "L2679",
       "id": "orbitsystem_handleinteractionstart",
       "community": 1
     },
@@ -879,15 +903,23 @@
       "label": "handleInteractionEnd()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2608",
+      "source_location": "L2682",
       "id": "orbitsystem_handleinteractionend",
+      "community": 1
+    },
+    {
+      "label": "switchToGalaxy()",
+      "file_type": "code",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2701",
+      "id": "orbitsystem_switchtogalaxy",
       "community": 1
     },
     {
       "label": "handlePlanetClick()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2704",
+      "source_location": "L2755",
       "id": "orbitsystem_handleplanetclick",
       "community": 1
     },
@@ -895,7 +927,7 @@
       "label": "handleSelectSystem()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2711",
+      "source_location": "L2767",
       "id": "orbitsystem_handleselectsystem",
       "community": 1
     },
@@ -903,7 +935,7 @@
       "label": "handleEnterSystem()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2716",
+      "source_location": "L2772",
       "id": "orbitsystem_handleentersystem",
       "community": 1
     },
@@ -911,7 +943,7 @@
       "label": "handleCloseSystem()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2727",
+      "source_location": "L2789",
       "id": "orbitsystem_handleclosesystem",
       "community": 1
     },
@@ -919,7 +951,7 @@
       "label": "handleZoomOut()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2731",
+      "source_location": "L2793",
       "id": "orbitsystem_handlezoomout",
       "community": 1
     },
@@ -927,7 +959,7 @@
       "label": "handleRefreshTextures()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2738",
+      "source_location": "L2808",
       "id": "orbitsystem_handlerefreshtextures",
       "community": 1
     },
@@ -935,7 +967,7 @@
       "label": "handleCategorySelect()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2745",
+      "source_location": "L2815",
       "id": "orbitsystem_handlecategoryselect",
       "community": 1
     },
@@ -943,7 +975,7 @@
       "label": "handlePlanetPositionUpdate()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2779",
+      "source_location": "L2842",
       "id": "orbitsystem_handleplanetpositionupdate",
       "community": 1
     },
@@ -951,7 +983,7 @@
       "label": "focusOnPlanet()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2785",
+      "source_location": "L2848",
       "id": "orbitsystem_focusonplanet",
       "community": 1
     },
@@ -959,7 +991,7 @@
       "label": "animateCamera()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2827",
+      "source_location": "L2890",
       "id": "orbitsystem_animatecamera",
       "community": 1
     },
@@ -967,9 +999,57 @@
       "label": "resetCameraToGalaxy()",
       "file_type": "code",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2850",
+      "source_location": "L2913",
       "id": "orbitsystem_resetcameratogalaxy",
       "community": 1
+    },
+    {
+      "label": "TerminalWindow.tsx",
+      "file_type": "code",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L1",
+      "id": "terminalwindow",
+      "community": 4
+    },
+    {
+      "label": "TerminalPane()",
+      "file_type": "code",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L14",
+      "id": "terminalwindow_terminalpane",
+      "community": 4
+    },
+    {
+      "label": "createPaneNode()",
+      "file_type": "code",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L119",
+      "id": "terminalwindow_createpanenode",
+      "community": 4
+    },
+    {
+      "label": "handleClosePaneEvent()",
+      "file_type": "code",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L187",
+      "id": "terminalwindow_handleclosepaneevent",
+      "community": 4
+    },
+    {
+      "label": "useTerminalLayout.ts",
+      "file_type": "code",
+      "source_file": "src\\hooks\\useTerminalLayout.ts",
+      "source_location": "L1",
+      "id": "useterminallayout",
+      "community": 4
+    },
+    {
+      "label": "useTerminalLayout()",
+      "file_type": "code",
+      "source_file": "src\\hooks\\useTerminalLayout.ts",
+      "source_location": "L7",
+      "id": "useterminallayout_useterminallayout",
+      "community": 4
     },
     {
       "label": "BrowserActivityPage.tsx",
@@ -977,71 +1057,127 @@
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
       "source_location": "L1",
       "id": "browseractivitypage",
-      "community": 8
+      "community": 5
     },
     {
       "label": "formatDuration()",
       "file_type": "code",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L36",
+      "source_location": "L37",
       "id": "browseractivitypage_formatduration",
-      "community": 8
+      "community": 5
+    },
+    {
+      "label": "detectBrowsers()",
+      "file_type": "code",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L70",
+      "id": "browseractivitypage_detectbrowsers",
+      "community": 5
+    },
+    {
+      "label": "loadMainBrowser()",
+      "file_type": "code",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L90",
+      "id": "browseractivitypage_loadmainbrowser",
+      "community": 5
+    },
+    {
+      "label": "handleEvent()",
+      "file_type": "code",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L114",
+      "id": "browseractivitypage_handleevent",
+      "community": 5
+    },
+    {
+      "label": "handleSaveLogs()",
+      "file_type": "code",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L135",
+      "id": "browseractivitypage_handlesavelogs",
+      "community": 5
     },
     {
       "label": "toggleExpanded()",
       "file_type": "code",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L66",
+      "source_location": "L149",
       "id": "browseractivitypage_toggleexpanded",
-      "community": 8
+      "community": 5
     },
     {
       "label": "handleCategoryChange()",
       "file_type": "code",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L144",
+      "source_location": "L235",
       "id": "browseractivitypage_handlecategorychange",
-      "community": 8
+      "community": 5
     },
     {
       "label": "startEditCategory()",
       "file_type": "code",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L159",
+      "source_location": "L250",
       "id": "browseractivitypage_starteditcategory",
-      "community": 8
+      "community": 5
     },
     {
       "label": "DatabasePage.tsx",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L1",
       "id": "databasepage",
-      "community": 11
+      "community": 8
     },
     {
       "label": "formatDuration()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L16",
       "id": "databasepage_formatduration",
-      "community": 11
+      "community": 8
     },
     {
       "label": "formatCellValue()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L28",
       "id": "databasepage_formatcellvalue",
-      "community": 11
+      "community": 8
     },
     {
       "label": "DatabasePage()",
       "file_type": "code",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L63",
       "id": "databasepage_databasepage",
-      "community": 11
+      "community": 8
+    },
+    {
+      "label": "setTableData()",
+      "file_type": "code",
+      "source_file": "src\\pages\\DatabasePage.tsx",
+      "source_location": "L310",
+      "id": "databasepage_settabledata",
+      "community": 8
+    },
+    {
+      "label": "IDEHelpPage.tsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\IDEHelpPage.tsx",
+      "source_location": "L1",
+      "id": "idehelppage",
+      "community": 2
+    },
+    {
+      "label": "handleKeyDown()",
+      "file_type": "code",
+      "source_file": "src\\pages\\IDEHelpPage.tsx",
+      "source_location": "L212",
+      "id": "idehelppage_handlekeydown",
+      "community": 2
     },
     {
       "label": "IDEProjectsPage.tsx",
@@ -1049,15 +1185,23 @@
       "source_file": "src\\pages\\IDEProjectsPage.tsx",
       "source_location": "L1",
       "id": "ideprojectspage",
-      "community": 0
+      "community": 4
     },
     {
       "label": "IDEProjectsPage()",
       "file_type": "code",
       "source_file": "src\\pages\\IDEProjectsPage.tsx",
-      "source_location": "L112",
+      "source_location": "L122",
       "id": "ideprojectspage_ideprojectspage",
-      "community": 0
+      "community": 4
+    },
+    {
+      "label": "getMetricValue()",
+      "file_type": "code",
+      "source_file": "src\\pages\\IDEProjectsPage.tsx",
+      "source_location": "L2541",
+      "id": "ideprojectspage_getmetricvalue",
+      "community": 4
     },
     {
       "label": "ProductivityPage.tsx",
@@ -1065,7 +1209,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L1",
       "id": "productivitypage",
-      "community": 6
+      "community": 9
     },
     {
       "label": "formatDuration()",
@@ -1073,7 +1217,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L89",
       "id": "productivitypage_formatduration",
-      "community": 6
+      "community": 9
     },
     {
       "label": "formatHours()",
@@ -1081,7 +1225,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L101",
       "id": "productivitypage_formathours",
-      "community": 6
+      "community": 9
     },
     {
       "label": "getCategoryColor()",
@@ -1089,7 +1233,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L107",
       "id": "productivitypage_getcategorycolor",
-      "community": 6
+      "community": 9
     },
     {
       "label": "toggleDomain()",
@@ -1097,15 +1241,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L158",
       "id": "productivitypage_toggledomain",
-      "community": 6
-    },
-    {
-      "label": "filterItems()",
-      "file_type": "code",
-      "source_file": "src\\pages\\ProductivityPage.tsx",
-      "source_location": "L816",
-      "id": "productivitypage_filteritems",
-      "community": 6
+      "community": 9
     },
     {
       "label": "SettingsPage.tsx",
@@ -1113,7 +1249,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L1",
       "id": "settingspage",
-      "community": 9
+      "community": 10
     },
     {
       "label": "ColorPicker()",
@@ -1121,7 +1257,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L99",
       "id": "settingspage_colorpicker",
-      "community": 9
+      "community": 10
     },
     {
       "label": "fetchDomainStats()",
@@ -1129,23 +1265,23 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L695",
       "id": "settingspage_fetchdomainstats",
-      "community": 9
+      "community": 10
     },
     {
       "label": "activeId()",
       "file_type": "code",
       "source_file": "src\\pages\\SettingsPage.tsx",
-      "source_location": "L875",
+      "source_location": "L882",
       "id": "settingspage_activeid",
-      "community": 9
+      "community": 10
     },
     {
       "label": "async()",
       "file_type": "code",
       "source_file": "src\\pages\\SettingsPage.tsx",
-      "source_location": "L1218",
+      "source_location": "L996",
       "id": "settingspage_async",
-      "community": 9
+      "community": 10
     },
     {
       "label": "StatsPage.tsx",
@@ -1153,7 +1289,7 @@
       "source_file": "src\\pages\\StatsPage.tsx",
       "source_location": "L1",
       "id": "statspage",
-      "community": 0
+      "community": 2
     },
     {
       "label": "formatDuration()",
@@ -1161,7 +1297,7 @@
       "source_file": "src\\pages\\StatsPage.tsx",
       "source_location": "L55",
       "id": "statspage_formatduration",
-      "community": 0
+      "community": 2
     },
     {
       "label": "StatsPage()",
@@ -1169,7 +1305,31 @@
       "source_file": "src\\pages\\StatsPage.tsx",
       "source_location": "L67",
       "id": "statspage_statspage",
-      "community": 0
+      "community": 2
+    },
+    {
+      "label": "TerminalPage.tsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L1",
+      "id": "terminalpage",
+      "community": 4
+    },
+    {
+      "label": "generateTerminalId()",
+      "file_type": "code",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L10",
+      "id": "terminalpage_generateterminalid",
+      "community": 4
+    },
+    {
+      "label": "formatDate()",
+      "file_type": "code",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L169",
+      "id": "terminalpage_formatdate",
+      "community": 4
     }
   ],
   "links": [
@@ -1332,7 +1492,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L30",
       "weight": 1.0,
       "_src": "background",
@@ -1344,7 +1504,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L47",
       "weight": 1.0,
       "_src": "background",
@@ -1356,7 +1516,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L80",
       "weight": 1.0,
       "_src": "background",
@@ -1368,7 +1528,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L91",
       "weight": 1.0,
       "_src": "background",
@@ -1380,7 +1540,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L102",
       "weight": 1.0,
       "_src": "background",
@@ -1392,7 +1552,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L120",
       "weight": 1.0,
       "_src": "background",
@@ -1404,7 +1564,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L149",
       "weight": 1.0,
       "_src": "background",
@@ -1416,7 +1576,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L167",
       "weight": 1.0,
       "_src": "background",
@@ -1428,7 +1588,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L193",
       "weight": 1.0,
       "_src": "background",
@@ -1440,7 +1600,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L200",
       "weight": 1.0,
       "_src": "background",
@@ -1452,7 +1612,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L246",
       "weight": 1.0,
       "_src": "background",
@@ -1464,7 +1624,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L277",
       "weight": 1.0,
       "_src": "background",
@@ -1476,8 +1636,8 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L442",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L444",
       "weight": 1.0,
       "_src": "background",
       "_tgt": "background_onstartup",
@@ -1488,7 +1648,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L182",
       "weight": 1.0,
       "_src": "background_checkbrowserfocus",
@@ -1500,7 +1660,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L232",
       "weight": 1.0,
       "_src": "background_updateactivetab",
@@ -1512,7 +1672,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L273",
       "weight": 1.0,
       "_src": "background_logprevioussession",
@@ -1524,7 +1684,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L306",
       "weight": 1.0,
       "_src": "background_periodicsync",
@@ -1536,8 +1696,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L474",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L476",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_savestate",
@@ -1548,8 +1708,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L446",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L448",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_loadstate",
@@ -1560,7 +1720,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L210",
       "weight": 1.0,
       "_src": "background_updateactivetab",
@@ -1572,7 +1732,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L225",
       "weight": 1.0,
       "_src": "background_updateactivetab",
@@ -1584,7 +1744,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L264",
       "weight": 1.0,
       "_src": "background_logprevioussession",
@@ -1596,7 +1756,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L298",
       "weight": 1.0,
       "_src": "background_periodicsync",
@@ -1608,7 +1768,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L213",
       "weight": 1.0,
       "_src": "background_updateactivetab",
@@ -1620,7 +1780,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L269",
       "weight": 1.0,
       "_src": "background_logprevioussession",
@@ -1632,7 +1792,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L308",
       "weight": 1.0,
       "_src": "background_periodicsync",
@@ -1644,8 +1804,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L449",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L451",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_healthcheck",
@@ -1656,8 +1816,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L452",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L454",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_checkbrowserfocus",
@@ -1668,8 +1828,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L455",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L457",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_startfocuscheckpolling",
@@ -1680,7 +1840,7 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
+      "source_file": "browser-extension\\background.js",
       "source_location": "L220",
       "weight": 1.0,
       "_src": "background_updateactivetab",
@@ -1692,8 +1852,8 @@
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\browser-extension\\background.js",
-      "source_location": "L487",
+      "source_file": "browser-extension\\background.js",
+      "source_location": "L489",
       "weight": 1.0,
       "_src": "background_onstartup",
       "_tgt": "background_updateactivetab",
@@ -1705,7 +1865,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L11",
+      "source_location": "L12",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "settingspage",
@@ -1717,7 +1877,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L12",
+      "source_location": "L13",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "statspage",
@@ -1729,7 +1889,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "browseractivitypage",
@@ -1741,7 +1901,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L14",
+      "source_location": "L15",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "productivitypage",
@@ -1753,7 +1913,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L15",
+      "source_location": "L16",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "databasepage",
@@ -1765,7 +1925,7 @@
       "relation": "imports_from",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L16",
+      "source_location": "L17",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "ideprojectspage",
@@ -1774,10 +1934,34 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L18",
+      "weight": 1.0,
+      "_src": "app",
+      "_tgt": "idehelppage",
+      "source": "app",
+      "target": "idehelppage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.tsx",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_src": "app",
+      "_tgt": "terminalpage",
+      "source": "app",
+      "target": "terminalpage",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L228",
+      "source_location": "L258",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_generatedistinctcolors",
@@ -1789,7 +1973,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L240",
+      "source_location": "L270",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_hsltohex",
@@ -1801,7 +1985,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L324",
+      "source_location": "L359",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loaddata",
@@ -1813,7 +1997,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L460",
+      "source_location": "L530",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loadoverrides",
@@ -1825,7 +2009,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L492",
+      "source_location": "L562",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_reloadoverrides",
@@ -1837,7 +2021,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L503",
+      "source_location": "L573",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlestorage",
@@ -1849,7 +2033,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L716",
+      "source_location": "L790",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loaddbtables",
@@ -1861,7 +2045,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L900",
+      "source_location": "L974",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handleactivity",
@@ -1873,7 +2057,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L921",
+      "source_location": "L995",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlefocus",
@@ -1885,7 +2069,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L931",
+      "source_location": "L1005",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlevisibilitychange",
@@ -1897,7 +2081,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1000",
+      "source_location": "L1074",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_switchapp",
@@ -1909,7 +2093,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1028",
+      "source_location": "L1102",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_toggletracking",
@@ -1921,7 +2105,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1065",
+      "source_location": "L1139",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleartoday",
@@ -1933,7 +2117,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1091",
+      "source_location": "L1165",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleancorrupteddata",
@@ -1945,7 +2129,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1120",
+      "source_location": "L1194",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_gettotaltime",
@@ -1957,7 +2141,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1231",
+      "source_location": "L1309",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_getappdistribution",
@@ -1969,7 +2153,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1286",
+      "source_location": "L1364",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_generateaisummary",
@@ -1981,7 +2165,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1328",
+      "source_location": "L1406",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_exportdata",
@@ -1993,7 +2177,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1394",
+      "source_location": "L1472",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleardata",
@@ -2005,7 +2189,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1469",
+      "source_location": "L1547",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_formattime",
@@ -2017,7 +2201,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1478",
+      "source_location": "L1556",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_formatduration",
@@ -2029,7 +2213,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1508",
+      "source_location": "L1586",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_getheatcolor",
@@ -2041,7 +2225,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L503",
+      "source_location": "L573",
       "weight": 1.0,
       "_src": "app_handlestorage",
       "_tgt": "app_reloadoverrides",
@@ -2053,7 +2237,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L174",
+      "source_location": "L175",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getmodelpricing",
@@ -2065,7 +2249,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L180",
+      "source_location": "L181",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_calculatecost",
@@ -2077,7 +2261,19 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L882",
+      "source_location": "L921",
+      "weight": 1.0,
+      "_src": "main",
+      "_tgt": "main_yieldtoeventloop",
+      "source": "main",
+      "target": "main_yieldtoeventloop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\main.ts",
+      "source_location": "L924",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_syncallaiagents",
@@ -2089,7 +2285,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L997",
+      "source_location": "L1059",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_loadcategoryconfig",
@@ -2101,7 +2297,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1046",
+      "source_location": "L1108",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_savecategoryconfig",
@@ -2113,7 +2309,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1054",
+      "source_location": "L1116",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_gettierforcategory",
@@ -2125,7 +2321,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1067",
+      "source_location": "L1129",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_initializestorage",
@@ -2137,7 +2333,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1350",
+      "source_location": "L1431",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_savejsonlogs",
@@ -2149,7 +2345,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1361",
+      "source_location": "L1442",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_addlog",
@@ -2161,7 +2357,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1400",
+      "source_location": "L1481",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_updateaggregates",
@@ -2173,7 +2369,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1453",
+      "source_location": "L1534",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getlogs",
@@ -2185,7 +2381,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1476",
+      "source_location": "L1557",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getstats",
@@ -2197,7 +2393,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1553",
+      "source_location": "L1634",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_categorizeapp",
@@ -2209,7 +2405,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1572",
+      "source_location": "L1653",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_calculateproductivityscore",
@@ -2221,7 +2417,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1612",
+      "source_location": "L1693",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_categorizedomain",
@@ -2233,7 +2429,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1709",
+      "source_location": "L1790",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_pollforeground",
@@ -2245,7 +2441,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1784",
+      "source_location": "L1865",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_createtray",
@@ -2257,7 +2453,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1862",
+      "source_location": "L1943",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_createwindow",
@@ -2269,7 +2465,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2219",
+      "source_location": "L2300",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_loadpreferences",
@@ -2281,7 +2477,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2232",
+      "source_location": "L2313",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_savepreferences",
@@ -2293,7 +2489,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2385",
+      "source_location": "L2466",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_updateallaggregates",
@@ -2305,7 +2501,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2885",
+      "source_location": "L3063",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_execasync",
@@ -2317,7 +2513,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2900",
+      "source_location": "L3078",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_expandpath",
@@ -2329,7 +2525,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2911",
+      "source_location": "L3089",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_pathexists",
@@ -2341,7 +2537,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L2926",
+      "source_location": "L3104",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_addide",
@@ -2353,7 +2549,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L3095",
+      "source_location": "L3273",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_findexe",
@@ -2365,7 +2561,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L3282",
+      "source_location": "L3460",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_execpromise",
@@ -2377,7 +2573,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L3294",
+      "source_location": "L3472",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_execsyncsafe",
@@ -2389,7 +2585,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L3525",
+      "source_location": "L3703",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_scanprojecttools",
@@ -2401,7 +2597,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L3848",
+      "source_location": "L4116",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_haschatssubdir",
@@ -2413,7 +2609,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4245",
+      "source_location": "L4597",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_startbrowsertrackingserver",
@@ -2425,7 +2621,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4305",
+      "source_location": "L4695",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_handlebrowserdata",
@@ -2437,7 +2633,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4442",
+      "source_location": "L4834",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_startbrowsersessionflushtimer",
@@ -2449,7 +2645,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4459",
+      "source_location": "L4851",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_stopbrowsersessionflushtimer",
@@ -2461,7 +2657,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4466",
+      "source_location": "L4858",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getbrowserlogs",
@@ -2473,7 +2669,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4504",
+      "source_location": "L4896",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getbrowserdomainstats",
@@ -2485,7 +2681,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4554",
+      "source_location": "L4946",
       "weight": 1.0,
       "_src": "main",
       "_tgt": "main_getbrowsercategorystats",
@@ -2497,7 +2693,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L181",
+      "source_location": "L182",
       "weight": 1.0,
       "_src": "main_calculatecost",
       "_tgt": "main_getmodelpricing",
@@ -2509,11 +2705,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L929",
+      "source_location": "L934",
       "weight": 1.0,
       "_src": "main_syncallaiagents",
-      "_tgt": "main_calculatecost",
-      "source": "main_calculatecost",
+      "_tgt": "main_yieldtoeventloop",
+      "source": "main_yieldtoeventloop",
       "target": "main_syncallaiagents",
       "confidence_score": 1.0
     },
@@ -2521,7 +2717,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1026",
+      "source_location": "L1088",
       "weight": 1.0,
       "_src": "main_loadcategoryconfig",
       "_tgt": "main_savecategoryconfig",
@@ -2533,7 +2729,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1564",
+      "source_location": "L1645",
       "weight": 1.0,
       "_src": "main_categorizeapp",
       "_tgt": "main_savecategoryconfig",
@@ -2545,7 +2741,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1701",
+      "source_location": "L1782",
       "weight": 1.0,
       "_src": "main_categorizedomain",
       "_tgt": "main_savecategoryconfig",
@@ -2557,7 +2753,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1581",
+      "source_location": "L1662",
       "weight": 1.0,
       "_src": "main_calculateproductivityscore",
       "_tgt": "main_gettierforcategory",
@@ -2569,7 +2765,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1381",
+      "source_location": "L1462",
       "weight": 1.0,
       "_src": "main_addlog",
       "_tgt": "main_savejsonlogs",
@@ -2581,7 +2777,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4372",
+      "source_location": "L4767",
       "weight": 1.0,
       "_src": "main_handlebrowserdata",
       "_tgt": "main_savejsonlogs",
@@ -2593,7 +2789,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1398",
+      "source_location": "L1479",
       "weight": 1.0,
       "_src": "main_addlog",
       "_tgt": "main_updateaggregates",
@@ -2605,7 +2801,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1758",
+      "source_location": "L1839",
       "weight": 1.0,
       "_src": "main_pollforeground",
       "_tgt": "main_addlog",
@@ -2617,7 +2813,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4378",
+      "source_location": "L4773",
       "weight": 1.0,
       "_src": "main_handlebrowserdata",
       "_tgt": "main_updateaggregates",
@@ -2629,7 +2825,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L1757",
+      "source_location": "L1838",
       "weight": 1.0,
       "_src": "main_pollforeground",
       "_tgt": "main_categorizeapp",
@@ -2641,7 +2837,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4311",
+      "source_location": "L4706",
       "weight": 1.0,
       "_src": "main_handlebrowserdata",
       "_tgt": "main_categorizedomain",
@@ -2653,7 +2849,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\main.ts",
-      "source_location": "L4300",
+      "source_location": "L4690",
       "weight": 1.0,
       "_src": "main_startbrowsertrackingserver",
       "_tgt": "main_startbrowsersessionflushtimer",
@@ -2665,7 +2861,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\preload.ts",
-      "source_location": "L139",
+      "source_location": "L148",
       "weight": 1.0,
       "_src": "preload",
       "_tgt": "preload_handler",
@@ -2689,115 +2885,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L69",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_galaxydustcloud",
-      "source": "orbitsystem",
-      "target": "orbitsystem_galaxydustcloud",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L337",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_setstoredanimationspeed",
-      "source": "orbitsystem",
-      "target": "orbitsystem_setstoredanimationspeed",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L394",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_fpscounter",
-      "source": "orbitsystem",
-      "target": "orbitsystem_fpscounter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L471",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_getdistinctcolor",
-      "source": "orbitsystem",
-      "target": "orbitsystem_getdistinctcolor",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L476",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_getcategorycolor",
-      "source": "orbitsystem",
-      "target": "orbitsystem_getcategorycolor",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L484",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_computeplanets",
-      "source": "orbitsystem",
-      "target": "orbitsystem_computeplanets",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L659",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_hextorgb",
-      "source": "orbitsystem",
-      "target": "orbitsystem_hextorgb",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L669",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_adjustcolor",
-      "source": "orbitsystem",
-      "target": "orbitsystem_adjustcolor",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L679",
-      "weight": 1.0,
-      "_src": "orbitsystem",
-      "_tgt": "orbitsystem_hashstring",
-      "source": "orbitsystem",
-      "target": "orbitsystem_hashstring",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2197",
+      "source_location": "L2256",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_seededrandom",
@@ -2809,7 +2897,127 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L1288",
+      "source_location": "L73",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_createseededrandom",
+      "source": "orbitsystem",
+      "target": "orbitsystem_createseededrandom",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L82",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_galaxydustcloud",
+      "source": "orbitsystem",
+      "target": "orbitsystem_galaxydustcloud",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L335",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_setstoredanimationspeed",
+      "source": "orbitsystem",
+      "target": "orbitsystem_setstoredanimationspeed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L396",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_fpscounter",
+      "source": "orbitsystem",
+      "target": "orbitsystem_fpscounter",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L473",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_getdistinctcolor",
+      "source": "orbitsystem",
+      "target": "orbitsystem_getdistinctcolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L478",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_getcategorycolor",
+      "source": "orbitsystem",
+      "target": "orbitsystem_getcategorycolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L486",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_computeplanets",
+      "source": "orbitsystem",
+      "target": "orbitsystem_computeplanets",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L699",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_hextorgb",
+      "source": "orbitsystem",
+      "target": "orbitsystem_hextorgb",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L709",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_adjustcolor",
+      "source": "orbitsystem",
+      "target": "orbitsystem_adjustcolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L719",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_hashstring",
+      "source": "orbitsystem",
+      "target": "orbitsystem_hashstring",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L1321",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_for",
@@ -2821,7 +3029,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2203",
+      "source_location": "L2262",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_getsystemposition",
@@ -2833,7 +3041,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2605",
+      "source_location": "L2679",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleinteractionstart",
@@ -2845,7 +3053,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2608",
+      "source_location": "L2682",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleinteractionend",
@@ -2857,7 +3065,19 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2704",
+      "source_location": "L2701",
+      "weight": 1.0,
+      "_src": "orbitsystem",
+      "_tgt": "orbitsystem_switchtogalaxy",
+      "source": "orbitsystem",
+      "target": "orbitsystem_switchtogalaxy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2755",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleplanetclick",
@@ -2869,7 +3089,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2711",
+      "source_location": "L2767",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleselectsystem",
@@ -2881,7 +3101,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2716",
+      "source_location": "L2772",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleentersystem",
@@ -2893,7 +3113,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2727",
+      "source_location": "L2789",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleclosesystem",
@@ -2905,7 +3125,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2731",
+      "source_location": "L2793",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handlezoomout",
@@ -2917,7 +3137,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2738",
+      "source_location": "L2808",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handlerefreshtextures",
@@ -2929,7 +3149,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2745",
+      "source_location": "L2815",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handlecategoryselect",
@@ -2941,7 +3161,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2779",
+      "source_location": "L2842",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_handleplanetpositionupdate",
@@ -2953,7 +3173,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2785",
+      "source_location": "L2848",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_focusonplanet",
@@ -2965,7 +3185,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2827",
+      "source_location": "L2890",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_animatecamera",
@@ -2977,7 +3197,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2850",
+      "source_location": "L2913",
       "weight": 1.0,
       "_src": "orbitsystem",
       "_tgt": "orbitsystem_resetcameratogalaxy",
@@ -2989,11 +3209,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L560",
+      "source_location": "L605",
       "weight": 1.0,
       "_src": "orbitsystem_computeplanets",
-      "_tgt": "orbitsystem_getcategorycolor",
-      "source": "orbitsystem_getcategorycolor",
+      "_tgt": "orbitsystem_seededrandom",
+      "source": "orbitsystem_seededrandom",
       "target": "orbitsystem_computeplanets",
       "confidence_score": 1.0
     },
@@ -3001,31 +3221,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L611",
-      "weight": 1.0,
-      "_src": "orbitsystem_computeplanets",
-      "_tgt": "orbitsystem_hextorgb",
-      "source": "orbitsystem_computeplanets",
-      "target": "orbitsystem_hextorgb",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L670",
-      "weight": 1.0,
-      "_src": "orbitsystem_adjustcolor",
-      "_tgt": "orbitsystem_hextorgb",
-      "source": "orbitsystem_hextorgb",
-      "target": "orbitsystem_adjustcolor",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2212",
+      "source_location": "L2271",
       "weight": 1.0,
       "_src": "orbitsystem_getsystemposition",
       "_tgt": "orbitsystem_seededrandom",
@@ -3037,19 +3233,79 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2723",
+      "source_location": "L566",
       "weight": 1.0,
-      "_src": "orbitsystem_handleentersystem",
-      "_tgt": "orbitsystem_resetcameratogalaxy",
-      "source": "orbitsystem_handleentersystem",
-      "target": "orbitsystem_resetcameratogalaxy",
+      "_src": "orbitsystem_computeplanets",
+      "_tgt": "orbitsystem_getcategorycolor",
+      "source": "orbitsystem_getcategorycolor",
+      "target": "orbitsystem_computeplanets",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2817",
+      "source_location": "L651",
+      "weight": 1.0,
+      "_src": "orbitsystem_computeplanets",
+      "_tgt": "orbitsystem_hextorgb",
+      "source": "orbitsystem_computeplanets",
+      "target": "orbitsystem_hextorgb",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L710",
+      "weight": 1.0,
+      "_src": "orbitsystem_adjustcolor",
+      "_tgt": "orbitsystem_hextorgb",
+      "source": "orbitsystem_hextorgb",
+      "target": "orbitsystem_adjustcolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2764",
+      "weight": 1.0,
+      "_src": "orbitsystem_handleplanetclick",
+      "_tgt": "orbitsystem_animatecamera",
+      "source": "orbitsystem_handleplanetclick",
+      "target": "orbitsystem_animatecamera",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2785",
+      "weight": 1.0,
+      "_src": "orbitsystem_handleentersystem",
+      "_tgt": "orbitsystem_animatecamera",
+      "source": "orbitsystem_handleentersystem",
+      "target": "orbitsystem_animatecamera",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2804",
+      "weight": 1.0,
+      "_src": "orbitsystem_handlezoomout",
+      "_tgt": "orbitsystem_animatecamera",
+      "source": "orbitsystem_handlezoomout",
+      "target": "orbitsystem_animatecamera",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\OrbitSystem.tsx",
+      "source_location": "L2880",
       "weight": 1.0,
       "_src": "orbitsystem_focusonplanet",
       "_tgt": "orbitsystem_animatecamera",
@@ -3061,7 +3317,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\components\\OrbitSystem.tsx",
-      "source_location": "L2855",
+      "source_location": "L2918",
       "weight": 1.0,
       "_src": "orbitsystem_resetcameratogalaxy",
       "_tgt": "orbitsystem_animatecamera",
@@ -3070,10 +3326,94 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\hooks\\useTerminalLayout.ts",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_src": "useterminallayout",
+      "_tgt": "terminalwindow",
+      "source": "terminalwindow",
+      "target": "useterminallayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L14",
+      "weight": 1.0,
+      "_src": "terminalwindow",
+      "_tgt": "terminalwindow_terminalpane",
+      "source": "terminalwindow",
+      "target": "terminalwindow_terminalpane",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L119",
+      "weight": 1.0,
+      "_src": "terminalwindow",
+      "_tgt": "terminalwindow_createpanenode",
+      "source": "terminalwindow",
+      "target": "terminalwindow_createpanenode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\TerminalWindow.tsx",
+      "source_location": "L187",
+      "weight": 1.0,
+      "_src": "terminalwindow",
+      "_tgt": "terminalwindow_handleclosepaneevent",
+      "source": "terminalwindow",
+      "target": "terminalwindow_handleclosepaneevent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "terminalpage",
+      "_tgt": "terminalwindow",
+      "source": "terminalwindow",
+      "target": "terminalpage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\hooks\\useTerminalLayout.ts",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_src": "useterminallayout",
+      "_tgt": "useterminallayout_useterminallayout",
+      "source": "useterminallayout",
+      "target": "useterminallayout_useterminallayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_src": "terminalpage",
+      "_tgt": "useterminallayout",
+      "source": "useterminallayout",
+      "target": "terminalpage",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_src": "browseractivitypage",
       "_tgt": "browseractivitypage_formatduration",
@@ -3085,7 +3425,55 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L66",
+      "source_location": "L70",
+      "weight": 1.0,
+      "_src": "browseractivitypage",
+      "_tgt": "browseractivitypage_detectbrowsers",
+      "source": "browseractivitypage",
+      "target": "browseractivitypage_detectbrowsers",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_src": "browseractivitypage",
+      "_tgt": "browseractivitypage_loadmainbrowser",
+      "source": "browseractivitypage",
+      "target": "browseractivitypage_loadmainbrowser",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L114",
+      "weight": 1.0,
+      "_src": "browseractivitypage",
+      "_tgt": "browseractivitypage_handleevent",
+      "source": "browseractivitypage",
+      "target": "browseractivitypage_handleevent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L135",
+      "weight": 1.0,
+      "_src": "browseractivitypage",
+      "_tgt": "browseractivitypage_handlesavelogs",
+      "source": "browseractivitypage",
+      "target": "browseractivitypage_handlesavelogs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\BrowserActivityPage.tsx",
+      "source_location": "L149",
       "weight": 1.0,
       "_src": "browseractivitypage",
       "_tgt": "browseractivitypage_toggleexpanded",
@@ -3097,7 +3485,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L144",
+      "source_location": "L235",
       "weight": 1.0,
       "_src": "browseractivitypage",
       "_tgt": "browseractivitypage_handlecategorychange",
@@ -3109,7 +3497,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\BrowserActivityPage.tsx",
-      "source_location": "L159",
+      "source_location": "L250",
       "weight": 1.0,
       "_src": "browseractivitypage",
       "_tgt": "browseractivitypage_starteditcategory",
@@ -3120,7 +3508,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L16",
       "weight": 1.0,
       "_src": "databasepage",
@@ -3132,7 +3520,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L28",
       "weight": 1.0,
       "_src": "databasepage",
@@ -3144,7 +3532,7 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L63",
       "weight": 1.0,
       "_src": "databasepage",
@@ -3154,9 +3542,21 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\DatabasePage.tsx",
+      "source_location": "L310",
+      "weight": 1.0,
+      "_src": "databasepage",
+      "_tgt": "databasepage_settabledata",
+      "source": "databasepage",
+      "target": "databasepage_settabledata",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\src\\pages\\DatabasePage.tsx",
+      "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L43",
       "weight": 1.0,
       "_src": "databasepage_formatcellvalue",
@@ -3168,8 +3568,32 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\IDEHelpPage.tsx",
+      "source_location": "L212",
+      "weight": 1.0,
+      "_src": "idehelppage",
+      "_tgt": "idehelppage_handlekeydown",
+      "source": "idehelppage",
+      "target": "idehelppage_handlekeydown",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
       "source_file": "src\\pages\\IDEProjectsPage.tsx",
-      "source_location": "L112",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_src": "ideprojectspage",
+      "_tgt": "terminalpage",
+      "source": "ideprojectspage",
+      "target": "terminalpage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\IDEProjectsPage.tsx",
+      "source_location": "L122",
       "weight": 1.0,
       "_src": "ideprojectspage",
       "_tgt": "ideprojectspage_ideprojectspage",
@@ -3180,8 +3604,20 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\IDEProjectsPage.tsx",
+      "source_location": "L2541",
+      "weight": 1.0,
+      "_src": "ideprojectspage",
+      "_tgt": "ideprojectspage_getmetricvalue",
+      "source": "ideprojectspage",
+      "target": "ideprojectspage_getmetricvalue",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ProductivityPage.tsx",
-      "source_location": "L807",
+      "source_location": "L886",
       "weight": 1.0,
       "_src": "productivitypage",
       "_tgt": "productivitypage_formatduration",
@@ -3228,18 +3664,6 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "src\\pages\\ProductivityPage.tsx",
-      "source_location": "L816",
-      "weight": 1.0,
-      "_src": "productivitypage",
-      "_tgt": "productivitypage_filteritems",
-      "source": "productivitypage",
-      "target": "productivitypage_filteritems",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L99",
       "weight": 1.0,
@@ -3265,7 +3689,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\SettingsPage.tsx",
-      "source_location": "L875",
+      "source_location": "L882",
       "weight": 1.0,
       "_src": "settingspage",
       "_tgt": "settingspage_activeid",
@@ -3277,7 +3701,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\SettingsPage.tsx",
-      "source_location": "L1387",
+      "source_location": "L1876",
       "weight": 1.0,
       "_src": "settingspage",
       "_tgt": "settingspage_async",
@@ -3307,6 +3731,30 @@
       "_tgt": "statspage_statspage",
       "source": "statspage",
       "target": "statspage_statspage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_src": "terminalpage",
+      "_tgt": "terminalpage_generateterminalid",
+      "source": "terminalpage",
+      "target": "terminalpage_generateterminalid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\TerminalPage.tsx",
+      "source_location": "L375",
+      "weight": 1.0,
+      "_src": "terminalpage",
+      "_tgt": "terminalpage_formatdate",
+      "source": "terminalpage",
+      "target": "terminalpage_formatdate",
       "confidence_score": 1.0
     }
   ],

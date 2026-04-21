@@ -321,6 +321,17 @@ export default function ProductivityPage({
     const appTotalSec = appItems.reduce((sum, a) => sum + a.duration_sec, 0);
     const websiteTotalSec = browserItems.reduce((sum, b) => sum + b.duration_sec, 0);
 
+    // App vs Website productivity breakdown
+    const appProductiveSec = appItems.filter(i => tierAssignments.productive.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+    const appNeutralSec = appItems.filter(i => tierAssignments.neutral.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+    const appDistractingSec = appItems.filter(i => tierAssignments.distracting.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+    const webProductiveSec = browserItems.filter(i => tierAssignments.productive.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+    const webNeutralSec = browserItems.filter(i => tierAssignments.neutral.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+    const webDistractingSec = browserItems.filter(i => tierAssignments.distracting.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+
+    const appScore = appTotalSec > 0 ? ((appProductiveSec * 1.0 + appNeutralSec * 0.5) / appTotalSec) * 100 : 0;
+    const webScore = websiteTotalSec > 0 ? ((webProductiveSec * 1.0 + webNeutralSec * 0.5) / websiteTotalSec) * 100 : 0;
+
     // Top productive items (sorted by duration)
     const topProductive = [...tierTotals.productive.items]
       .sort((a, b) => b.duration_sec - a.duration_sec)
@@ -344,6 +355,10 @@ export default function ProductivityPage({
       websiteSeconds: websiteTotalSec,
       displayedAppSeconds: displayedAppTotalSec,
       displayedWebsiteSeconds: displayedWebsiteTotalSec,
+      appVsWeb: {
+        app: { totalSec: appTotalSec, productiveSec: appProductiveSec, neutralSec: appNeutralSec, distractingSec: appDistractingSec, score: appScore, count: appItems.length },
+        web: { totalSec: websiteTotalSec, productiveSec: webProductiveSec, neutralSec: webNeutralSec, distractingSec: webDistractingSec, score: webScore, count: browserItems.length }
+      },
       tiers: {
         productive: { seconds: tierTotals.productive.seconds, count: tierTotals.productive.items.length },
         neutral: { seconds: tierTotals.neutral.seconds, count: tierTotals.neutral.items.length },
@@ -557,7 +572,7 @@ export default function ProductivityPage({
             <Target className="w-8 h-8 text-emerald-400" />
             Productivity
           </h1>
-          <p className="text-zinc-500 mt-1">Combined analysis of apps and websites</p>
+          <p className="text-zinc-500 mt-1">Apps vs Websites — where your time goes</p>
         </div>
       </div>
 
@@ -639,7 +654,84 @@ export default function ProductivityPage({
             </div>
             <div className="text-2xl font-semibold text-purple-400">{formatDuration(productivityData.totalSeconds)}</div>
             <div className="text-xs text-zinc-500 mt-1">
-              {productivityData.tiers.productive.count + productivityData.tiers.neutral.count + productivityData.tiers.distracting.count} items
+              {productivityData.appVsWeb.app.count} apps + {productivityData.appVsWeb.web.count} sites
+            </div>
+          </div>
+        </div>
+
+        {/* Apps vs Websites Comparison */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-indigo-500/20">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-indigo-400" />
+                <span className="text-sm font-medium text-zinc-300">Applications</span>
+              </div>
+              <span className="text-lg font-bold text-indigo-400">{Math.round(productivityData.appVsWeb.app.score)}%</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-emerald-400">Productive</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.app.productiveSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-emerald-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.app.totalSec > 0 ? (productivityData.appVsWeb.app.productiveSec / productivityData.appVsWeb.app.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-blue-400">Neutral</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.app.neutralSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-blue-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.app.totalSec > 0 ? (productivityData.appVsWeb.app.neutralSec / productivityData.appVsWeb.app.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-red-400">Distracting</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.app.distractingSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-red-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.app.totalSec > 0 ? (productivityData.appVsWeb.app.distractingSec / productivityData.appVsWeb.app.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="pt-1 border-t border-zinc-800 flex justify-between text-xs">
+                <span className="text-zinc-500">Total</span>
+                <span className="text-zinc-300 font-medium">{formatDuration(productivityData.appVsWeb.app.totalSec)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-cyan-500/20">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm font-medium text-zinc-300">Websites</span>
+              </div>
+              <span className="text-lg font-bold text-cyan-400">{Math.round(productivityData.appVsWeb.web.score)}%</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-emerald-400">Productive</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.web.productiveSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-emerald-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.web.totalSec > 0 ? (productivityData.appVsWeb.web.productiveSec / productivityData.appVsWeb.web.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-blue-400">Neutral</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.web.neutralSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-blue-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.web.totalSec > 0 ? (productivityData.appVsWeb.web.neutralSec / productivityData.appVsWeb.web.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-red-400">Distracting</span>
+                <span className="text-zinc-400">{formatDuration(productivityData.appVsWeb.web.distractingSec)}</span>
+              </div>
+              <div className="w-full bg-zinc-800 rounded-full h-2">
+                <div className="bg-red-400 h-2 rounded-full transition-all" style={{ width: `${productivityData.appVsWeb.web.totalSec > 0 ? (productivityData.appVsWeb.web.distractingSec / productivityData.appVsWeb.web.totalSec) * 100 : 0}%` }} />
+              </div>
+              <div className="pt-1 border-t border-zinc-800 flex justify-between text-xs">
+                <span className="text-zinc-500">Total</span>
+                <span className="text-zinc-300 font-medium">{formatDuration(productivityData.appVsWeb.web.totalSec)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -729,66 +821,53 @@ export default function ProductivityPage({
         </div>
       </div>
 
-      {/* Vertical Tier Filter Toggle */}
+      {/* Horizontal Tier Filter - All buttons in one row */}
       <div className="glass rounded-3xl p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-zinc-400">Filter by Category</h3>
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          {/* Vertical toggle buttons - stacked vertically for each category */}
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => setTierFilter('productive')}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                tierFilter === 'productive'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              Productive
-            </button>
-            <button
-              onClick={() => setTierFilter('neutral')}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                tierFilter === 'neutral'
-                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-blue-400" />
-              Neutral
-            </button>
-            <button
-              onClick={() => setTierFilter('distracting')}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                tierFilter === 'distracting'
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                  : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-red-400" />
-              Distracting
-            </button>
-          </div>
-          
-          {/* Show "All" as horizontal button on the right */}
+        <div className="flex items-center gap-2">
+          {/* Productive */}
           <button
-            onClick={() => setTierFilter('all')}
-            className={`ml-4 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              tierFilter === 'all'
-                ? 'bg-zinc-600 text-white border border-zinc-500'
+            onClick={() => setTierFilter('productive')}
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              tierFilter === 'productive'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                 : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
             }`}
           >
-            Show All
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            Productive
+          </button>
+          
+          {/* Neutral */}
+          <button
+            onClick={() => setTierFilter('neutral')}
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              tierFilter === 'neutral'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-blue-400" />
+            Neutral
+          </button>
+          
+          {/* Distracting */}
+          <button
+            onClick={() => setTierFilter('distracting')}
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              tierFilter === 'distracting'
+                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-red-400" />
+            Distracting
           </button>
           
           {/* Stats for current filter */}
           <div className="ml-auto text-xs text-zinc-500">
             {tierFilter === 'all' 
               ? `${productivityData.tiers.productive.count + productivityData.tiers.neutral.count + productivityData.tiers.distracting.count} items`
-              : `${productivityData.tiers[tierFilter].count} items in ${tierFilter}`
+              : `${productivityData.tiers[tierFilter]?.count || 0} items in ${tierFilter}`
             }
           </div>
         </div>
@@ -1056,7 +1135,7 @@ export default function ProductivityPage({
           </h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 bg-zinc-900/50 rounded-xl">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="w-4 h-4 text-yellow-400" />
@@ -1085,6 +1164,32 @@ export default function ProductivityPage({
 
           <div className="p-4 bg-zinc-900/50 rounded-xl">
             <div className="flex items-center gap-2 mb-2">
+              <Monitor className="w-4 h-4 text-indigo-400" />
+              <span className="text-sm font-medium text-zinc-400">App Time</span>
+            </div>
+            <div className="text-2xl font-semibold text-white">
+              {formatDuration(productivityData.appVsWeb.app.totalSec)}
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">
+              {Math.round(productivityData.appVsWeb.app.score)}% productive
+            </div>
+          </div>
+
+          <div className="p-4 bg-zinc-900/50 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-medium text-zinc-400">Website Time</span>
+            </div>
+            <div className="text-2xl font-semibold text-white">
+              {formatDuration(productivityData.appVsWeb.web.totalSec)}
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">
+              {Math.round(productivityData.appVsWeb.web.score)}% productive
+            </div>
+          </div>
+
+          <div className="p-4 bg-zinc-900/50 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-blue-400" />
               <span className="text-sm font-medium text-zinc-400">Total Tracked</span>
             </div>
@@ -1092,7 +1197,7 @@ export default function ProductivityPage({
               {formatDuration(productivityData.totalSeconds)}
             </div>
             <div className="text-xs text-zinc-500 mt-1">
-              Apps + Websites combined
+              Apps + Websites
             </div>
           </div>
         </div>

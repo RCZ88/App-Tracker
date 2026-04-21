@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
     ipcRenderer.on('tracking-heartbeat', (_event, data) => callback(data));
   },
 
+  // Listen for browser tracking live events
+  onBrowserTrackingEvent: (callback: (data: any) => void) => {
+    ipcRenderer.on('browser-tracking-event', (_event, data) => callback(data));
+  },
+
   // Get recent activity logs
   getLogs: () => ipcRenderer.invoke('get-logs'),
 
@@ -102,6 +107,10 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   addKeywordDomain: (domain: string, keywords: string[], defaultCategory?: string) => ipcRenderer.invoke('add-keyword-domain', domain, keywords, defaultCategory),
   removeKeywordDomain: (domain: string) => ipcRenderer.invoke('remove-keyword-domain', domain),
 
+  // AI Features
+  generateAIColors: (apps: string[]) => ipcRenderer.invoke('generate-ai-colors', apps),
+  generateAICategorization: (items: Array<{name: string, category: string}>) => ipcRenderer.invoke('generate-ai-categorization', items),
+
   // File operations
   saveFile: (options: { content: string; filename: string; fileType: string }) => ipcRenderer.invoke('save-file', options),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
@@ -148,4 +157,40 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   getDORAMetrics: (projectId: string, period?: 'week' | 'month') => ipcRenderer.invoke('get-dora-metrics', projectId, period),
   getCommitHistory: (projectId: string, limit?: number) => ipcRenderer.invoke('get-commit-history', projectId, limit),
   getContributorStats: (projectId: string) => ipcRenderer.invoke('get-contributor-stats', projectId),
+
+  // ========== Terminal Window ==========
+  createTerminalWindow: () => ipcRenderer.invoke('create-terminal-window'),
+  spawnTerminal: (terminalId: string, cwd?: string) => ipcRenderer.invoke('spawn-terminal', terminalId, cwd),
+  writeTerminal: (terminalId: string, data: string) => ipcRenderer.invoke('write-terminal', terminalId, data),
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke('resize-terminal', terminalId, cols, rows),
+  killTerminal: (terminalId: string) => ipcRenderer.invoke('kill-terminal', terminalId),
+  onTerminalData: (callback: (data: { terminalId: string; data: string }) => void) => {
+    ipcRenderer.on('terminal-data', (_event, data) => callback(data));
+  },
+  onTerminalExit: (callback: (data: { terminalId: string; exitCode: number; signal: number }) => void) => {
+    ipcRenderer.on('terminal-exit', (_event, data) => callback(data));
+  },
+
+  // ========== Terminal Presets ==========
+  getTerminalPresets: (projectId?: string) => ipcRenderer.invoke('get-terminal-presets', projectId),
+  addTerminalPreset: (preset: { projectId?: string; name: string; command: string; workingDirectory?: string; category?: string }) =>
+    ipcRenderer.invoke('add-terminal-preset', preset),
+  removeTerminalPreset: (presetId: string) => ipcRenderer.invoke('remove-terminal-preset', presetId),
+  executeTerminalPreset: (presetId: string, terminalId?: string) => ipcRenderer.invoke('execute-terminal-preset', presetId, terminalId),
+
+  // ========== Terminal Layouts ==========
+  saveTerminalLayout: (layout: { id?: string; name: string; layoutData: string; isActive?: boolean }) =>
+    ipcRenderer.invoke('save-terminal-layout', layout),
+  getTerminalLayouts: (projectId?: string) => ipcRenderer.invoke('get-terminal-layouts', projectId),
+  deleteTerminalLayout: (layoutId: string) => ipcRenderer.invoke('delete-terminal-layout', layoutId),
+  setActiveTerminalLayout: (layoutId: string) => ipcRenderer.invoke('set-active-terminal-layout', layoutId),
+
+  // ========== Terminal Sessions (Resume) ==========
+  saveTerminalSession: (session: { projectId?: string; agent: string; resumeId?: string; topic?: string; workingDirectory?: string; totalTokens?: number; totalCost?: number }) =>
+    ipcRenderer.invoke('save-terminal-session', session),
+  getTerminalSessions: (projectId?: string, limit?: number) => ipcRenderer.invoke('get-terminal-sessions', projectId, limit),
+  getTerminalSessionResumeId: (sessionId: string) => ipcRenderer.invoke('get-terminal-session-resume-id', sessionId),
+
+  // ========== Project Health ==========
+  calculateProjectHealth: (projectId: string) => ipcRenderer.invoke('calculate-project-health', projectId),
 });

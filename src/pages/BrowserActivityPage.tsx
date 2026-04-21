@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Globe, BarChart3, Clock, TrendingUp, AlertCircle, RefreshCw, X, ChevronRight, Activity } from 'lucide-react';
+import { Globe, BarChart3, Clock, TrendingUp, AlertCircle, RefreshCw, X, ChevronRight, Activity, Terminal, Save, Play, Pause } from 'lucide-react';
+import { format as dateFormat } from 'date-fns';
 import { Pie, Bar } from 'react-chartjs-2';
 import { format } from 'date-fns';
 import {
@@ -59,9 +60,91 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedDomainDetail, setSelectedDomainDetail] = useState<any>(null);
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [liveLogs, setLiveLogs] = useState<Array<{id: string; timestamp: number; domain: string; url?: string; title?: string; type: string; level?: string}>>([]);
+  const [isLiveMode, setIsLiveMode] = useState(true);
+  const [mainBrowser, setMainBrowser] = useState<string>('chrome');
+  const [availableBrowsers, setAvailableBrowsers] = useState<string[]>([]);
+
+  // Detect browsers from tracked apps (only show browsers user has already opened)
+  useEffect(() => {
+    const detectBrowsers = async () => {
+      try {
+        if (window.deskflowAPI?.getTrackedBrowsers) {
+          const tracked = await window.deskflowAPI.getTrackedBrowsers();
+          if (tracked?.length > 0) {
+            setAvailableBrowsers(tracked);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('[DeskFlow] Error getting tracked browsers:', err);
+      }
+      setAvailableBrowsers(['chrome']);
+    };
+
+    detectBrowsers();
+  }, []);
+
+  // Load main browser from preferences
+  useEffect(() => {
+    const loadMainBrowser = async () => {
+      if (window.deskflowAPI?.getPreferences) {
+        const prefs = await window.deskflowAPI.getPreferences();
+        if (prefs?.mainBrowser) {
+          setMainBrowser(prefs.mainBrowser);
+        }
+      }
+      // Fallback to localStorage
+      const saved = localStorage.getItem('deskflow-main-browser');
+      if (saved) {
+        setMainBrowser(saved);
+      }
+    };
+    loadMainBrowser();
+  }, []);
   
   // Ref to track if component is still mounted - prevents state updates after unmount
   const isMountedRef = useRef(true);
+  const liveLogsRef = useRef<Array<{id: string; timestamp: number; domain: string; url?: string; title?: string; type: string; level?: string}>>([]);
+
+  // Listen for live browser tracking events
+  useEffect(() => {
+    if (!isLiveMode || !window.deskflowAPI?.onBrowserTrackingEvent) return;
+
+    const handleEvent = (data: any) => {
+      if (!isMountedRef.current) return;
+      
+      const newLog = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: data.timestamp || Date.now(),
+        domain: data.domain || data.message?.split(' ')[0] || 'unknown',
+        url: data.url,
+        title: data.title,
+        type: data.type,
+        level: data.level
+      };
+      
+      // Keep last 50 logs only
+      liveLogsRef.current = [...liveLogsRef.current.slice(-49), newLog];
+      setLiveLogs([...liveLogsRef.current]);
+    };
+
+    window.deskflowAPI.onBrowserTrackingEvent(handleEvent);
+  }, [isLiveMode]);
+
+  const handleSaveLogs = () => {
+    const content = liveLogs
+      .map(log => `[${dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}] ${log.level || 'INFO'}: ${log.domain} ${log.url ? `(${log.url})` : ''} ${log.title ? `- ${log.title}` : ''}`)
+      .join('\n');
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `browser-tracking-logs-${dateFormat(new Date(), 'yyyy-MM-dd-HHmmss')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const toggleExpanded = (domain: string) => {
     setExpandedDomains(prev => {
@@ -136,8 +219,16 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
     isMountedRef.current = true;
     fetchData();
     
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      if (isMountedRef.current && !loading) {
+        fetchData();
+      }
+    }, 10000);
+    
     return () => {
       isMountedRef.current = false;
+      clearInterval(interval);
     };
   }, [fetchData]);
 
@@ -182,7 +273,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
     return {
       labels: categoryStats.map(c => c.category),
       datasets: [{
-        data: categoryStats.map(c => Math.round(c.total_ms / 60000)),
+        data: categoryStats.map(c => c.total_ms),
         backgroundColor: categoryStats.map(c => CATEGORY_COLORS[c.category] || CATEGORY_COLORS['Other']),
         borderColor: '#18181b',
         borderWidth: 2
@@ -222,11 +313,34 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
     plugins: {
       legend: {
         position: 'right' as const,
-        labels: { color: '#d4d4d8', padding: 15, font: { size: 12 } }
+        labels: {
+          color: '#d4d4d8',
+          padding: 15,
+          font: { size: 12, color: '#d4d4d8' },
+          generateLabels: (chart: any) => {
+            const data = chart.data;
+            if (data.labels.length && data.datasets.length) {
+              return data.labels.map((label: string, i: number) => {
+                const value = data.datasets[0].data[i];
+                return {
+                  text: `${label}: ${formatDuration(value)}`,
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  strokeStyle: data.datasets[0].borderColor,
+                  lineWidth: 2,
+                  hidden: false,
+                  index: i
+                };
+              });
+            }
+            return [];
+          }
+        }
       },
       tooltip: {
+        bodyColor: '#d4d4d8',
+        titleColor: '#d4d4d8',
         callbacks: {
-          label: (ctx: any) => ` ${formatDuration(ctx.raw * 60000)}`
+          label: (ctx: any) => ` ${formatDuration(ctx.raw)}`
         }
       }
     }
@@ -282,6 +396,37 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
           </h1>
           <p className="text-sm text-zinc-500 mt-1">Track your browsing habits by domain and category</p>
         </div>
+
+        {/* Main Browser Config */}
+        <div className="glass rounded-2xl p-4 border border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-zinc-400" />
+              <span className="text-sm text-zinc-300">Tracking Browser</span>
+            </div>
+            <select
+              value={mainBrowser}
+              onChange={async (e) => {
+                const newBrowser = e.target.value;
+                setMainBrowser(newBrowser);
+                if (window.deskflowAPI?.setPreference) {
+                  await window.deskflowAPI.setPreference('mainBrowser', newBrowser);
+                }
+                localStorage.setItem('deskflow-main-browser', newBrowser);
+              }}
+              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              {(availableBrowsers.length > 0 ? availableBrowsers : ['chrome']).map(browser => (
+                <option key={browser} value={browser}>
+                  {browser.charAt(0).toUpperCase() + browser.slice(1)}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-zinc-500 ml-2">
+              Excludes {mainBrowser.charAt(0).toUpperCase() + mainBrowser.slice(1)} browsing time from stats (tracked via extension instead)
+            </span>
+          </div>
+        </div>
         <button
           onClick={fetchData}
           className="px-4 py-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 text-sm flex items-center gap-2 transition"
@@ -317,7 +462,64 @@ export default function BrowserActivityPage({ selectedPeriod = 'week' }: Browser
             <span className="text-sm text-zinc-400">Browsing Sessions</span>
           </div>
           <div className="text-3xl font-bold font-mono">{totalSessions}</div>
-          <div className="text-xs text-zinc-500 mt-1">Total tab switches</div>
+        </div>
+      </div>
+
+      {/* Live Logs Panel */}
+      <div className="glass rounded-3xl p-6 border border-zinc-800">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Terminal className="text-emerald-400" size={20} />
+            <span className="font-medium">Live Detection</span>
+            <button
+              onClick={() => setIsLiveMode(!isLiveMode)}
+              className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition ${
+                isLiveMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+              }`}
+            >
+              {isLiveMode ? <Pause size={12} /> : <Play size={12} />}
+              {isLiveMode ? 'Live' : 'Paused'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-500">{liveLogs.length} events</span>
+            <button
+              onClick={handleSaveLogs}
+              disabled={liveLogs.length === 0}
+              className="px-3 py-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save size={12} />
+              Save
+            </button>
+          </div>
+        </div>
+
+        {/* Logs Display */}
+        <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3 h-48 overflow-y-auto font-mono text-xs">
+          {liveLogs.length === 0 ? (
+            <div className="text-zinc-500 text-center py-8">
+              {isLiveMode ? 'Waiting for detection events...' : 'Live detection paused'}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {liveLogs.slice().reverse().map((log) => (
+                <div key={log.id} className="flex items-start gap-2">
+                  <span className="text-zinc-600 shrink-0">
+                    {dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}
+                  </span>
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded ${
+                    log.level === 'error' ? 'bg-red-500/20 text-red-400' :
+                    log.level === 'warning' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                    {log.level || 'INFO'}
+                  </span>
+                  <span className="text-blue-400">{log.domain}</span>
+                  {log.title && <span className="text-zinc-500 truncate">{log.title}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

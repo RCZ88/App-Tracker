@@ -390,13 +390,15 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     await saveState();
     await logPreviousSession();
   } else {
-    // Regained focus — refresh active tab for this window
+    // Regained focus — refresh active tab for the SPECIFIC window that gained focus
+    // FIX: Use windowId from the event, NOT currentWindow:true (which queries extension's popup window)
     console.log('[DeskFlow] 🪟 Browser regained focus, window:', windowId);
     state.isBrowserFocused = true;
     state.lastPeriodicSync = Date.now(); // Reset sync time when regaining focus
     await saveState();
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      // Query tabs in the SPECIFIC window that just gained focus
+      const tabs = await chrome.tabs.query({ active: true, windowId: windowId });
       if (tabs.length > 0) {
         await updateActiveTab(tabs[0].id);
       }

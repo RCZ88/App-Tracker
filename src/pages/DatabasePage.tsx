@@ -301,6 +301,26 @@ export default function DatabasePage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={async () => {
+              if (selectedTable && window.deskflowAPI?.getTableData) {
+                setLoading(true);
+                try {
+                  const data = await window.deskflowAPI.getTableData(selectedTable, 500);
+                  if (Array.isArray(data)) {
+                    setTableData(data);
+                  }
+                } catch (err) {
+                  console.error('Failed to refresh:', err);
+                }
+                setLoading(false);
+              }
+            }}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-sm flex items-center gap-2 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button
             onClick={syncCategories}
             disabled={syncStatus === 'syncing'}
             className={`px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition ${

@@ -274,6 +274,7 @@ python complete.py --speak "[message]" --project "[project name]"
 - Leave debug code
 - Change unrelated code
 - Use outdated patterns
+- **Run ALTER TABLE without error handling** (SQLite ALTER TABLE fails if column exists; wrap in `try { db.exec(...) } catch {}`)
 
 ### ✅ Always:
 - Start with agent files
@@ -285,6 +286,7 @@ python complete.py --speak "[message]" --project "[project name]"
 - Remove debug code
 - Focus on the task
 - Follow patterns
+- **Check `agent/debugging.md` for known pitfalls before making database or config changes**
 
 ---
 

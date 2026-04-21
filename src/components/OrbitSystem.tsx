@@ -64,46 +64,59 @@ function GLCleanup() {
   return null;
 }
 
+const seededRandom = (seed: number): number => {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// Seeded random as function factory (for code that needs sequential random)
+function createSeededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = Math.sin(s) * 10000;
+    return s - Math.floor(s);
+  };
+}
+
 // Galaxy dust cloud component - creates a realistic 3D spiral galaxy with multiple arms
-// Using Deep-Navy Spiral Galaxy color scheme with optimized rendering
 function GalaxyDustCloud() {
   const pointsRef = useRef<THREE.Points>(null!);
-  const particleCount = 4000; // Reduced from 8000 for better performance
-  
+  const particleCount = 6000;
   const maxRadius = 280;
   
-  // Generate particle positions with spiral arm structure
+  // Generate particle positions with seed-based random for stability
   const positions = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
-    const armCount = 3 + Math.floor(Math.random() * 2);
+    const armCount = 3;
     const armSeparation = (Math.PI * 2) / armCount;
     
     for (let i = 0; i < particleCount; i++) {
-      const baseAngle = Math.random() * Math.PI * 2;
-      const onArm = Math.random() < 0.45;
+      const seed = i * 0.1;
+      const baseAngle = seededRandom(seed) * Math.PI * 2;
+      const onArm = seededRandom(seed + 1) < 0.45;
       
       let finalAngle: number;
       let radius: number;
       
       if (onArm) {
-        const armIndex = Math.floor(Math.random() * armCount);
-        const armOffset = armIndex * armSeparation + (Math.random() - 0.5) * 0.3;
-        const logRadius = Math.pow(Math.random(), 0.4) * maxRadius;
+        const armIndex = Math.floor(seededRandom(seed + 2) * armCount);
+        const armOffset = armIndex * armSeparation + (seededRandom(seed + 3) - 0.5) * 0.3;
+        const logRadius = Math.pow(seededRandom(seed + 4), 0.4) * maxRadius;
         const spiralAngle = logRadius * 0.022 + armOffset;
         const armWidth = 0.2 + logRadius * 0.003;
-        finalAngle = spiralAngle + (Math.random() - 0.5) * armWidth;
+        finalAngle = spiralAngle + (seededRandom(seed + 5) - 0.5) * armWidth;
         radius = logRadius;
       } else {
-        const r = Math.pow(Math.random(), 0.55) * maxRadius;
+        const r = Math.pow(seededRandom(seed + 4), 0.55) * maxRadius;
         const armPhase = Math.sin(r * 0.02 + baseAngle * 0.5) * 0.3;
-        finalAngle = baseAngle + armPhase + (Math.random() - 0.5) * 0.5;
+        finalAngle = baseAngle + armPhase + (seededRandom(seed + 5) - 0.5) * 0.5;
         radius = r;
       }
       
       const normalizedR = radius / maxRadius;
       const ySpread = 2.5 + normalizedR * 10;
-      const y = (Math.random() - 0.5) * ySpread;
-      const scatter = Math.random() * 3 * (1 - normalizedR * 0.4);
+      const y = (seededRandom(seed + 6) - 0.5) * ySpread;
+      const scatter = seededRandom(seed + 7) * 3 * (1 - normalizedR * 0.4);
       
       pos[i * 3] = (radius + scatter) * Math.cos(finalAngle);
       pos[i * 3 + 1] = y;
@@ -112,7 +125,7 @@ function GalaxyDustCloud() {
     return pos;
   }, []);
   
-  // Generate colors based on radius position
+  // Generate colors based on radius position using seed for stability
   const colors = useMemo(() => {
     const col = new Float32Array(particleCount * 3);
     const colorPalette = [
@@ -128,22 +141,24 @@ function GalaxyDustCloud() {
       const r = Math.sqrt(x * x + z * z);
       const normalizedR = Math.min(r / maxRadius, 1);
       
-      let colorIndex = normalizedR * (colorPalette.length - 1);
+      // Use seed for color variation
+      const colorSeed = i * 0.2 + 100;
+      let colorIndex: number;
       if (normalizedR < 0.15) {
-        colorIndex = Math.random() * 3;
+        colorIndex = seededRandom(colorSeed) * 3;
       } else if (normalizedR < 0.3) {
-        colorIndex = 2 + Math.random() * 4;
+        colorIndex = 2 + seededRandom(colorSeed) * 4;
       } else if (normalizedR < 0.5) {
-        colorIndex = 6 + Math.random() * 6;
+        colorIndex = 6 + seededRandom(colorSeed) * 6;
       } else if (normalizedR < 0.75) {
-        colorIndex = 12 + Math.random() * 5;
+        colorIndex = 12 + seededRandom(colorSeed) * 5;
       } else {
-        colorIndex = 17 + Math.random() * 3;
+        colorIndex = 17 + seededRandom(colorSeed) * 3;
       }
       
       const finalIndex = Math.floor(Math.min(colorIndex, colorPalette.length - 1));
       const color = new THREE.Color(colorPalette[finalIndex]);
-      const brightness = 1 - normalizedR * 0.35;
+      const brightness = 1.0 - normalizedR * 0.15;
       col[i * 3] = color.r * brightness;
       col[i * 3 + 1] = color.g * brightness;
       col[i * 3 + 2] = color.b * brightness;
@@ -177,10 +192,10 @@ function GalaxyDustCloud() {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={2}
+        size={2.5}
         vertexColors
         transparent
-        opacity={0.85}
+        opacity={0.95}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -190,36 +205,28 @@ function GalaxyDustCloud() {
 }
 
 // Website Galaxy Dust Cloud - Electric Nebula style with dispersed particles
-// Different from Apps galaxy (spiral) - more cloud-like and wispy
 function WebsiteGalaxyDustCloud() {
   const pointsRef = useRef<THREE.Points>(null!);
-  const particleCount = 3000; // Reduced from 6000 for better performance
-
+  const particleCount = 5000;
   const maxRadius = 280;
 
-  // Generate nebula-style particle positions - more dispersed, no spiral structure
+  // Generate nebula-style positions with seed
   const positions = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
 
     for (let i = 0; i < particleCount; i++) {
-      // Use spherical distribution with gaussian-like falloff
-      const u = Math.random();
-      const v = Math.random();
-      const theta = 2 * Math.PI * u;
-      const phi = Math.acos(2 * v - 1);
+      const seed = i * 0.15 + 500;
+      const theta = seededRandom(seed) * Math.PI * 2;
+      const phi = Math.acos(2 * seededRandom(seed + 1) - 1);
 
-      // Create a more concentrated core with wispy outer regions
-      const r = maxRadius * Math.pow(Math.random(), 0.6); // Concentrated core
-      const r2 = maxRadius * (0.7 + Math.random() * 0.5); // Wispy outer
-
-      // Mix between core and outer distribution
-      const useOuter = Math.random() > 0.4;
+      const r = maxRadius * Math.pow(seededRandom(seed + 2), 0.6);
+      const r2 = maxRadius * seededRandom(seed + 3) * 0.5 + 0.7 * maxRadius;
+      const useOuter = seededRandom(seed + 4) > 0.4;
       const finalR = useOuter ? r2 : r;
 
-      // Spherical coordinates with slight distortion
-      const distortion = 1 + Math.random() * 0.3;
+      const distortion = 1 + seededRandom(seed + 5) * 0.3;
       const x = finalR * Math.sin(phi) * Math.cos(theta) * distortion;
-      const y = (Math.random() - 0.5) * maxRadius * 0.6; // Wider vertical spread
+      const y = (seededRandom(seed + 6) - 0.5) * maxRadius * 0.6;
       const z = finalR * Math.sin(phi) * Math.sin(theta) * distortion;
 
       pos[i * 3] = x;
@@ -229,17 +236,13 @@ function WebsiteGalaxyDustCloud() {
     return pos;
   }, []);
 
-  // Electric Nebula color palette - cyan, violet, with pale glows
+  // Colors for website galaxy
   const colors = useMemo(() => {
     const col = new Float32Array(particleCount * 3);
     const colorPalette = [
-      // Deep space colors
       '#0b0f1e', '#12182e', '#1a2340',
-      // Violet plasma
       '#4a1a8c', '#6a11cb', '#8b2fc9',
-      // Cyan beam
       '#0077b6', '#00b4d8', '#00c6ff',
-      // Pale glow
       '#90e0ef', '#caf0f8', '#e6f7ff',
     ];
 
@@ -249,24 +252,19 @@ function WebsiteGalaxyDustCloud() {
       const r = Math.sqrt(x * x + z * z);
       const normalizedR = Math.min(r / maxRadius, 1);
 
-      // Color distribution - more cyan/violet in outer regions
+      const colorSeed = i * 0.2 + 600;
       let colorIndex: number;
       if (normalizedR < 0.2) {
-        // Inner core - pale glow
-        colorIndex = 10 + Math.random() * 2;
+        colorIndex = 10 + seededRandom(colorSeed) * 2;
       } else if (normalizedR < 0.5) {
-        // Mid region - cyan/violet
-        colorIndex = 5 + Math.random() * 4;
+        colorIndex = 5 + seededRandom(colorSeed) * 4;
       } else {
-        // Outer region - more violet and pale
-        colorIndex = 2 + Math.random() * 6;
+        colorIndex = 2 + seededRandom(colorSeed) * 6;
       }
 
       const finalIndex = Math.floor(Math.min(colorIndex, colorPalette.length - 1));
       const color = new THREE.Color(colorPalette[finalIndex]);
-
-      // Brighter in outer regions for ethereal effect
-      const brightness = 0.6 + normalizedR * 0.4;
+      const brightness = 0.85 + normalizedR * 0.15;
       col[i * 3] = color.r * brightness;
       col[i * 3 + 1] = color.g * brightness;
       col[i * 3 + 2] = color.b * brightness;
@@ -302,7 +300,7 @@ function WebsiteGalaxyDustCloud() {
       <pointsMaterial
         vertexColors
         transparent
-        opacity={0.75}
+        opacity={0.9}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -346,6 +344,10 @@ interface ActivityLog {
   duration: number;
   title?: string;
   project?: string;
+  is_browser_tracking?: boolean;
+  domain?: string;
+  url?: string;
+  duration_ms?: number;
 }
 
 interface PlanetData {
@@ -492,6 +494,9 @@ function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>,
       }
     } catch { /* ignore */ }
   }
+  // DEBUG: Log what's being passed
+  
+  
   // Filter: include all apps including browsers, only exclude browser-tracked websites
   const validLogs = (logs || []).filter((log: any) =>
     log && log.app && typeof log.app === 'string' && log.app.trim().length > 0 &&
@@ -547,50 +552,85 @@ function computePlanets(logs: ActivityLog[], appColors?: Record<string, string>,
   for (let idx = 0; idx < sortedApps.length; idx++) {
     const [appName, appLogs] = sortedApps[idx];
 
+    // Priority: user override → database category → fallback dict → 'Other'
+    const dbCategory = appLogs[0]?.category;
     const catInfo = APP_CATEGORIES[appName] || { cat: 'Other', color: '#64748b' };
-    // Use user-defined category override from settings, otherwise use default category
-    const category = effectiveOverrides?.[appName] || catInfo.cat || 'Other';
+    const category = effectiveOverrides?.[appName.toLowerCase()] || dbCategory || catInfo.cat || 'Other';
 
     // Check for user override colors first
     const customColor = appColors?.[appName];
 
     // Assign color: custom override > category family color > fallback palette
     const idxInCategory = categoryCount[category] || 0;
-    categoryCount[category] = idxInCategory + 1;
+categoryCount[category] = idxInCategory + 1;
     const color = customColor || getCategoryColor(category, idxInCategory);
-
+    
+    // === PLANET PHYSICS EXPLANATION ===
+    // Planet variables are calculated from REAL app usage data:
+    // - appTime: Total seconds user spent in this app
+    // - sessions: Number of times user opened this app
+    // - maxTime: Maximum time among ALL apps in this category (for comparison)
+    
     const appTime = appLogs.reduce((sum: number, l: any) => sum + (l.duration || 0), 0);
     const sessions = appLogs.length;
     const avgSessionLength = appTime / sessions;
-
-    // Dramatic size scaling based on focus time (sqrt ratio to maxTime)
+    
+    // === PLANET SIZE CALCULATION ===
+    // Formula: radius = 0.8 + sqrt(timeRatio) * 2.0
+    // - More total time = bigger planet
+    // - Uses sqrt() to prevent extreme sizes
+    // - Range: 0.8 (rarely used) to 2.8 (heavily used)
     const timeRatio = maxTime > 0 ? appTime / maxTime : 0.5;
     const baseSize = 0.8 + Math.sqrt(timeRatio) * 2.0;
     const radius = Math.max(1.0, Math.min(3.5, baseSize));
 
-    // Titius-Bode-inspired orbit spacing with unique perturbation per orbit
-    // First planet starts at minimum distance from sun (sun radius = 3.5)
-    const baseDist = 8; // Reduced from 15
-    const growthFactor = 1.35 + (idx * 0.03); // reduced growth from 1.55
-    const perturbation = Math.sin(idx * 2.7 + 0.5) * 1.5; // reduced perturbation from 2
-    const orbitRadius = baseDist * Math.pow(growthFactor, idx) + perturbation;
-    // Results: ~8, ~11, ~14, ~19, ~26, ~35, ~47, ~64, ~86...
+    // === ORBIT RADIUS CALCULATION ===
+    // Formula: orbitRadius = minOrbit + (ln(time)^(1/3)) * (maxOrbit - minOrbit)
+    // - More total time = further from sun (like outer planets)
+    // - Uses ln() then cube root: prevents huge gaps between planets
+    // - Range: 24 (inner) to 240 (outer) units
+    const minOrbitRadius = 24;
+    const maxOrbitRadius = 240;
+    const logAppTime = Math.log(appTime + 1);
+    const logMaxTime = Math.max(Math.log(maxTime + 1), 1);
+    const orbitTimeRatio = logAppTime / logMaxTime;
+    const gentleRatio = Math.pow(orbitTimeRatio, 1/3);
+    const perturbation = Math.sin(idx * 2.7 + 0.5) * 3;
+    const orbitRadius = minOrbitRadius + gentleRatio * (maxOrbitRadius - minOrbitRadius) + perturbation;
 
-    // Orbital eccentricity (0.05 to 0.3) - unique per planet
-    const eccentricity = 0.05 + (Math.random() * 0.25);
+    // === ORBITAL ECCENTRICITY ===
+    // Formula: 0.05 + seed * 0.25
+    // - How "oval" the orbit is (0 = circle, 0.5 = very elliptical)
+    // - Random but stable per planet
+    const eccentricity = 0.05 + (seededRandom(idx * 7.1) * 0.25);
 
-    // Orbital inclination (tilt) - unique per planet (-0.2 to 0.2 radians)
-    const inclination = (Math.random() * 0.4) - 0.2;
+    // === ORBITAL INCLINATION ===
+    // Formula: seed * 0.4 - 0.2
+    // - How tilted the orbit is (-0.2 to 0.2 radians)
+    const inclination = (seededRandom(idx * 7.2) * 0.4) - 0.2;
 
-    // Longitude of perihelion - where closest approach occurs (0 to 2π)
-    const longitudeOfPerihelion = Math.random() * Math.PI * 2;
+    // === LONGITUDE OF PERIHELION ===
+    // Formula: seed * 2π
+    // - Where in the orbit the planet starts (0 to 360 degrees)
+    const longitudeOfPerihelion = seededRandom(idx * 7.3) * Math.PI * 2;
 
-    // Orbit speed based on session frequency (more sessions = faster orbit)
-    const orbitSpeed = 0.05 + (sessions / 10) * 0.08;
+    // === ORBIT SPEED (Kepler's Law - inverse to time!) ===
+    // Formula: baseSpeed * (1 - ratio^(1/3) * 0.7)
+    // - FURTHER planets orbit SLOWER (like real solar systems!)
+    // - More time used = further = slower
+    // - Range: 0.045 (outer/slow) to 0.15 (inner/fast)
+    const baseSpeed = 0.15;
+    const speedRatio = Math.pow(timeRatio, 1/3);
+    const orbitSpeed = baseSpeed * (1 - speedRatio * 0.7);
 
-    // Rotation speed based on avg session length (longer sessions = slower, stable rotation)
-    // Values are now in seconds: > 1h → slow, > 30m → medium, < 30m → fast
-    const rotationSpeed = avgSessionLength > 3600 ? 0.8 : (avgSessionLength > 1800 ? 1.2 : 1.8);
+    // === PLANET ROTATION SPEED ===
+    // Formula: 0.5 + ratio^(1/3) * 1.5
+    // - Longer avg sessions = slower rotation
+    // - Range: 0.5 (long sessions) to 2.0 (short sessions)
+    const logAvgSession = Math.log(avgSessionLength + 1);
+    const logMaxSession = Math.max(Math.log(maxTime + 1), 1);
+    const rotationRatio = logAvgSession / logMaxSession;
+    const rotationSpeed = 0.5 + Math.pow(rotationRatio, 1/3) * 1.5;
 
     // Safe project extraction
     const projects = [...new Set(appLogs.map((l: any) => l.project).filter((p: any) => p && typeof p === 'string'))] as string[];
@@ -687,14 +727,7 @@ function hashString(str: string): number {
   return Math.abs(hash) % 1000000; // Keep it in reasonable range
 }
 
-// Pseudo-random number generator using seed
-function seededRandom(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = Math.sin(s) * 10000;
-    return s - Math.floor(s);
-  };
-}
+// Use the global seededRandom function
 // Sun Configuration for each category - smaller sizes for better layout
 const SUN_CONFIGS: Record<string, { color: string; emissive: string; sizeRange: [number, number] }> = {
   'IDE': { color: '#ffaa33', emissive: '#ff8800', sizeRange: [1.5, 2] },
@@ -733,7 +766,7 @@ function Sun({ category = 'Other', size = 3.5 }: { category?: string; size?: num
       surfCtx.fillRect(0, 0, 512, 256);
 
       // Granulation cells — darker patches simulating convection
-      const rng = seededRandom(42);
+      const rng = createSeededRandom(42);
       for (let i = 0; i < 600; i++) {
         const x = rng() * 512;
         const y = rng() * 256;
@@ -1022,7 +1055,7 @@ function createProceduralTexture(color: string, category: string, seed: number):
     return tex;
   }
 
-  const rand = seededRandom(seed);
+  const rand = createSeededRandom(seed);
 
   // Brighter space base for visibility against black space
   ctx.fillStyle = '#1e1e40';
@@ -1243,7 +1276,7 @@ function createProceduralNormalMap(color: string, category: string, seed: number
   canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
 
-  const rand = seededRandom(seed);
+  const rand = createSeededRandom(seed);
   // Neutral normal map base (RGB = 0.5, 0.5, 1.0)
   ctx.fillStyle = '#8080ff';
   ctx.fillRect(0, 0, 1024, 512);
@@ -1754,8 +1787,7 @@ function CameraTracker({ cameraPosRef }: { cameraPosRef: React.MutableRefObject<
 
 // Main Scene Component
 function SolarSystemScene({ planets, isPaused, speed, onPlanetClick, controlsRef, onPlanetPositionUpdate, category = 'Other', sunSize }: { planets: PlanetData[]; isPaused: boolean; speed: number; onPlanetClick: (data: PlanetData) => void; controlsRef: any; onPlanetPositionUpdate?: (name: string, position: THREE.Vector3) => void; category?: string; sunSize?: number }) {
-  console.log('[SolarSystemScene] Rendering with category:', category);
-  console.log('[SolarSystemScene] Planets:', planets?.map(p => p.name), 'categories:', planets?.map(p => p.category));
+  
   return (
     <>
       <Sun category={category} size={sunSize} />
@@ -1823,12 +1855,13 @@ function computePlanetsFromStats(
     const appName = stat.app.trim();
     if (!grouped[appName]) {
       // Use user-defined category override from settings, otherwise use default category from stat
-      grouped[appName] = { total_ms: 0, sessions: 0, category: categoryOverrides?.[appName] || stat.category || 'Other' };
+      // Normalize to lowercase to match how SettingsPage saves overrides
+      grouped[appName] = { total_ms: 0, sessions: 0, category: categoryOverrides?.[appName.toLowerCase()] || stat.category || 'Other' };
     }
     grouped[appName].total_ms += stat.total_ms || 0;
     grouped[appName].sessions += stat.sessions || 0;
     // Use the first non-'Other' category we find, unless user has override
-    if (!categoryOverrides?.[appName] && grouped[appName].category === 'Other' && stat.category && stat.category !== 'Other') {
+    if (!categoryOverrides?.[appName.toLowerCase()] && grouped[appName].category === 'Other' && stat.category && stat.category !== 'Other') {
       grouped[appName].category = stat.category;
     }
   }
@@ -1922,6 +1955,7 @@ function computeSolarSystems(
   
   // Compute planets for each category
   const allPlanets = computePlanets(safeLogs, appColors, categoryOverrides);
+  
   for (const planet of allPlanets) {
     let cat = planet.category || 'Other';
     if (!categoryGroups[cat]) {
@@ -2024,7 +2058,9 @@ function computeWebsitePlanets(
   for (let idx = 0; idx < sortedApps.length; idx++) {
     const [domainName, domainLogs] = sortedApps[idx];
 
-    const category = effectiveWebsiteOverrides?.[domainName] || domainLogs[0]?.category || 'Uncategorized';
+    // Priority: user override → database category → fallback dict → 'Uncategorized'
+    const dbCategory = domainLogs[0]?.category;
+    const category = effectiveWebsiteOverrides?.[domainName] || dbCategory || 'Uncategorized';
     const color = websiteColors?.[domainName] || getCategoryColor(category, categoryCount[category] || 0);
     categoryCount[category] = (categoryCount[category] || 0) + 1;
 
@@ -2033,14 +2069,27 @@ function computeWebsitePlanets(
     const sessions = domainLogs.length;
 
     const maxTime = Math.max(...sortedApps.map(([, logs]) => logs.reduce((sum: number, l: any) => sum + ((l as any).duration_ms || (l as any).duration || 0) / 1000, 0)), 1);
-    const timeRatio = appTime / maxTime;
-    const radius = 0.8 + timeRatio * 1.2;
-
-    const orbitRadius = 8 + idx * 2.0;
-    const speed = 0.15 - (idx * 0.008);
-    const eccentricity = 0.05 + Math.random() * 0.15;
-    const inclination = (Math.random() - 0.5) * 0.3;
-    const longitudeOfPerihelion = Math.random() * Math.PI * 2;
+    
+    // LN-based orbit spacing - same formula as apps for consistency
+    const minOrbitRadius = 24;
+    const maxOrbitRadius = 240;
+    const logAppTime = Math.log(appTime + 1);
+    const logMaxTime = Math.max(Math.log(maxTime + 1), 1);
+    const timeRatio = logAppTime / logMaxTime;
+    
+    // Cube root for gentle scaling
+    const gentleRatio = Math.pow(timeRatio, 1/3);
+    
+    const radius = 0.8 + gentleRatio * 1.2;
+    const orbitRadius = minOrbitRadius + gentleRatio * (maxOrbitRadius - minOrbitRadius);
+    
+    // Orbit speed: inverse to time (further = slower)
+    const speedRatio = Math.pow(timeRatio, 1/3);
+    const speed = 0.15 * (1 - speedRatio * 0.7); // Range: 0.045 to 0.15
+    
+    const eccentricity = 0.05 + seededRandom(idx * 7.1) * 0.15;
+    const inclination = (seededRandom(idx * 7.2) - 0.5) * 0.3;
+    const longitudeOfPerihelion = seededRandom(idx * 7.3) * Math.PI * 2;
 
     planets.push({
       name: domainName,
@@ -2055,7 +2104,7 @@ function computeWebsitePlanets(
       inclination,
       longitudeOfPerihelion,
       moons: [],
-      rings: radius > 1.5 ? [{ innerRadius: radius * 1.4, outerRadius: radius * 2.2, opacity: 0.2 + Math.random() * 0.3, color, tilt: (Math.random() - 0.5) * 0.5 }] : []
+      rings: radius > 1.5 ? [{ innerRadius: radius * 1.4, outerRadius: radius * 2.2, opacity: 0.2 + seededRandom(idx * 7.4) * 0.3, color, tilt: (seededRandom(idx * 7.5) - 0.5) * 0.5 }] : []
     });
   }
 
@@ -2154,6 +2203,7 @@ function GalaxyView({
   galaxyType,
   onSelectSystem, 
   viewMode,
+  animationSpeed,
 }: { 
   appSolarSystems: { category: string; totalTime: number; sunSize: number }[];
   websiteSolarSystems: { category: string; totalTime: number; sunSize: number }[];
@@ -2163,6 +2213,7 @@ function GalaxyView({
   galaxyType: 'apps' | 'websites';
   onSelectSystem: (category: string) => void; 
   viewMode: string;
+  animationSpeed: AnimationSpeed;
 }) {
   const appsGroupRef = useRef<THREE.Group>(null!);
   const websitesGroupRef = useRef<THREE.Group>(null!);
@@ -2181,14 +2232,22 @@ function GalaxyView({
     websiteSolarSystems.map(() => generateTrailPositions(30)), 
   [websiteSolarSystems]);
   
+  // Galaxy rotation speeds based on animationSpeed setting
+  const rotationSpeeds: Record<AnimationSpeed, { apps: number; websites: number }> = {
+    slow: { apps: 0.00005, websites: 0.00004 },
+    normal: { apps: 0.00015, websites: 0.00012 },
+    instant: { apps: 0, websites: 0 },
+  };
+  
   useFrame((state) => {
     if (viewMode === 'galaxy') {
-      // Each galaxy rotates around its own center
+      const speeds = rotationSpeeds[animationSpeed] || rotationSpeeds.normal;
+      // Each galaxy rotates around its own center at different speeds
       if (appsGroupRef.current) {
-        appsGroupRef.current.rotation.y += 0.0002;
+        appsGroupRef.current.rotation.y += speeds.apps;
       }
       if (websitesGroupRef.current) {
-        websitesGroupRef.current.rotation.y += 0.00015; // Slightly different speed for variety
+        websitesGroupRef.current.rotation.y += speeds.websites;
       }
     }
   });
@@ -2223,88 +2282,100 @@ function GalaxyView({
     ];
   };
   
-  // Render a single galaxy at a given position
-  const renderGalaxy = (
-    systems: typeof appSolarSystems,
-    sunConfigs: typeof appSunConfigs,
-    trailPositions: Float32Array[],
-    basePosition: [number, number, number],
-    offsetX: number = 0
+  // Render a single solar system with hover detection area
+  const renderSolarSystem = (
+    system: typeof appSolarSystems[0],
+    idx: number,
+    config: typeof appSunConfigs[string],
+    trailPos: Float32Array,
+    basePos: [number, number, number]
   ) => {
-    return systems.map((system, idx) => {
-      const pos = getSystemPosition(idx, systems.length, offsetX);
-      const config = sunConfigs[system.category] || defaultSunConfig;
-      const brightness = Math.min(1, system.totalTime / 60);
-      const sunSize = config.sizeRange[0] * 0.9;
-      
-      // Add base position to get final world position
-      const finalPos: [number, number, number] = [
-        pos[0] + basePosition[0],
-        pos[1] + basePosition[1],
-        pos[2] + basePosition[2],
-      ];
-      
-      return (
-        <group key={`${basePosition[0]}-${system.category}`} position={finalPos}>
-          {/* Trail particles */}
-          <SystemTrail color={config.color} positions={trailPositions[idx]} />
-          {/* Solar system orb */}
-          <mesh onClick={() => onSelectSystem(system.category)}>
-            <sphereGeometry args={[sunSize, 48, 48]} />
-            <meshStandardMaterial
-              color={config.color}
-              emissive={new THREE.Color(config.emissive)}
-              emissiveIntensity={1.5 + brightness * 0.8}
-              roughness={0.2}
-              metalness={0.6}
-              toneMapped={false}
-            />
-          </mesh>
-          {/* Inner glow */}
-          <sprite scale={[sunSize * 3, sunSize * 3, 1]}>
-            <spriteMaterial
-              color={config.color}
-              transparent
-              opacity={0.5 * (0.6 + brightness * 0.4)}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </sprite>
-          {/* Outer glow */}
-          <sprite scale={[sunSize * 6, sunSize * 6, 1]}>
-            <spriteMaterial
-              color={config.color}
-              transparent
-              opacity={0.2 * (0.6 + brightness * 0.4)}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </sprite>
-          {/* Label */}
-          <Html center distanceFactor={40} position={[0, sunSize * 2.2 + 1.5, 0]}>
-            <div className="text-sm font-bold px-3 py-1.5 rounded-lg bg-black/85 text-white border border-white/30 whitespace-nowrap shadow-lg" style={{ fontSize: '12px' }}>
-              {system.category}
-            </div>
-          </Html>
-        </group>
-      );
-    });
+    const pos = getSystemPosition(idx, 0, 0); // Will be recalculated
+    const brightness = Math.min(1, system.totalTime / 60);
+    const sunSize = config.sizeRange[0] * 0.9;
+    const hitboxSize = sunSize * 4; // Larger clickable area
+    
+    return (
+      <group key={`solar-${system.category}`} position={basePos}>
+        {/* Trail */}
+        <SystemTrail color={config.color} positions={trailPos} />
+        
+        {/* Clickable hitbox - larger than visual for easier selection */}
+        <mesh 
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectSystem(system.category);
+          }}
+        >
+          <sphereGeometry args={[hitboxSize, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+        
+        {/* Visual sun */}
+        <mesh>
+          <sphereGeometry args={[sunSize, 32, 32]} />
+          <meshStandardMaterial
+            color={config.color}
+            emissive={new THREE.Color(config.emissive)}
+            emissiveIntensity={1.5 + brightness * 0.8}
+            roughness={0.2}
+            metalness={0.6}
+            toneMapped={false}
+          />
+        </mesh>
+        
+        {/* Inner glow */}
+        <sprite scale={[sunSize * 3, sunSize * 3, 1]}>
+          <spriteMaterial
+            color={config.color}
+            transparent
+            opacity={0.5 * (0.6 + brightness * 0.4)}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+        
+        {/* Outer glow */}
+        <sprite scale={[sunSize * 6, sunSize * 6, 1]}>
+          <spriteMaterial
+            color={config.color}
+            transparent
+            opacity={0.2 * (0.6 + brightness * 0.4)}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+        
+        {/* Always visible label */}
+        <Html center distanceFactor={30} position={[0, sunSize * 3, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="px-3 py-1.5 rounded-lg bg-black/90 text-white font-bold text-sm whitespace-nowrap border-2 border-white/40" style={{ fontSize: '15px', textShadow: '0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)' }}>
+            {system.category}
+          </div>
+        </Html>
+      </group>
+    );
   };
   
     return (
     <>
-      {/* Apps Galaxy (Blue/Purple theme) - rotates around its own center */}
+      {/* Apps Galaxy (Blue/Purple theme) */}
       <group ref={appsGroupRef} position={APPS_GALAXY_POS}>
         <GalaxyDustCloud />
-        {renderGalaxy(appSolarSystems, appSunConfigs, appTrailPositions, [0, 0, 0])}
+        {appSolarSystems.map((system, idx) => {
+          const config = appSunConfigs[system.category] || DEFAULT_SUN_CONFIG;
+          const pos = getSystemPosition(idx, appSolarSystems.length, 0);
+          return renderSolarSystem(system, idx, config, appTrailPositions[idx], [pos[0], pos[1], pos[2]]);
+        })}
       </group>
       
-      {/* Websites Galaxy (Cyan/Violet theme - Electric Nebula) - rotates around its own center */}
+      {/* Websites Galaxy (Cyan/Violet theme - Electric Nebula) */}
       <group ref={websitesGroupRef} position={WEBSITES_GALAXY_POS}>
         <WebsiteGalaxyDustCloud />
-        {renderGalaxy(websiteSolarSystems, websiteSunConfigs, websiteTrailPositions, [0, 0, 0])}
+        {websiteSolarSystems.map((system, idx) => {
+          const config = websiteSunConfigs[system.category] || DEFAULT_WEBSITE_SUN_CONFIG;
+          const pos = getSystemPosition(idx, websiteSolarSystems.length, 0);
+          return renderSolarSystem(system, idx, config, websiteTrailPositions[idx], [pos[0], pos[1], pos[2]]);
+        })}
       </group>
     </>
   );
@@ -2568,7 +2639,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     const key = `deskflow-last-category-${galaxyType}`;
     try {
       const stored = localStorage.getItem(key);
-      console.log('[InitDebug] Loading category, key:', key, 'stored:', stored);
+      
       if (stored) setCurrentCategory(stored);
     } catch { /* ignore */ }
   }, [galaxyType]);
@@ -2577,6 +2648,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   const [legendExpanded, setLegendExpanded] = useState(false);
   const [showPerf, setShowPerf] = useState(false);
   const [perfExpanded, setPerfExpanded] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [animationSpeed] = useState<AnimationSpeed>(() => {
     try {
       return (localStorage.getItem('deskflow-animation-speed') as AnimationSpeed) || 'normal';
@@ -2587,12 +2659,14 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   
   // App galaxy solar systems
   const appSolarSystems = useMemo(() => {
-    return computeSolarSystems(logs, appColors, categoryOverrides);
+    const result = computeSolarSystems(logs, appColors, categoryOverrides);
+    return result;
   }, [logs, appColors, categoryOverrides]);
   
   // Website galaxy solar systems
   const websiteSolarSystems = useMemo(() => {
-    return computeWebsiteSolarSystems(websiteLogs || [], websiteColors, websiteCategoryOverrides);
+    const result = computeWebsiteSolarSystems(websiteLogs || [], websiteColors, websiteCategoryOverrides);
+    return result;
   }, [websiteLogs, websiteColors, websiteCategoryOverrides]);
   
   // Refs to track interaction state - prevent glitches during user interaction
@@ -2623,64 +2697,40 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     };
   }, []);
 
-  // Determine galaxy type based on camera position - but skip during interaction
-  // Also animates camera to center of new galaxy when switching
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceInteraction = now - lastInteractionTimeRef.current;
+  // Manual galaxy type switching - no auto-switch based on camera position (causes glitches)
+  const switchToGalaxy = (type: 'apps' | 'websites') => {
+    if (type === galaxyType) return;
+    
+    setGalaxyType(type);
+    if (viewMode === 'galaxy' && controlsRef.current && animationSpeed !== 'instant') {
+      const duration = ANIMATION_DURATIONS[animationSpeed];
+      const targetX = type === 'websites' ? 3250 : 0;
+      const targetPos = new THREE.Vector3(targetX, 100, 200);
+      const lookAtPos = new THREE.Vector3(targetX, 0, 0);
 
-      // Skip if user is currently interacting or within cooldown period
-      if (isInteractingRef.current || timeSinceInteraction < INTERACTION_COOLDOWN) {
-        return;
-      }
+      const startPos = controlsRef.current.object.position.clone();
+      const startTarget = controlsRef.current.target.clone();
+      const startTime = Date.now();
 
-      // Threshold is middle between apps galaxy (0) and websites galaxy (3250)
-      const threshold = 1625;
-      const newGalaxyType = cameraPosRef.current[0] > threshold ? 'websites' : 'apps';
-      if (newGalaxyType !== galaxyTypeRef.current) {
-        galaxyTypeRef.current = newGalaxyType;
-        setGalaxyType(newGalaxyType);
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
 
-        // Only auto-switch view mode when NOT in solar system view
-        // Let user manually switch views - don't force exit during camera movement
-        if (viewMode === 'solarSystem') {
-          // Don't force exit to galaxy - this was causing the glitch!
-          // setViewMode('galaxy');
-          // setSelectedPlanet(null);
+        controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
+        controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
+
+        if (t < 1) {
+          requestAnimationFrame(animate);
         }
-        // Animate camera to center of new galaxy only in galaxy view
-        if (viewMode === 'galaxy' && controlsRef.current && animationSpeed !== 'instant') {
-          const duration = ANIMATION_DURATIONS[animationSpeed];
-          const targetX = newGalaxyType === 'websites' ? 3250 : 0;
-          const targetPos = new THREE.Vector3(targetX, 100, 200);
-          const lookAtPos = new THREE.Vector3(targetX, 0, 0);
-
-          const startPos = controlsRef.current.object.position.clone();
-          const startTarget = controlsRef.current.target.clone();
-          const startTime = Date.now();
-
-          const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const t = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - t, 3);
-
-            controlsRef.current.object.position.lerpVectors(startPos, targetPos, eased);
-            controlsRef.current.target.lerpVectors(startTarget, lookAtPos, eased);
-
-            if (t < 1) {
-              requestAnimationFrame(animate);
-            }
-          };
-          animate();
-        }
-      }
-    }, 500); // Check every 500ms instead of every frame
-    return () => clearInterval(interval);
-  }, [viewMode, animationSpeed]);
+      };
+      animate();
+    }
+  };
   
   // Current galaxy solar systems based on type
   const solarSystems = galaxyType === 'apps' ? appSolarSystems : websiteSolarSystems;
+  
   
   // Current sun configs based on galaxy type
   const currentSunConfigs = galaxyType === 'apps' ? SUN_CONFIGS : WEBSITE_SUN_CONFIGS;
@@ -2688,6 +2738,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   
   const planets = useMemo(() => {
     const system = solarSystems.find(s => s.category === currentCategory);
+    
     return system?.planets || [];
   }, [solarSystems, currentCategory]);
   
@@ -2706,6 +2757,11 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     setCurrentCategory(data.category);
     setViewMode('solarSystem');
     setSelectedSystem(null);
+    // Animate camera to planet with smooth travel
+    const planetPos = new THREE.Vector3(0, 0, 0); // Planet positions are relative to sun at origin
+    const camPos = new THREE.Vector3(data.orbitRadius * 0.8, data.radius * 2, data.orbitRadius * 1.2);
+    const duration = animationSpeed === 'instant' ? 100 : ANIMATION_DURATIONS[animationSpeed];
+    animateCamera(camPos, planetPos, duration);
   };
   
   const handleSelectSystem = (category: string) => {
@@ -2714,13 +2770,19 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   };
 
   const handleEnterSystem = () => {
-    if (selectedSystem) {
+    if (selectedSystem && controlsRef.current) {
       setCurrentCategory(selectedSystem.category);
       setStoredCategory(selectedSystem.category, galaxyType);
-      setViewMode('solarSystem');
       setSelectedSystem(null);
       setLegendExpanded(true);
-      resetCameraToGalaxy();
+      
+      // Animate into the solar system (zoom in close to sun)
+      setViewMode('solarSystem');
+      const targetX = galaxyType === 'websites' ? 3250 : 0;
+      const duration = animationSpeed === 'instant' ? 100 : ANIMATION_DURATIONS[animationSpeed];
+      const targetPos = new THREE.Vector3(targetX, 30, 60); // Close to sun
+      const lookAtPos = new THREE.Vector3(targetX, 0, 0); // Look at sun
+      animateCamera(targetPos, lookAtPos, duration);
     }
   };
 
@@ -2729,10 +2791,18 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
   };
 
   const handleZoomOut = () => {
-    setViewMode('galaxy');
-    setSelectedPlanet(null);
-    setSelectedSystem(null);
-    if (controlsRef.current) controlsRef.current.reset();
+    if (controlsRef.current) {
+      setSelectedPlanet(null);
+      setSelectedSystem(null);
+      setViewMode('galaxy');
+      
+      // Animate back to galaxy view
+      const targetX = galaxyType === 'websites' ? 3250 : 0;
+      const duration = animationSpeed === 'instant' ? 100 : ANIMATION_DURATIONS[animationSpeed];
+      const targetPos = new THREE.Vector3(targetX, 100, 200); // Galaxy view position
+      const lookAtPos = new THREE.Vector3(targetX, 0, 0); // Look at galaxy center
+      animateCamera(targetPos, lookAtPos, duration);
+    }
   };
 
   const handleRefreshTextures = () => {
@@ -2741,17 +2811,10 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
     if (controlsRef.current) controlsRef.current.reset();
   };
   
-  // Handle category selection from dropdown
+// Handle category selection from dropdown
   const handleCategorySelect = (cat: string) => {
-    console.log('[CategoryDebug] handleCategorySelect called with:', cat);
-    console.log('[CategoryDebug] currentCategory before:', currentCategory);
     setCurrentCategory(cat);
     setStoredCategory(cat, galaxyType);
-    setViewMode('solarSystem');
-    setSelectedSystem(null);
-    setCategoryDropdownOpen(false);
-    if (controlsRef.current) controlsRef.current.reset();
-    console.log('[CategoryDebug] currentCategory after:', cat);
   };
 
   // Track current planet positions for camera navigation
@@ -2872,13 +2935,37 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
       <div className="absolute top-16 left-4 z-20 flex flex-col gap-2">
         {/* Top row: Galaxy + Category buttons */}
         <div className="flex items-center gap-2">
+          {/* Switch between Apps and Websites galaxy */}
           <button
-            onClick={handleZoomOut}
-            className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
+            onClick={() => switchToGalaxy(galaxyType === 'apps' ? 'websites' : 'apps')}
+            className={`glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium transition ${
+              galaxyType === 'apps' 
+                ? 'text-blue-400 hover:text-blue-300' 
+                : 'text-cyan-400 hover:text-cyan-300'
+            }`}
+            title={galaxyType === 'apps' ? 'Switch to Websites Galaxy' : 'Switch to Apps Galaxy'}
           >
-            <Globe className="w-4 h-4" />
-            Galaxy
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 1l4 4-4 4"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <path d="M7 23l-4-4 4-4"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+            {galaxyType === 'apps' ? 'Web' : 'Apps'}
           </button>
+          
+          {/* Zoom out button - only visible in solar system view */}
+          {viewMode === 'solarSystem' && (
+            <button
+              onClick={handleZoomOut}
+              className="glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium hover:text-white transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+              Galaxy
+            </button>
+          )}
           <CategoryDropdown 
             currentCategory={currentCategory}
             onSelect={handleCategorySelect}
@@ -2897,6 +2984,21 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
         >
           <Activity className="w-4 h-4" />
           Perf
+        </button>
+        
+        {/* Info button */}
+        <button
+          onClick={() => setShowInfo(!showInfo)}
+          className={`glass rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-medium transition self-start ${
+            showInfo ? 'text-cyan-400 bg-cyan-500/20' : 'hover:text-white'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          Info
         </button>
         
         {/* FPS Stats panel - directly below Perf button when expanded */}
@@ -2944,6 +3046,48 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
               </motion.div>
             )}
           </div>
+        )}
+        
+        {/* Info Panel - Planet Physics Explanation */}
+        {showInfo && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="glass rounded-xl px-3 py-3 text-xs space-y-2 w-[220px]"
+          >
+            <div className="text-cyan-400 font-semibold border-b border-zinc-700 pb-2 mb-2">
+              Planet Physics Guide
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Planet Size</span>
+                <span className="text-zinc-300">= Total Usage Time</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Orbit Distance</span>
+                <span className="text-zinc-300">= ln(time) scaling</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Orbit Speed</span>
+                <span className="text-zinc-300">Further = Slower!</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Moons</span>
+                <span className="text-zinc-300">= Projects</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Rings</span>
+                <span className="text-zinc-300">~40% chance</span>
+              </div>
+            </div>
+            
+            <div className="border-t border-zinc-700 pt-2 mt-2">
+              <div className="text-zinc-500 text-[10px]">
+                Planets scaled with cube root to prevent extreme values
+              </div>
+            </div>
+          </motion.div>
         )}
       </div>
       
@@ -3007,6 +3151,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                       galaxyType={galaxyType}
                       onSelectSystem={handleSelectSystem} 
                       viewMode={viewMode}
+                      animationSpeed={animationSpeed}
                     />
                     <CameraTracker cameraPosRef={cameraPosRef} />
                     <Stars radius={4000} depth={200} count={3000} factor={6} fade speed={0.1} saturation={0.3} />

@@ -26,6 +26,22 @@
 
 ---
 
+## 🐛 SQLite ALTER TABLE Pattern
+
+### Problem
+Running `ALTER TABLE ... ADD COLUMN` on existing database fails if column already exists, causing SQLite to fall back to JSON mode and lose all data.
+
+### Solution
+**Always wrap ALTER TABLE in try-catch:**
+```javascript
+try { db.exec(`ALTER TABLE projects ADD COLUMN health_score INTEGER`); } catch {}
+```
+
+### Rule
+Never run ALTER TABLE without error handling. Always assume the column might already exist.
+
+---
+
 ## 🚨 Common Errors & Fixes
 
 ### ERR_FILE_NOT_FOUND

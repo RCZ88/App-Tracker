@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import TerminalPage from './TerminalPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Monitor,
@@ -25,32 +26,40 @@ import {
   TrendingUp,
   ExternalLink,
   HelpCircle,
+  BookOpen,
   FolderOpen,
   Settings,
   CheckCircle2,
   AlertCircle,
   Loader2,
+  X,
+  TrendingDown,
+  DollarSign,
+  Download,
+  BarChart3,
 } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
+  BarElement,
+  LineElement,
   ArcElement,
   Tooltip,
   Legend,
   Filler
 } from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
-import { format, subDays, eachDayOfInterval } from 'date-fns';
+import { Line, Doughnut, Bar } from 'react-chartjs-2';
+import { format, subDays, eachDayOfInterval, formatDistanceToNow } from 'date-fns';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, ArcElement, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, BarElement, LineElement, ArcElement, Tooltip, Legend, Filler);
 
 interface Overview {
   ides: any[];
   tools: any[];
   projects: any[];
-  aiUsage: { totalTokens: number; totalCost: number; byTool: Record<string, any> };
+  aiUsage: { totalTokens: number; totalCost: number; totalMessages?: number; byTool: Record<string, any> };
   commits: { totalCommits: number; totalAdditions: number; totalDeletions: number };
 }
 
@@ -62,6 +71,7 @@ interface AIAgent {
   tokens: number;
   cost: number;
   sessions: number;
+  messageCount: number;
   status: 'active' | 'idle' | 'inactive' | 'error';
   lastUsed?: Date;
   models: string[];
@@ -127,10 +137,26 @@ export default function IDEProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [showAgentDebug, setShowAgentDebug] = useState(false);
+  const [aiChartMode, setAiChartMode] = useState<'tokens' | 'messages' | 'cost' | 'sessions'>('tokens');
+  const [aiPeriod, setAiPeriod] = useState<'week' | 'month' | 'all'>('week');
+  const [selectedAgentDetail, setSelectedAgentDetail] = useState<AIAgent | null>(null);
+  const [agentDetailPeriod, setAgentDetailPeriod] = useState<'week' | 'month' | 'all'>('week');
+  const [agentDetailMetric, setAgentDetailMetric] = useState<'tokens' | 'messages' | 'sessions' | 'cost'>('tokens');
   const [agentDebugInfo, setAgentDebugInfo] = useState<any>(null);
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [compareAgents, setCompareAgents] = useState<string[]>([]);
+  const [compareMetric, setCompareMetric] = useState<'tokens' | 'messages' | 'cost' | 'sessions'>('tokens');
+  const [comparePeriod, setComparePeriod] = useState<'week' | 'month' | 'all'>('week');
+
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [addProjectError, setAddProjectError] = useState<string | null>(null);
+  const [addingProject, setAddingProject] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [projectDetailsCache, setProjectDetailsCache] = useState<Record<string, any>>({});
+  const [loadingProjectDetails, setLoadingProjectDetails] = useState<Set<string>>(new Set());
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [workspaceProject, setWorkspaceProject] = useState<any>(null);
 
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('ide-projects-onboarding-seen');
@@ -264,28 +290,45 @@ export default function IDEProjectsPage() {
   };
 
   const handleAddProject = async () => {
-    if (!newProject.name || !newProject.path) return;
+    if (!newProject.name || !newProject.path) {
+      setAddProjectError('Project name and path are required');
+      return;
+    }
+    setAddProjectError(null);
+    setAddingProject(true);
 
     try {
       const result = await window.deskflowAPI!.addProject(newProject);
       if (result.success) {
         setShowAddProject(false);
         setNewProject({ name: '', path: '', repositoryUrl: '', defaultIde: '' });
+        setAddProjectError(null);
         await loadOverview();
+      } else {
+        setAddProjectError(result.message || 'Failed to add project');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to add project:', err);
+      setAddProjectError(err.message || 'An error occurred');
+    } finally {
+      setAddingProject(false);
     }
   };
 
   const handleOpenProject = async (projectId: string, ideId?: string) => {
     try {
+      console.log('[IDEProjectsPage] Opening project:', projectId, 'with IDE:', ideId);
       const result = await window.deskflowAPI!.openProject(projectId, ideId);
+      console.log('[IDEProjectsPage] Open result:', result);
       if (!result.success) {
         console.error('Failed to open project:', result.message);
+        alert('Failed to open project: ' + result.message);
+      } else {
+        alert('Project opened in ' + result.ide);
       }
     } catch (err) {
       console.error('Failed to open project:', err);
+      alert('Error opening project: ' + err);
     }
   };
 
@@ -295,6 +338,43 @@ export default function IDEProjectsPage() {
       await loadOverview();
     } catch (err) {
       console.error('Failed to remove project:', err);
+    }
+  };
+
+  const toggleProjectExpand = async (project: any) => {
+    const projectId = project.id;
+    const newExpanded = new Set(expandedProjects);
+    
+    if (newExpanded.has(projectId)) {
+      newExpanded.delete(projectId);
+      setExpandedProjects(newExpanded);
+    } else {
+      newExpanded.add(projectId);
+      setExpandedProjects(newExpanded);
+      
+      if (!projectDetailsCache[projectId] && !loadingProjectDetails.has(projectId)) {
+        setLoadingProjectDetails(new Set(loadingProjectDetails).add(projectId));
+        try {
+          const [tools, sessions, health, presets] = await Promise.all([
+            window.deskflowAPI!.getProjectTools(projectId),
+            window.deskflowAPI!.getTerminalSessions(projectId, 5),
+            window.deskflowAPI!.calculateProjectHealth(projectId),
+            window.deskflowAPI!.getTerminalPresets(projectId)
+          ]);
+          setProjectDetailsCache(prev => ({
+            ...prev,
+            [projectId]: { project, tools, sessions, health, presets }
+          }));
+        } catch (err) {
+          console.error('Failed to load project details:', err);
+        } finally {
+          setLoadingProjectDetails(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(projectId);
+            return newSet;
+          });
+        }
+      }
     }
   };
 
@@ -344,6 +424,7 @@ export default function IDEProjectsPage() {
         tokens: (data as any).tokens || 0,
         cost: (data as any).cost || 0,
         sessions: (data as any).sessions || 0,
+        messageCount: (data as any).messageCount || 0,
         status: (data as any).lastUsed ? 'active' : 'idle',
         lastUsed: (data as any).lastUsed ? new Date((data as any).lastUsed) : undefined,
         models: (data as any).models || [],
@@ -360,6 +441,7 @@ export default function IDEProjectsPage() {
           tokens: 0,
           cost: 0,
           sessions: 0,
+          messageCount: 0,
           status: 'inactive',
           models: [],
         });
@@ -369,50 +451,100 @@ export default function IDEProjectsPage() {
     return agents;
   }, [overview?.aiUsage?.byTool]);
 
-  const aiChartData = useMemo(() => {
-    const last30Days = eachDayOfInterval({
-      start: subDays(new Date(), 29),
+  useEffect(() => {
+    const activeIds = aiAgents.filter(a => a.tokens > 0).map(a => a.id);
+    if (compareAgents.length === 0 && activeIds.length > 0) {
+      setCompareAgents(activeIds);
+    }
+  }, [aiAgents]);
+
+  const agentChartsData = useMemo(() => {
+    const daysMap: Record<string, number> = { 'week': 7, 'month': 30, 'all': 90 };
+    const numDays = daysMap[aiPeriod] || 7;
+
+    const lastDays = eachDayOfInterval({
+      start: subDays(new Date(), numDays - 1),
       end: new Date()
     });
 
-    const dailyData = last30Days.map(day => {
-      const dayStr = format(day, 'yyyy-MM-dd');
-      let tokens = 0;
-      for (const agent of aiAgents) {
-        if (overview?.aiUsage?.byTool?.[agent.id]?.daily?.[dayStr]) {
-          tokens += overview.aiUsage.byTool[agent.id].daily[dayStr].tokens || 0;
-        }
-      }
-      return { date: dayStr, label: format(day, 'MMM dd'), tokens };
-    });
+    const activeAgents = aiAgents.filter(a => a.status !== 'inactive' && a.tokens > 0);
 
-    return {
-      labels: dailyData.map(d => d.label),
-      datasets: [{
-        label: 'Token Usage',
-        data: dailyData.map(d => d.tokens),
-        borderColor: '#a855f7',
-        backgroundColor: 'rgba(168, 85, 247, 0.1)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-      }]
+    const getMetricValue = (agent: AIAgent, dayStr: string) => {
+      const dayData = overview?.aiUsage?.byTool?.[agent.id]?.daily?.[dayStr];
+      if (!dayData) return 0;
+      if (aiChartMode === 'tokens') return dayData.tokens || 0;
+      if (aiChartMode === 'messages') return dayData.messageCount || 0;
+      if (aiChartMode === 'sessions') return dayData.sessions || 0;
+      if (aiChartMode === 'cost') return dayData.cost || 0;
+      return 0;
     };
-  }, [aiAgents, overview?.aiUsage?.byTool]);
+
+    const metricLabel = aiChartMode === 'tokens' ? 'Tokens' : aiChartMode === 'messages' ? 'Messages' : aiChartMode === 'sessions' ? 'Sessions' : 'Cost';
+
+    return activeAgents.map(agent => {
+      const labels = lastDays.map(d => format(d, 'MMM dd'));
+      const data = lastDays.map(d => getMetricValue(agent, format(d, 'yyyy-MM-dd')));
+      return {
+        agentId: agent.id,
+        agentName: agent.name,
+        color: agent.color,
+        metricLabel,
+        chartData: {
+          labels,
+          datasets: [{
+            label: `${agent.name} - ${metricLabel}`,
+            data,
+            backgroundColor: agent.color + '40',
+            borderColor: agent.color,
+            borderWidth: 2,
+            borderRadius: 4,
+          }]
+        }
+      };
+    });
+  }, [aiAgents, overview?.aiUsage?.byTool, aiPeriod, aiChartMode]);
 
   const agentDistributionData = useMemo(() => {
-    const activeAgents = aiAgents.filter(a => a.status !== 'inactive' && a.tokens > 0);
+    const activeAgents = aiAgents.filter(a => a.status !== 'inactive');
+    const agentColorsMap: Record<string, string> = {
+      'claude': '#a855f7',
+      'opencode': '#22c55e', 
+      'cursor': '#3b82f6',
+      'windsurf': '#f59e0b',
+    };
+    const getAgentDisplayName = (id: string) => {
+      const names: Record<string, string> = {
+        'claude': 'Claude',
+        'opencode': 'OpenCode',
+        'cursor': 'Cursor',
+        'windsurf': 'Windsurf',
+      };
+      return names[id.toLowerCase()] || id;
+    };
+    const getValue = (agent: AIAgent) => {
+      if (aiChartMode === 'tokens') return agent.tokens;
+      if (aiChartMode === 'cost') return agent.cost;
+      if (aiChartMode === 'messages') return agent.messageCount;
+      return agent.sessions;
+    };
+    const getLabel = (agent: AIAgent) => {
+      const displayName = getAgentDisplayName(agent.id);
+      if (aiChartMode === 'tokens') return `${displayName}: ${formatTokens(agent.tokens)}`;
+      if (aiChartMode === 'cost') return `${displayName}: ${formatCurrency(agent.cost)}`;
+      if (aiChartMode === 'messages') return `${displayName}: ${agent.messageCount} msgs`;
+      return `${displayName}: ${agent.sessions} sessions`;
+    };
+    activeAgents.sort((a, b) => getValue(b) - getValue(a));
     return {
-      labels: activeAgents.map(a => a.name),
+      labels: activeAgents.map(a => getLabel(a)),
       datasets: [{
-        data: activeAgents.map(a => a.tokens),
-        backgroundColor: activeAgents.map(a => a.color + 'cc'),
+        data: activeAgents.map(a => getValue(a)),
+        backgroundColor: activeAgents.map(a => agentColorsMap[a.id.toLowerCase()] || a.color || '#888888'),
         borderColor: '#0a0a0a',
         borderWidth: 2,
       }]
     };
-  }, [aiAgents]);
+  }, [aiAgents, aiChartMode]);
 
   if (loading) {
     return (
@@ -439,80 +571,50 @@ export default function IDEProjectsPage() {
           </h1>
           <p className="text-zinc-500 mt-1">Track your development environment, AI tools, and project metrics</p>
         </div>
-        <div className="flex items-center gap-3">
-          <motion.button
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
             onClick={handleSyncAI}
             disabled={syncingAI}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25"
-            title="Import AI usage data from Claude Code, Cursor, OpenCode, and more"
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all disabled:opacity-50"
+            title="Import AI usage data"
           >
             <Sparkles className={`w-4 h-4 ${syncingAI ? 'animate-spin' : ''}`} />
-            {syncingAI ? 'Syncing...' : 'Sync AI Usage'}
-          </motion.button>
+            {syncingAI ? 'Syncing...' : 'Sync AI'}
+          </button>
+          <button
+            onClick={() => setShowSetupModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all"
+            title="Setup guide"
+          >
+            <HelpCircle className="w-4 h-4" />
+            Guide
+          </button>
 
-          <div className="relative">
-            <motion.button
-              onClick={() => setShowActionsMenu(!showActionsMenu)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-xl border border-zinc-600 transition-all"
+          {/* Tools Tab: Scan Tools button - only visible on tools tab */}
+          {activeTab === 'tools' && (
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all disabled:opacity-50"
+              title="Scan for tools"
             >
-              Actions
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showActionsMenu ? 'rotate-180' : ''}`} />
-            </motion.button>
+              <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
+              {scanning ? 'Scanning...' : 'Scan Tools'}
+            </button>
+          )}
 
-            <AnimatePresence>
-              {showActionsMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50"
-                >
-                  <button
-                    onClick={() => { handleScan(); setShowActionsMenu(false); }}
-                    disabled={scanning}
-                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                      <RefreshCw className={`w-4 h-4 text-emerald-400 ${scanning ? 'animate-spin' : ''}`} />
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Scan Environment</div>
-                      <div className="text-xs text-zinc-500">Detect IDEs and tools</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => { handleDebugAgents(); setShowActionsMenu(false); }}
-                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                      <HelpCircle className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">AI Debug Info</div>
-                      <div className="text-xs text-zinc-500">View detection status</div>
-                    </div>
-                  </button>
-                  <div className="border-t border-zinc-700" />
-                  <button
-                    onClick={() => { setShowSetupModal(true); setShowActionsMenu(false); }}
-                    className="w-full px-4 py-3 text-left hover:bg-zinc-800 flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <Settings className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Setup Guide</div>
-                      <div className="text-xs text-zinc-500">How to get started</div>
-                    </div>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* IDEs Tab: Detect IDEs button - only visible on ides tab */}
+          {activeTab === 'ides' && (
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-all disabled:opacity-50"
+              title="Detect IDEs"
+            >
+              <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
+              {scanning ? 'Scanning...' : 'Scan IDEs'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -614,34 +716,53 @@ export default function IDEProjectsPage() {
               {aiAgents.filter(a => a.tokens > 0).length > 0 ? (
                 <>
                   <div className="h-48 mb-6">
-                    <Line
-                      data={aiChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: { display: false },
-                          tooltip: {
-                            backgroundColor: 'rgba(24, 24, 27, 0.95)',
-                            titleColor: '#fff',
-                            bodyColor: '#a1a1aa',
-                            borderColor: '#3f3f46',
-                            borderWidth: 1,
-                            callbacks: {
-                              label: (ctx) => ` ${formatTokens(ctx.parsed.y ?? 0)} tokens`
-                            }
-                          }
-                        },
-                        scales: {
-                          x: { grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 7 } },
-                          y: {
-                            grid: { color: '#27272a' },
-                            ticks: { color: '#71717a', callback: (v) => formatTokens(v as number) },
-                            beginAtZero: true,
-                          }
-                        },
-                      }}
-                    />
+                    {(() => {
+                      const activeAgents = aiAgents.filter(a => a.tokens > 0);
+                      const overviewDays = eachDayOfInterval({ start: subDays(new Date(), 29), end: new Date() });
+                      const overviewChartData = {
+                        labels: overviewDays.map(d => format(d, 'MMM dd')),
+                        datasets: activeAgents.map((agent, idx) => ({
+                          label: agent.name,
+                          data: overviewDays.map(d => {
+                            const dayStr = format(d, 'yyyy-MM-dd');
+                            return overview?.aiUsage?.byTool?.[agent.id]?.daily?.[dayStr]?.tokens || 0;
+                          }),
+                          backgroundColor: agent.color,
+                          stack: 'combined',
+                        }))
+                      };
+                      return (
+                        <Bar
+                          data={overviewChartData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: true, position: 'bottom', labels: { color: '#a1a1aa', padding: 8, usePointStyle: true } },
+                              tooltip: {
+                                backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                                titleColor: '#fff',
+                                bodyColor: '#a1a1aa',
+                                borderColor: '#3f3f46',
+                                borderWidth: 1,
+                                callbacks: {
+                                  label: (ctx: any) => ` ${ctx.dataset.label || 'AI'}: ${formatTokens(ctx.parsed.y ?? 0)} tokens`
+                                }
+                              }
+                            },
+                            scales: {
+                              x: { stacked: true, grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 7 } },
+                              y: {
+                                stacked: true,
+                                grid: { color: '#27272a' },
+                                ticks: { color: '#71717a', callback: (v: any) => formatTokens(v) },
+                                beginAtZero: true,
+                              }
+                            },
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
 
                   <div className="space-y-3">
@@ -653,7 +774,7 @@ export default function IDEProjectsPage() {
                           </div>
                           <div>
                             <div className="text-sm font-medium text-white">{agent.name}</div>
-                            <div className="text-xs text-zinc-500">{agent.sessions} sessions</div>
+                            <div className="text-xs text-zinc-500">{agent.sessions} sessions &middot; {agent.messageCount} msgs</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -797,6 +918,21 @@ export default function IDEProjectsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-3"
         >
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const result = await window.deskflowAPI!.resetTools();
+                if (result.success) {
+                  await loadOverview();
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-lg text-sm transition"
+              title="Clear all tools and re-scan fresh"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Reset Tools
+            </button>
+          </div>
           {Object.entries(groupToolsByCategory()).map(([category, tools], idx) => {
             const Icon = CATEGORY_ICONS[category] || Package;
             const label = CATEGORY_LABELS[category] || category;
@@ -847,25 +983,11 @@ export default function IDEProjectsPage() {
                               <span className="text-xs text-zinc-500 font-mono">v{tool.version}</span>
                             )}
                           </div>
-))}
-                 </div>
-
-                {/* How Calculations Work */}
-                <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl">
-                  <h4 className="text-sm font-medium text-zinc-400 mb-2">How Counts Are Calculated</h4>
-                  <div className="space-y-1 text-xs text-zinc-500">
-                    <p><span className="text-zinc-300">Sessions:</span> = number of chat/conversation files found per agent. One JSONL file = one session.</p>
-                    <p><span className="text-zinc-300">Tokens:</span> = sum of all input + output tokens parsed from session files.</p>
-                    <p><span className="text-zinc-300">Cost:</span> = calculated from tokens using provider pricing (e.g., Claude opus-4: $15/M input, $75/M output).</p>
-                    <p><span className="text-violet-400">Claude Code:</span> ~/.claude/projects/project-slug/*.jsonl — aggregates all turns per file into 1 session.</p>
-                    <p><span className="text-amber-400">Qwen:</span> ~/.qwen/projects/project-slug/chats/*.jsonl — 1 file = 1 session, aggregates ui_telemetry tokens.</p>
-                    <p><span className="text-blue-400">OpenCode:</span> ~/.local/share/opencode/opencode.db — 1 DB session row = 1 session, sums message tokens.</p>
-                    <p><span className="text-cyan-400">Gemini:</span> ~/.gemini/tmp/hash-slug/chats/ — 1 JSONL file = 1 session.</p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             );
           })}
@@ -897,168 +1019,239 @@ export default function IDEProjectsPage() {
             whileTap={{ scale: 0.98 }}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl transition-all"
           >
-            <Plus className="w-4 h-4" />
+<Plus className="w-4 h-4" />
             Add Project
           </motion.button>
 
-          <AnimatePresence>
-            {showAddProject && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="glass rounded-3xl p-8"
-              >
-                <h3 className="text-lg font-semibold text-white mb-6">Add New Project</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Project Name</label>
-                    <input
-                      type="text"
-                      value={newProject.name}
-                      onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                      placeholder="My Project"
-                      className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Project Path</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newProject.path}
-                        onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
-                        placeholder="C:\Projects\my-project"
-                        className="flex-1 px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
-                      />
-                      <button
-                        onClick={async () => {
-                          const result = await window.deskflowAPI!.pickFolder();
-                          if (result.success && result.path) {
-                            setNewProject({ ...newProject, path: result.path });
-                          }
-                        }}
-                        className="px-4 py-3 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-xl border border-zinc-600 transition-colors"
-                        title="Browse for folder"
-                      >
-                        <FolderOpen className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm text-zinc-400 mb-2">Repository URL (optional)</label>
-                    <input
-                      type="text"
-                      value={newProject.repositoryUrl}
-                      onChange={(e) => setNewProject({ ...newProject, repositoryUrl: e.target.value })}
-                      placeholder="https://github.com/user/repo"
-                      className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm text-zinc-400 mb-2">Default IDE (optional)</label>
-                    <select
-                      value={newProject.defaultIde}
-                      onChange={(e) => setNewProject({ ...newProject, defaultIde: e.target.value })}
-                      className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border border-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
-                    >
-                      <option value="">Select an IDE...</option>
-                      {overview?.ides?.map((ide: any) => (
-                        <option key={ide.id} value={ide.id}>{ide.name}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-zinc-500 mt-1">Choose the IDE to use when opening this project</p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => setShowAddProject(false)}
-                    className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddProject}
-                    disabled={!newProject.name || !newProject.path}
-                    className="px-6 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl transition-all disabled:opacity-50"
-                  >
-                    Add Project
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {overview?.projects && overview.projects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {overview.projects.map((project: any, idx: number) => {
                 const projectIde = overview?.ides?.find((ide: any) => ide.id === project.default_ide);
+                const isExpanded = expandedProjects.has(project.id);
+                const details = projectDetailsCache[project.id];
+                const isLoading = loadingProjectDetails.has(project.id);
+                
                 return (
                 <motion.div
                   key={project.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
-                  className="glass rounded-3xl p-6"
+                  className="glass rounded-3xl overflow-hidden"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-semibold truncate">{project.name}</h3>
-                      <p className="text-sm text-zinc-500 font-mono truncate">{project.path}</p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveProject(project.id)}
-                      className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* IDE Badge and Open Button */}
-                  {project.default_ide ? (
-                    <div className="flex items-center justify-between mb-4 p-3 bg-zinc-800/50 rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <Monitor className="w-4 h-4 text-violet-400" />
-                        <span className="text-sm text-zinc-300">{projectIde?.name || project.default_ide}</span>
+                  {/* Card Header - Always Visible */}
+                  <div className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-white font-semibold truncate">{project.name}</h3>
+                          {project.default_ide && (
+                            <span className="px-2 py-0.5 bg-violet-500/20 text-violet-400 text-xs rounded-full">
+                              {projectIde?.name || project.default_ide}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-zinc-500 font-mono truncate mt-1">{project.path}</p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleProjectExpand(project)}
+                          className={`p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-all ${isExpanded ? 'rotate-180' : ''}`}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveProject(project.id)}
+                          className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions Row */}
+                    <div className="flex items-center gap-3 mt-4">
+                      {project.default_ide && (
+                        <button
+                          onClick={() => handleOpenProject(project.id)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 rounded-xl transition-all"
+                        >
+                          <Monitor className="w-4 h-4" />
+                          <span className="text-sm font-medium">Open in IDE</span>
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleOpenProject(project.id)}
-                        className="px-3 py-1.5 bg-violet-600/30 hover:bg-violet-600/50 text-violet-300 text-xs rounded-lg flex items-center gap-1.5 transition-colors"
+                        onClick={() => {
+                          setSelectedProject(project.id);
+                          setWorkspaceProject(project);
+                          setIsWorkspaceOpen(true);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl transition-all"
                       >
-                        <ExternalLink className="w-3 h-3" />
-                        Open
+                        <Terminal className="w-4 h-4" />
+                        <span className="text-sm font-medium">Open Workspace</span>
                       </button>
                     </div>
-                  ) : (
-                    <div className="mb-4 p-3 bg-zinc-800/30 rounded-xl text-center">
-                      <p className="text-xs text-zinc-500">No default IDE set</p>
-                      <p className="text-xs text-zinc-600 mt-0.5">Edit project to add one</p>
-                    </div>
-                  )}
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {project.vcs_type && (
-                      <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-lg flex items-center gap-1">
-                        <GitBranch className="w-3 h-3" />
-                        {project.vcs_type}
-                      </span>
-                    )}
-                    {project.primary_language && (
-                      <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-lg">
-                        {project.primary_language}
-                      </span>
-                    )}
-                    {project.repository_url && (
-                      <a
-                        href={project.repository_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 text-zinc-500 hover:text-violet-400 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
+                    {/* Tags Row */}
+                    <div className="flex items-center gap-2 mt-4 flex-wrap">
+                      {project.vcs_type && (
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-lg flex items-center gap-1">
+                          <GitBranch className="w-3 h-3" />
+                          {project.vcs_type}
+                        </span>
+                      )}
+                      {project.primary_language && (
+                        <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-lg">
+                          {project.primary_language}
+                        </span>
+                      )}
+                      {details?.health?.healthScore !== undefined && (
+                        <span className={`px-2 py-1 text-xs rounded-lg flex items-center gap-1 ${
+                          details.health.healthScore >= 80 ? 'bg-green-500/20 text-green-400' :
+                          details.health.healthScore >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          <Activity className="w-3 h-3" />
+                          {details.health.healthScore}%
+                        </span>
+                      )}
+                      {details?.tools?.length > 0 && (
+                        <span className="px-2 py-1 bg-zinc-700/50 text-zinc-400 text-xs rounded-lg">
+                          {details.tools.length} tools
+                        </span>
+                      )}
+                      {details?.sessions?.length > 0 && (
+                        <span className="px-2 py-1 bg-zinc-700/50 text-zinc-400 text-xs rounded-lg">
+                          {details.sessions.length} sessions
+                        </span>
+                      )}
+                      {project.repository_url && (
+                        <a
+                          href={project.repository_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-zinc-500 hover:text-violet-400 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Expanded Content */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-zinc-800 bg-zinc-900/30"
+                      >
+                        <div className="p-5 space-y-5">
+                          {isLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
+                              <span className="ml-2 text-zinc-400">Loading project details...</span>
+                            </div>
+                          ) : details ? (
+                            <>
+                              {/* Health & Sessions Row */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="p-3 bg-zinc-800/50 rounded-xl">
+                                  <div className="text-xs text-zinc-500 mb-1">Health Score</div>
+                                  <div className="text-xl font-bold text-white">{details.health?.healthScore || 0}<span className="text-sm text-zinc-500">/100</span></div>
+                                  <div className="text-xs text-zinc-500 mt-1">{details.health?.activityLevel || 'unknown'}</div>
+                                </div>
+                                <div className="p-3 bg-zinc-800/50 rounded-xl">
+                                  <div className="text-xs text-zinc-500 mb-1">Terminal Sessions</div>
+                                  <div className="text-xl font-bold text-white">{details.sessions?.length || 0}</div>
+                                  <div className="text-xs text-zinc-500 mt-1">total</div>
+                                </div>
+                                <div className="p-3 bg-zinc-800/50 rounded-xl">
+                                  <div className="text-xs text-zinc-500 mb-1">Git Branch</div>
+                                  <div className="text-sm font-medium text-white truncate">{project.vcs_branch || 'main'}</div>
+                                  <div className="text-xs text-zinc-500 mt-1">{project.vcs_type || 'Git'}</div>
+                                </div>
+                                <div className="p-3 bg-zinc-800/50 rounded-xl">
+                                  <div className="text-xs text-zinc-500 mb-1">Repository</div>
+                                  <div className="text-sm font-medium text-white truncate">{project.repository_url ? project.repository_url.split('/').slice(-2).join('/') : 'Not linked'}</div>
+                                  <div className="text-xs text-zinc-500 mt-1">{project.repository_url ? 'Connected' : 'None'}</div>
+                                </div>
+                              </div>
+
+                              {/* Recent Sessions */}
+                              {details.sessions && details.sessions.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    Recent Terminal Sessions
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {details.sessions.slice(0, 3).map((session: any) => (
+                                      <div key={session.id} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <Terminal className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                                          <span className="text-sm text-zinc-300 truncate">{session.topic || session.agent || 'Untitled'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                          <span className="text-xs text-zinc-500">{formatDistanceToNow(new Date(session.started_at))}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Presets */}
+                              {details.presets && details.presets.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+                                    <Zap className="w-4 h-4" />
+                                    Quick Run Presets
+                                  </h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {details.presets.map((preset: any) => (
+                                      <button
+                                        key={preset.id}
+                                        className="px-3 py-1.5 bg-zinc-700/50 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg transition-colors"
+                                      >
+                                        {preset.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Tools */}
+                              <div>
+                                <h4 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+                                  <Package className="w-4 h-4" />
+                                  Detected Tools ({details.tools?.length || 0})
+                                </h4>
+                                {details.tools && details.tools.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {details.tools.map((tool: any) => (
+                                      <span key={tool.id} className="px-2 py-1 bg-zinc-800 text-zinc-300 text-xs rounded-lg">
+                                        {tool.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-zinc-500">No tools detected for this project</p>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-center py-4 text-zinc-500">
+                              Click expand to load details
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               );
               })}
@@ -1099,6 +1292,10 @@ export default function IDEProjectsPage() {
                 <span className="text-violet-400 font-medium">{formatTokens(overview?.aiUsage?.totalTokens || 0)}</span>
               </div>
               <div>
+                <span className="text-zinc-500">Total Messages: </span>
+                <span className="text-blue-400 font-medium">{(overview?.aiUsage?.totalMessages || 0).toLocaleString()}</span>
+              </div>
+              <div>
                 <span className="text-zinc-500">Total Cost: </span>
                 <span className="text-emerald-400 font-medium">{formatCurrency(overview?.aiUsage?.totalCost || 0)}</span>
               </div>
@@ -1124,9 +1321,9 @@ export default function IDEProjectsPage() {
                   <h3 className="text-lg font-semibold text-white">Agent Detection Details</h3>
                   <button
                     onClick={() => setShowAgentDebug(false)}
-                    className="text-zinc-500 hover:text-white text-xl"
+                    className="px-3 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
                   >
-                    ×
+                    Hide Details
                   </button>
                 </div>
 
@@ -1235,7 +1432,10 @@ export default function IDEProjectsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
-                onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
+                onClick={() => {
+                  setSelectedAgent(selectedAgent === agent.id ? null : agent.id);
+                  if (agent.status !== 'inactive') setSelectedAgentDetail(agent);
+                }}
                 className={`glass rounded-3xl p-6 cursor-pointer transition-all hover:border-violet-500/50 ${
                   selectedAgent === agent.id ? 'border-violet-500' : 'border-transparent'
                 }`}
@@ -1262,20 +1462,60 @@ export default function IDEProjectsPage() {
 
                 {agent.status !== 'inactive' ? (
                   <>
-                    <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="grid grid-cols-4 gap-3 mb-3">
                       <div className="text-center">
                         <div className="text-lg font-semibold text-white tabular-nums">{formatTokens(agent.tokens)}</div>
                         <div className="text-xs text-zinc-500">Tokens</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-blue-400 tabular-nums">{agent.messageCount.toLocaleString()}</div>
+                        <div className="text-xs text-zinc-500">Messages</div>
                       </div>
                       <div className="text-center">
                         <div className="text-lg font-semibold text-emerald-400 tabular-nums">{formatCurrency(agent.cost)}</div>
                         <div className="text-xs text-zinc-500">Cost</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-semibold text-blue-400 tabular-nums">{agent.sessions}</div>
-                        <div className="text-xs text-zinc-500">Sessions</div>
+                        <div className="text-lg font-semibold text-amber-400 tabular-nums">{agent.messageCount > 0 ? formatTokens(Math.round(agent.tokens / agent.messageCount)) : '—'}</div>
+                        <div className="text-xs text-zinc-500">Avg/Msg</div>
                       </div>
                     </div>
+
+                    {/* Sparkline - 7 day trend */}
+                    {(() => {
+                      const days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() });
+                      const data = days.map(d => {
+                        const dayStr = format(d, 'yyyy-MM-dd');
+                        return overview?.aiUsage?.byTool?.[agent.id]?.daily?.[dayStr]?.tokens || 0;
+                      });
+                      const hasData = data.some(v => v > 0);
+                      if (!hasData) return null;
+                      return (
+                        <div className="h-10 mb-3">
+                          <Line
+                            data={{
+                              labels: days.map(d => format(d, 'EEE')),
+                              datasets: [{
+                                data,
+                                borderColor: agent.color,
+                                backgroundColor: agent.color + '18',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: true,
+                                tension: 0.3,
+                              }]
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                              scales: { x: { display: false }, y: { display: false } },
+                              layout: { padding: 0 },
+                            }}
+                          />
+                        </div>
+                      );
+                    })()}
 
                     {agent.lastUsed && (
                       <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -1325,61 +1565,189 @@ export default function IDEProjectsPage() {
             </motion.div>
           </div>
 
+          {/* AI Leaderboard & Actions */}
+          {aiAgents.filter(a => a.tokens > 0).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            >
+              {/* Most Active */}
+              {(() => {
+                const sorted = [...aiAgents].filter(a => a.tokens > 0).sort((a, b) => b.tokens - a.tokens);
+                const top = sorted[0];
+                if (!top) return null;
+                return (
+                  <div className="glass rounded-2xl p-4">
+                    <div className="text-xs text-zinc-500 mb-1">Most Active</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: top.color }} />
+                      <span className="text-white font-medium">{top.name}</span>
+                    </div>
+                    <div className="text-sm text-violet-400 mt-1">{formatTokens(top.tokens)} tokens</div>
+                  </div>
+                );
+              })()}
+              {/* Most Efficient */}
+              {(() => {
+                const sorted = [...aiAgents].filter(a => a.tokens > 0 && a.messageCount > 0).sort((a, b) => (a.tokens / a.messageCount) - (b.tokens / b.messageCount));
+                const top = sorted[0];
+                if (!top) return null;
+                return (
+                  <div className="glass rounded-2xl p-4">
+                    <div className="text-xs text-zinc-500 mb-1">Most Efficient</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: top.color }} />
+                      <span className="text-white font-medium">{top.name}</span>
+                    </div>
+                    <div className="text-sm text-emerald-400 mt-1">{formatTokens(Math.round(top.tokens / top.messageCount))} tokens/msg</div>
+                  </div>
+                );
+              })()}
+              {/* Export Button */}
+              <div className="glass rounded-2xl p-4 flex flex-col justify-center">
+                <button
+                  onClick={() => {
+                    const rows: string[] = ['Agent,Tokens,Messages,Sessions,Cost,Tokens/Msg,Cost/Session'];
+                    aiAgents.filter(a => a.tokens > 0).forEach(a => {
+                      rows.push(`${a.name},${a.tokens},${a.messageCount},${a.sessions},${a.cost.toFixed(4)},${a.messageCount > 0 ? Math.round(a.tokens / a.messageCount) : 0},${a.sessions > 0 ? (a.cost / a.sessions).toFixed(4) : 0}`);
+                    });
+                    const csv = rows.join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ai-usage-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Export CSV
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {/* AI Charts Section */}
           {aiAgents.filter(a => a.tokens > 0).length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+              className="space-y-6"
             >
-              {/* Token Trend Chart */}
-              <div className="glass rounded-3xl p-8">
-                <div className="flex items-center gap-3 mb-6">
+              {/* Trend Header with Period + Metric selectors */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-violet-400" />
                   <div>
-                    <div className="text-lg font-semibold">Token Usage Trend</div>
-                    <div className="text-sm text-zinc-500">Last 30 days</div>
+                    <div className="text-lg font-semibold">Usage Trend</div>
+                    <div className="text-sm text-zinc-500">Per agent, daily breakdown</div>
                   </div>
                 </div>
-                <div className="h-64">
-                  <Line
-                    data={aiChartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                          backgroundColor: 'rgba(24, 24, 27, 0.95)',
-                          titleColor: '#fff',
-                          bodyColor: '#a1a1aa',
-                          borderColor: '#3f3f46',
-                          borderWidth: 1,
-                          callbacks: {
-                            label: (ctx) => ` ${formatTokens(ctx.parsed.y ?? 0)} tokens`
-                          }
-                        }
-                      },
-                      scales: {
-                        x: { grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 7 } },
-                        y: {
-                          grid: { color: '#27272a' },
-                          ticks: { color: '#71717a', callback: (v) => formatTokens(v as number) },
-                          beginAtZero: true,
-                        }
-                      },
-                    }}
-                  />
+                <div className="flex items-center gap-3">
+                  {/* Metric Selector */}
+                  <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-1">
+                    {(['tokens', 'messages', 'sessions', 'cost'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setAiChartMode(mode)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                          aiChartMode === mode
+                            ? 'bg-violet-500/20 text-violet-400'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Period Selector */}
+                  <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-1">
+                    {(['week', 'month', 'all'] as const).map(period => (
+                      <button
+                        key={period}
+                        onClick={() => setAiPeriod(period)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                          aiPeriod === period
+                            ? 'bg-violet-500/20 text-violet-400'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Agent Distribution */}
+              {/* Per-Agent Charts Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {agentChartsData.map((agentChart) => (
+                  <div key={agentChart.agentId} className="glass rounded-2xl p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: agentChart.color }} />
+                      <span className="text-sm font-medium text-white">{agentChart.agentName}</span>
+                      <span className="text-xs text-zinc-500 ml-auto">{agentChart.metricLabel}</span>
+                    </div>
+                    <div className="h-40">
+                      <Bar
+                        data={agentChart.chartData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                              backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                              titleColor: '#fff',
+                              bodyColor: '#a1a1aa',
+                              borderColor: '#3f3f46',
+                              borderWidth: 1,
+                              callbacks: {
+                                label: (ctx) => {
+                                  const val = ctx.parsed.y || 0;
+                                  if (aiChartMode === 'tokens') return ` ${formatTokens(val)} tokens`;
+                                  if (aiChartMode === 'cost') return ` ${formatCurrency(val)}`;
+                                  if (aiChartMode === 'messages') return ` ${val} messages`;
+                                  return ` ${val} sessions`;
+                                }
+                              }
+                            }
+                          },
+                          scales: {
+                            x: { grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 5, font: { size: 10 } } },
+                            y: {
+                              grid: { color: '#27272a' },
+                              ticks: {
+                                color: '#71717a',
+                                font: { size: 10 },
+                                callback: (v) => {
+                                  if (aiChartMode === 'tokens') return formatTokens(v as number);
+                                  if (aiChartMode === 'cost') return `$${(v as number).toFixed(2)}`;
+                                  return String(v);
+                                }
+                              },
+                              beginAtZero: true,
+                            }
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Distribution Doughnut */}
               <div className="glass rounded-3xl p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <Activity className="w-5 h-5 text-emerald-400" />
-                  <div>
-                    <div className="text-lg font-semibold">Usage Distribution</div>
-                    <div className="text-sm text-zinc-500">By AI agent</div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <Activity className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <div className="text-lg font-semibold">Usage Distribution</div>
+                      <div className="text-sm text-zinc-500">By AI agent</div>
+                    </div>
                   </div>
                 </div>
                 <div className="h-64 flex items-center justify-center">
@@ -1394,6 +1762,23 @@ export default function IDEProjectsPage() {
                           legend: {
                             position: 'bottom',
                             labels: { color: '#a1a1aa', padding: 16, usePointStyle: true }
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a1a1aa',
+                            borderColor: '#3f3f46',
+                            borderWidth: 1,
+                            callbacks: {
+                              label: (ctx) => {
+                                const label = ctx.label || '';
+                                const value = ctx.parsed || 0;
+                                if (aiChartMode === 'tokens') return ` ${label}: ${formatTokens(value)} tokens`;
+                                if (aiChartMode === 'cost') return ` ${label}: ${formatCurrency(value)}`;
+                                if (aiChartMode === 'messages') return ` ${label}: ${value} messages`;
+                                return ` ${label}: ${value} sessions`;
+                              }
+                            }
                           }
                         }
                       }}
@@ -1403,6 +1788,157 @@ export default function IDEProjectsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Multi-Agent Comparison Chart */}
+              {aiAgents.filter(a => a.tokens > 0).length > 1 && (
+                <div className="glass rounded-3xl p-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <BarChart3 className="w-5 h-5 text-violet-400" />
+                      <div>
+                        <div className="text-lg font-semibold">Compare AI Agents</div>
+                        <div className="text-sm text-zinc-500">Grouped daily breakdown</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5 bg-zinc-800/50 rounded-lg p-0.5">
+                        {(['tokens', 'messages', 'sessions', 'cost'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            onClick={() => setCompareMetric(mode)}
+                            className={`px-2 py-1 rounded text-[10px] font-medium transition ${
+                              compareMetric === mode
+                                ? 'bg-violet-500/20 text-violet-400'
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-0.5 bg-zinc-800/50 rounded-lg p-0.5">
+                        {(['week', 'month', 'all'] as const).map(period => (
+                          <button
+                            key={period}
+                            onClick={() => setComparePeriod(period)}
+                            className={`px-2 py-1 rounded text-[10px] font-medium transition ${
+                              comparePeriod === period
+                                ? 'bg-violet-500/20 text-violet-400'
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {period === 'week' ? '7D' : period === 'month' ? '30D' : 'All'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Agent Toggles */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {aiAgents.filter(a => a.tokens > 0).map(agent => (
+                      <label key={agent.id} className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800/50 rounded-lg cursor-pointer hover:bg-zinc-800 transition">
+                        <input
+                          type="checkbox"
+                          checked={compareAgents.includes(agent.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setCompareAgents(prev => [...prev, agent.id]);
+                            } else {
+                              setCompareAgents(prev => prev.filter(id => id !== agent.id));
+                            }
+                          }}
+                          className="w-3 h-3 rounded border-zinc-600"
+                        />
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: agent.color }} />
+                        <span className="text-xs text-zinc-300">{agent.name}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="h-72">
+                    {(() => {
+                      const daysMap: Record<string, number> = { 'week': 7, 'month': 30, 'all': 90 };
+                      const numDays = daysMap[comparePeriod] || 7;
+                      const periodDays = eachDayOfInterval({ start: subDays(new Date(), numDays - 1), end: new Date() });
+                      const labels = periodDays.map(d => format(d, numDays <= 7 ? 'EEE' : 'MMM dd'));
+
+                      const selected = aiAgents.filter(a => compareAgents.includes(a.id) && a.tokens > 0);
+                      const datasets = selected.map(agent => {
+                        const data = periodDays.map(d => {
+                          const dayStr = format(d, 'yyyy-MM-dd');
+                          const dayData = overview?.aiUsage?.byTool?.[agent.id]?.daily?.[dayStr];
+                          if (!dayData) return 0;
+                          if (compareMetric === 'tokens') return dayData.tokens || 0;
+                          if (compareMetric === 'messages') return dayData.messageCount || 0;
+                          if (compareMetric === 'sessions') return dayData.sessions || 0;
+                          if (compareMetric === 'cost') return dayData.cost || 0;
+                          return 0;
+                        });
+                        return {
+                          label: agent.name,
+                          data,
+                          backgroundColor: agent.color + 'CC',
+                          borderColor: agent.color,
+                          borderWidth: 1,
+                          borderRadius: 2,
+                        };
+                      });
+
+                      return (
+                        <Bar
+                          data={{ labels, datasets }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'bottom',
+                                labels: { color: '#a1a1aa', padding: 12, usePointStyle: true, font: { size: 11 } }
+                              },
+                              tooltip: {
+                                backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                                titleColor: '#fff',
+                                bodyColor: '#a1a1aa',
+                                borderColor: '#3f3f46',
+                                borderWidth: 1,
+                                callbacks: {
+                                  label: (ctx) => {
+                                    const val = ctx.parsed.y || 0;
+                                    if (compareMetric === 'tokens') return ` ${ctx.dataset.label}: ${formatTokens(val)} tokens`;
+                                    if (compareMetric === 'cost') return ` ${ctx.dataset.label}: ${formatCurrency(val)}`;
+                                    if (compareMetric === 'messages') return ` ${ctx.dataset.label}: ${val} messages`;
+                                    return ` ${ctx.dataset.label}: ${val} sessions`;
+                                  }
+                                }
+                              }
+                            },
+                            scales: {
+                              x: {
+                                grid: { display: false },
+                                ticks: { color: '#71717a', maxTicksLimit: 8, font: { size: 10 } }
+                              },
+                              y: {
+                                grid: { color: '#27272a' },
+                                ticks: {
+                                  color: '#71717a',
+                                  font: { size: 10 },
+                                  callback: (v) => {
+                                    if (compareMetric === 'tokens') return formatTokens(v as number);
+                                    if (compareMetric === 'cost') return `$${(v as number).toFixed(2)}`;
+                                    return String(v);
+                                  }
+                                },
+                                beginAtZero: true,
+                              }
+                            }
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </div>
@@ -1891,6 +2427,505 @@ export default function IDEProjectsPage() {
           </motion.div>
         </div>
       )}
+
+      {/* AI Agent Detail Modal */}
+      <AnimatePresence>
+        {selectedAgentDetail && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedAgentDetail(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: selectedAgentDetail.color + '20' }}>
+                    <Sparkles className="w-5 h-5" style={{ color: selectedAgentDetail.color }} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{selectedAgentDetail.name}</h3>
+                    <p className="text-sm text-zinc-500">{selectedAgentDetail.status === 'active' ? 'Active' : 'Idle'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedAgentDetail(null)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg transition"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              {/* Top Metrics Grid */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Total Tokens</div>
+                  <div className="text-base font-semibold text-white">{formatTokens(selectedAgentDetail.tokens)}</div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Messages</div>
+                  <div className="text-base font-semibold text-blue-400">{selectedAgentDetail.messageCount.toLocaleString()}</div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Total Cost</div>
+                  <div className="text-base font-semibold text-emerald-400">{formatCurrency(selectedAgentDetail.cost)}</div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Sessions</div>
+                  <div className="text-base font-semibold text-violet-400">{selectedAgentDetail.sessions.toLocaleString()}</div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Tokens/Msg</div>
+                  <div className="text-base font-semibold text-amber-400">
+                    {selectedAgentDetail.messageCount > 0 ? formatTokens(Math.round(selectedAgentDetail.tokens / selectedAgentDetail.messageCount)) : 'N/A'}
+                  </div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">Cost/Session</div>
+                  <div className="text-base font-semibold text-rose-400">
+                    {selectedAgentDetail.sessions > 0 ? formatCurrency(selectedAgentDetail.cost / selectedAgentDetail.sessions) : 'N/A'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                {/* Timeline Chart */}
+                <div className="bg-zinc-800/50 rounded-xl p-4 lg:col-span-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-zinc-400">Daily Usage</h4>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5 bg-zinc-700/50 rounded-md p-0.5">
+                        {(['tokens', 'messages', 'sessions', 'cost'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            onClick={() => setAgentDetailMetric(mode)}
+                            className={`px-2 py-1 rounded text-[10px] font-medium transition ${
+                              agentDetailMetric === mode
+                                ? 'bg-violet-500/20 text-violet-400'
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-0.5 bg-zinc-700/50 rounded-md p-0.5">
+                        {(['week', 'month', 'all'] as const).map(period => (
+                          <button
+                            key={period}
+                            onClick={() => setAgentDetailPeriod(period)}
+                            className={`px-2 py-1 rounded text-[10px] font-medium transition ${
+                              agentDetailPeriod === period
+                                ? 'bg-violet-500/20 text-violet-400'
+                                : 'text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {period === 'week' ? '7D' : period === 'month' ? '30D' : 'All'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-48">
+                    {(() => {
+                      const daysMap: Record<string, number> = { 'week': 7, 'month': 30, 'all': 90 };
+                      const numDays = daysMap[agentDetailPeriod] || 7;
+                      const periodDays = eachDayOfInterval({ start: subDays(new Date(), numDays - 1), end: new Date() });
+                      const getMetricValue = (dayStr: string) => {
+                        const dayData = overview?.aiUsage?.byTool?.[selectedAgentDetail.id]?.daily?.[dayStr];
+                        if (!dayData) return 0;
+                        if (agentDetailMetric === 'tokens') return dayData.tokens || 0;
+                        if (agentDetailMetric === 'messages') return dayData.messageCount || 0;
+                        if (agentDetailMetric === 'sessions') return dayData.sessions || 0;
+                        if (agentDetailMetric === 'cost') return dayData.cost || 0;
+                        return 0;
+                      };
+                      const chartData = {
+                        labels: periodDays.map(d => format(d, numDays <= 7 ? 'EEE' : 'MMM dd')),
+                        datasets: [{
+                          label: agentDetailMetric.charAt(0).toUpperCase() + agentDetailMetric.slice(1),
+                          data: periodDays.map(d => getMetricValue(format(d, 'yyyy-MM-dd'))),
+                          backgroundColor: selectedAgentDetail.color + '40',
+                          borderColor: selectedAgentDetail.color,
+                          borderWidth: 2,
+                          borderRadius: 4,
+                        }]
+                      };
+                      return (
+                        <Bar
+                          data={chartData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                                titleColor: '#fff',
+                                bodyColor: '#a1a1aa',
+                                borderColor: '#3f3f46',
+                                borderWidth: 1,
+                                callbacks: {
+                                  label: (ctx) => {
+                                    const val = ctx.parsed.y || 0;
+                                    if (agentDetailMetric === 'tokens') return ` ${formatTokens(val)} tokens`;
+                                    if (agentDetailMetric === 'cost') return ` ${formatCurrency(val)}`;
+                                    if (agentDetailMetric === 'messages') return ` ${val} messages`;
+                                    return ` ${val} sessions`;
+                                  }
+                                }
+                              }
+                            },
+                            scales: {
+                              x: { ticks: { color: '#71717a', maxTicksLimit: numDays <= 7 ? 7 : 8, font: { size: 10 } }, grid: { display: false } },
+                              y: {
+                                ticks: {
+                                  color: '#71717a',
+                                  font: { size: 10 },
+                                  callback: (v) => {
+                                    if (agentDetailMetric === 'tokens') return formatTokens(v as number);
+                                    if (agentDetailMetric === 'cost') return `$${(v as number).toFixed(2)}`;
+                                    return String(v);
+                                  }
+                                },
+                                grid: { color: '#27272a' },
+                                beginAtZero: true,
+                              }
+                            }
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Project Breakdown */}
+                {(() => {
+                  const projects = overview?.aiUsage?.byTool?.[selectedAgentDetail.id]?.projects || [];
+                  if (projects.length === 0) return null;
+                  return (
+                    <div className="bg-zinc-800/50 rounded-xl p-4">
+                      <h4 className="text-sm font-medium text-zinc-400 mb-3">Project Breakdown</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {projects.slice(0, 10).map((proj: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between p-2 bg-zinc-900/40 rounded-lg">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-zinc-300 truncate" title={proj.path}>{proj.path}</div>
+                              <div className="text-[10px] text-zinc-500">{proj.sessions} sessions • {proj.messageCount} msgs</div>
+                            </div>
+                            <div className="text-xs text-violet-400 font-medium tabular-nums ml-2">{formatTokens(proj.tokens)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Model Breakdown */}
+                {(() => {
+                  const models = overview?.aiUsage?.byTool?.[selectedAgentDetail.id]?.modelBreakdown || [];
+                  if (models.length === 0) return null;
+                  return (
+                    <div className="bg-zinc-800/50 rounded-xl p-4">
+                      <h4 className="text-sm font-medium text-zinc-400 mb-3">Model Breakdown</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {models.slice(0, 10).map((m: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between p-2 bg-zinc-900/40 rounded-lg">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-zinc-300 truncate" title={m.model}>{m.model}</div>
+                              <div className="text-[10px] text-zinc-500">{m.sessions} sessions • {m.messageCount} msgs</div>
+                            </div>
+                            <div className="text-xs text-blue-400 font-medium tabular-nums ml-2">{formatTokens(m.tokens)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="text-xs text-zinc-500 mb-4">
+                Last used: {selectedAgentDetail.lastUsed ? format(selectedAgentDetail.lastUsed, 'MMM dd, yyyy HH:mm') : 'Never'}
+              </div>
+
+              {/* Agent-specific help info */}
+              <div className="p-4 bg-zinc-800/30 rounded-xl border border-zinc-700/50">
+                <h4 className="text-sm font-medium text-zinc-300 mb-2">How This Is Calculated</h4>
+                <div className="space-y-1 text-xs text-zinc-500">
+                  <p><span className="text-zinc-300">Sessions:</span> Number of chat/conversation files. One JSONL file = one session.</p>
+                  <p><span className="text-zinc-300">Messages:</span> Count of user + assistant exchanges in session files.</p>
+                  <p><span className="text-zinc-300">Tokens:</span> Sum of input + output tokens parsed from session files.</p>
+                  <p><span className="text-zinc-300">Cost:</span> Calculated from tokens using provider pricing.</p>
+                  {selectedAgentDetail.id === 'claude-code' && (
+                    <p className="text-violet-400">Claude Code: Reads ~/.claude/projects/*/*.jsonl files (including subagents/)</p>
+                  )}
+                  {selectedAgentDetail.id === 'qwen' && (
+                    <p className="text-amber-400">Qwen: Reads ~/.qwen/projects/*/chats/*.jsonl files</p>
+                  )}
+                  {selectedAgentDetail.id === 'opencode' && (
+                    <p className="text-blue-400">OpenCode: Reads ~/.local/share/opencode/opencode.db SQLite database</p>
+                  )}
+                  {selectedAgentDetail.id === 'gemini' && (
+                    <p className="text-cyan-400">Gemini: Reads ~/.gemini/tmp/*/chats/*.jsonl files</p>
+                  )}
+                  {selectedAgentDetail.id === 'aider' && (
+                    <p className="text-orange-400">Aider: Reads ~/.oobo/aider-analytics.jsonl</p>
+                  )}
+                  {selectedAgentDetail.id === 'codex' && (
+                    <p className="text-emerald-400">Codex: Reads ~/.codex/sessions/*.jsonl files</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Features Modal */}
+      <AnimatePresence>
+        {showHelpModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowHelpModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                  Features & Capabilities
+                </h3>
+                <button
+                  onClick={() => setShowHelpModal(false)}
+                  className="px-3 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="glass rounded-xl p-4">
+                  <h4 className="text-emerald-400 font-medium mb-3">IDE Detection</h4>
+                  <ul className="space-y-2 text-sm text-zinc-300">
+                    <li>• IntelliJ IDEA (IntelliJ, Community)</li>
+                    <li>• PyCharm (Professional, Community)</li>
+                    <li>• WebStorm, GoLand, Rider, DataGrip</li>
+                    <li>• VS Code, Cursor</li>
+                    <li>• Android Studio</li>
+                  </ul>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <h4 className="text-violet-400 font-medium mb-3">AI Tool Integration</h4>
+                  <ul className="space-y-2 text-sm text-zinc-300">
+                    <li>• Claude Code - parses .claude/projects/*.jsonl</li>
+                    <li>• OpenCode - reads opencode.db</li>
+                    <li>• Gemini CLI - parses tmp/*/chats</li>
+                    <li>• Codex CLI, Qwen, Aider</li>
+                    <li>Tracks: tokens, cost, sessions</li>
+                  </ul>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <h4 className="text-blue-400 font-medium mb-3">Project Tracking</h4>
+                  <ul className="space-y-2 text-sm text-zinc-300">
+                    <li>• Add projects with path & default IDE</li>
+                    <li>• Open in detected IDE</li>
+                    <li>• Track primary language</li>
+                    <li>• Git repository integration</li>
+                  </ul>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <h4 className="text-amber-400 font-medium mb-3">Tools Detection</h4>
+                  <ul className="space-y-2 text-sm text-zinc-300">
+                    <li>• Git - version control</li>
+                    <li>• Node.js, npm, yarn, pnpm</li>
+                    <li>• Python, pip, uv</li>
+                    <li>• Docker, Docker Compose</li>
+                    <li>• And many more...</li>
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Project Modal - Accessible from any tab */}
+      <AnimatePresence>
+        {showAddProject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowAddProject(false); setAddProjectError(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl max-w-lg w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-indigo-400" />
+                  Add New Project
+                </h3>
+                <button
+                  onClick={() => { setShowAddProject(false); setAddProjectError(null); }}
+                  className="p-1 text-zinc-400 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {addProjectError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                  {addProjectError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Project Name *</label>
+                  <input
+                    type="text"
+                    value={newProject.name}
+                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                    placeholder="My Project"
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Project Path *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newProject.path}
+                      onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
+                      placeholder="C:\Projects\my-project"
+                      className="flex-1 px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={async () => {
+                        const result = await window.deskflowAPI!.pickFolder();
+                        if (result.success && result.path) {
+                          setNewProject({ ...newProject, path: result.path });
+                        }
+                      }}
+                      className="px-4 py-3 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-lg border border-zinc-600 transition"
+                      title="Browse for folder"
+                    >
+                      <FolderOpen className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Repository URL (optional)</label>
+                  <input
+                    type="text"
+                    value={newProject.repositoryUrl}
+                    onChange={(e) => setNewProject({ ...newProject, repositoryUrl: e.target.value })}
+                    placeholder="https://github.com/user/repo"
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Default IDE (optional)</label>
+                  <select
+                    value={newProject.defaultIde}
+                    onChange={(e) => setNewProject({ ...newProject, defaultIde: e.target.value })}
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">Select an IDE...</option>
+                    {overview?.ides?.map((ide: any) => (
+                      <option key={ide.id} value={ide.id}>{ide.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
+                <button
+                  onClick={() => { setShowAddProject(false); setAddProjectError(null); }}
+                  className="px-4 py-2 text-zinc-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddProject}
+                  disabled={!newProject.name || !newProject.path || addingProject}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addingProject ? 'Adding...' : 'Add Project'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Terminal Workspace Modal */}
+      <AnimatePresence>
+        {isWorkspaceOpen && workspaceProject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black z-50 flex flex-col"
+          >
+            {/* Workspace Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-zinc-900 border-b border-zinc-800">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => { setIsWorkspaceOpen(false); setWorkspaceProject(null); }}
+                  className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <Terminal className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <h2 className="text-white font-semibold">{workspaceProject.name}</h2>
+                    <p className="text-xs text-zinc-500 font-mono">{workspaceProject.path}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setIsWorkspaceOpen(false); setWorkspaceProject(null); }}
+                  className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+                >
+                  Exit Workspace
+                </button>
+              </div>
+            </div>
+
+            {/* Terminal Content - embedded via iframe or directly render */}
+            <div className="flex-1 flex overflow-hidden">
+              <TerminalPage projectId={workspaceProject.id} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

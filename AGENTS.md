@@ -49,6 +49,7 @@ These files contain information NOT captured in graphify and must still be maint
 | `agent/data.md` | DB schemas, IPC endpoint reference | When IPC endpoints or DB schema change |
 | `agent/docs/quick-prompt.md` | Diagnostic prompt templates | When a reusable diagnostic pattern is found |
 | `agent/docs/RESTORE_PROMPT.md` | Emergency restoration procedure | When project structure changes significantly |
+| `agent/docs/SETTINGS_PAGE_FEATURES.md` | Complete Settings page feature reference | When modifying Settings page |
 
 ## Redundant Files (content already in graphify - do NOT maintain separately)
 
@@ -65,6 +66,24 @@ These files contain information NOT captured in graphify and must still be maint
 ---
 
 ## CRITICAL RULES (NEVER violate)
+
+### NEVER use git to revert/reset/restore files
+**NEVER run ANY of these commands:**
+- `git checkout -- <file>`
+- `git checkout HEAD -- <file>`
+- `git restore <file>`
+- `git reset --hard`
+- `git stash`
+
+**Why:** Using git to "fix" errors destroys ALL the user's work and reverts to old broken code. This is the #1 cause of Settings page features being lost repeatedly.
+
+**What to do instead:**
+1. Read the error message carefully
+2. Fix the code manually (edit the broken part)
+3. Run `npm run build` to test
+4. If build passes, user tests functionality
+
+**ONLY the USER can decide to use git commands. NEVER use them yourself.**
 
 ### Tailwind v4 CSS — NEVER change to v3 directives
 `src/index.css` MUST use `@import "tailwindcss";` (v4 syntax). NEVER change it to `@tailwind base; @tailwind components; @tailwind utilities;` (v3 syntax). The v3 directives silently break v4 — CSS builds successfully but most utility classes are missing. See `agent/debugging.md` "Tailwind v4 CSS Silent Failure" for full details.
