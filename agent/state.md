@@ -40,6 +40,20 @@
 
 **Result:** New "External" page in sidebar for tracking non-laptop activities with sleep tracking and wake-up time picker.
 
+### 2026-04-21 — Hourly Activity Chart for Website Page
+
+**What Changed:**
+1. ✅ Added Hourly Activity chart to BrowserActivityPage (website page)
+2. ✅ Chart mirrors the same functionality as StatsPage (application page)
+3. ✅ Shows hourly breakdown with bar/line toggle
+4. ✅ Filters by selected period (today/week/month/all)
+5. ✅ Uses same duration-splitting logic across hours
+
+**Files Modified:**
+- `src/pages/BrowserActivityPage.tsx` - Added hourly chart component and logic
+
+**Result:** Website page now has "Hourly Activity" chart similar to the application page.
+
 ### 2026-04-21 — Browser Tracking Fix
 
 **What Changed:**

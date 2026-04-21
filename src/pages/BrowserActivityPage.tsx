@@ -1,19 +1,22 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Globe, BarChart3, Clock, TrendingUp, AlertCircle, RefreshCw, X, ChevronRight, Activity, Terminal, Save, Play, Pause } from 'lucide-react';
+import { Globe, BarChart3, Clock, TrendingUp, AlertCircle, RefreshCw, X, ChevronRight, Activity, Terminal, Save, Play, Pause, TrendingUp as TrendingUpIcon } from 'lucide-react';
 import { format as dateFormat } from 'date-fns';
-import { Pie, Bar } from 'react-chartjs-2';
+import { Pie, Bar, Line } from 'react-chartjs-2';
 import { format } from 'date-fns';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   ArcElement,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip, Legend, Filler);
 
 // Category colors matching the app's planet color system
 const CATEGORY_COLORS: Record<string, string> = {
@@ -67,6 +70,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
   const [mainBrowser, setMainBrowser] = useState<string>('');
   const [availableBrowsers, setAvailableBrowsers] = useState<string[]>([]);
   const [extensionBrowser, setExtensionBrowser] = useState<string>('');
+  const [hourlyChartMode, setHourlyChartMode] = useState<'bar' | 'line'>('bar');
 
   // Detect browsers and load tracking browser preference
   useEffect(() => {
@@ -389,6 +393,127 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
     }
   };
 
+  // Hourly distribution computed from browserLogs — split duration across hours
+  const hourlyDistribution = useMemo(() => {
+    const now = new Date();
+    const filteredLogs = (browserLogs as any[]).filter((log: any) => {
+      if (selectedPeriod === 'today') {
+        const logDate = new Date(log.timestamp);
+        return logDate.getDate() === now.getDate() &&
+               logDate.getMonth() === now.getMonth() &&
+               logDate.getFullYear() === now.getFullYear();
+      } else if (selectedPeriod === 'week') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return new Date(log.timestamp) >= weekAgo;
+      } else if (selectedPeriod === 'month') {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return new Date(log.timestamp) >= monthAgo;
+      }
+      return true;
+    });
+
+    const hourBuckets = Array.from({ length: 24 }, () => 0);
+
+    for (const log of filteredLogs) {
+      const sessionStart = new Date(log.timestamp).getTime();
+      const sessionEnd = sessionStart + ((log.duration_ms || 0));
+
+      let currentMs = sessionStart;
+      while (currentMs < sessionEnd) {
+        const currentHour = new Date(currentMs).getHours();
+        const currentDate = new Date(currentMs);
+        const hourStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), currentHour).getTime();
+        const hourEnd = hourStart + 3600000;
+        const segmentStart = Math.max(currentMs, hourStart);
+        const segmentEnd = Math.min(sessionEnd, hourEnd);
+        const segmentMs = Math.max(0, segmentEnd - segmentStart);
+
+        if (segmentMs > 0 && currentHour >= 0 && currentHour < 24) {
+          hourBuckets[currentHour] += segmentMs;
+        }
+
+        currentMs = hourStart + 3600000;
+      }
+    }
+
+    return hourBuckets.map((ms, hour) => ({ hour, ms }));
+  }, [browserLogs, selectedPeriod]);
+
+  // Hourly bar chart data
+  const hourlyChartData = {
+    labels: hourlyDistribution.map(h => `${h.hour.toString().padStart(2, '0')}:00`),
+    datasets: [{
+      label: 'Duration',
+      data: hourlyDistribution.map(h => h.ms),
+      backgroundColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#10b981' : 'rgba(99, 102, 241, 0.6)';
+      }),
+      borderColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#059669' : '#6366f1';
+      }),
+      borderWidth: 1,
+      borderRadius: 4,
+    }]
+  };
+
+  const hourlyChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(24, 24, 27, 0.95)',
+        titleColor: '#fff',
+        bodyColor: '#a1a1aa',
+        borderColor: '#3f3f46',
+        borderWidth: 1,
+        padding: 12,
+        callbacks: {
+          label: (ctx: any) => ` ${formatDuration(ctx.parsed.y)}`,
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: '#71717a', maxTicksLimit: 12 }
+      },
+      y: {
+        grid: { color: '#27272a' },
+        ticks: {
+          color: '#71717a',
+          callback: (v: any) => formatDuration(v),
+        },
+        beginAtZero: true,
+      }
+    },
+  };
+
+  // Line chart version of hourly data
+  const hourlyLineChartData = {
+    labels: hourlyDistribution.map(h => `${h.hour.toString().padStart(2, '0')}:00`),
+    datasets: [{
+      label: 'Duration',
+      data: hourlyDistribution.map(h => h.ms),
+      borderColor: '#6366f1',
+      backgroundColor: 'rgba(99, 102, 241, 0.2)',
+      fill: true,
+      tension: 0.3,
+      pointBackgroundColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#10b981' : '#6366f1';
+      }),
+      pointBorderColor: hourlyDistribution.map((_, i) => {
+        const currentHour = new Date().getHours();
+        return i === currentHour ? '#059669' : '#6366f1';
+      }),
+      pointRadius: 4,
+      pointHoverRadius: 6,
+    }]
+  };
+
   if (loading) {
     return (
       <div
@@ -572,6 +697,58 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Hourly Activity Chart */}
+      <div className="glass rounded-3xl p-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            {hourlyChartMode === 'bar' ? (
+              <BarChart3 className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <TrendingUpIcon className="w-5 h-5 text-indigo-400" />
+            )}
+            <div>
+              <div className="text-xl font-semibold">
+                {selectedPeriod === 'today' ? 'Hourly Activity' : 'Daily Usage Trend'}
+              </div>
+              <div className="text-sm text-zinc-500">
+                {selectedPeriod === 'today' ? 'Activity by hour of day' : `${selectedPeriod === 'week' ? '7 days' : selectedPeriod === 'month' ? '30 days' : '90 days'} of activity`}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-zinc-800/50 p-1 rounded-lg">
+            <button
+              onClick={() => setHourlyChartMode('bar')}
+              className={`p-2 rounded-md transition-all ${
+                hourlyChartMode === 'bar'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Bar Chart"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setHourlyChartMode('line')}
+              className={`p-2 rounded-md transition-all ${
+                hourlyChartMode === 'line'
+                  ? 'bg-indigo-500/20 text-indigo-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Line Chart"
+            >
+              <TrendingUpIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="h-56">
+          {hourlyChartMode === 'bar' ? (
+            <Bar data={hourlyChartData} options={hourlyChartOptions} />
+          ) : (
+            <Line data={hourlyLineChartData} options={hourlyChartOptions} />
           )}
         </div>
       </div>
