@@ -1439,6 +1439,59 @@ function initializeStorage() {
         try { db.exec('ALTER TABLE terminal_sessions ADD COLUMN total_tokens INTEGER DEFAULT 0'); } catch {}
         try { db.exec('ALTER TABLE terminal_sessions ADD COLUMN total_cost REAL DEFAULT 0'); } catch {}
 
+        // ========== External Activities Tables ==========
+        // External activities definition table
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS external_activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('stopwatch', 'sleep', 'checkin')),
+            color TEXT DEFAULT '#6366f1',
+            icon TEXT DEFAULT 'Clock',
+            default_duration INTEGER DEFAULT 30,
+            is_default INTEGER DEFAULT 0,
+            is_visible INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // External sessions tracking table
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS external_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_id INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            duration_seconds INTEGER DEFAULT 0,
+            notes TEXT,
+            FOREIGN KEY (activity_id) REFERENCES external_activities(id)
+          )
+        `);
+
+        // Seed default external activities if table is empty
+        const activityCount = db.prepare('SELECT COUNT(*) as count FROM external_activities').get();
+        if (activityCount.count === 0) {
+          const defaultActivities = [
+            { name: 'Studying (Paper)', type: 'stopwatch', color: '#8b5cf6', icon: 'BookOpen', sort_order: 1 },
+            { name: 'Exercise', type: 'stopwatch', color: '#10b981', icon: 'Dumbbell', sort_order: 2 },
+            { name: 'Gym', type: 'stopwatch', color: '#f59e0b', icon: 'Activity', sort_order: 3 },
+            { name: 'Commute', type: 'stopwatch', color: '#6366f1', icon: 'Bus', sort_order: 4 },
+            { name: 'Reading', type: 'stopwatch', color: '#ec4899', icon: 'Book', sort_order: 5 },
+            { name: 'Sleep', type: 'sleep', color: '#3b82f6', icon: 'Moon', sort_order: 6 },
+            { name: 'Eating', type: 'checkin', color: '#ef4444', icon: 'Utensils', default_duration: 30, sort_order: 7 },
+            { name: 'Short Break', type: 'checkin', color: '#14b8a6', icon: 'Coffee', default_duration: 15, sort_order: 8 },
+          ];
+          const insertStmt = db.prepare(`
+            INSERT INTO external_activities (name, type, color, icon, default_duration, is_default, sort_order)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+          `);
+          for (const act of defaultActivities) {
+            insertStmt.run(act.name, act.type, act.color, act.icon, act.default_duration || 30, act.sort_order);
+          }
+          console.log('[DeskFlow] ✅ Seeded', defaultActivities.length, 'default external activities');
+        }
+
         console.log('[DeskFlow] ✅ SQLite database initialized at', dbPath);
         storageError = null;
     }
@@ -5745,6 +5798,281 @@ electron_1.app.whenReady().then(() => {
     console.log(`[DeskFlow] ✅ Browser tracking: ${isBrowserTrackingEnabled ? 'ON' : 'OFF'}`);
     console.log(`[DeskFlow] ✅ Auto-start: ${electron_1.app.getLoginItemSettings().openAtLogin ? 'enabled' : 'disabled'}`);
 });
+
+// ========== External Activities IPC Handlers ==========
+
+electron_1.ipcMain.handle('get-external-activities', () => {
+    if (useJson) return [];
+    try {
+        return db.prepare('SELECT * FROM external_activities WHERE is_visible = 1 ORDER BY sort_order').all();
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get external activities:', err);
+        return [];
+    }
+});
+
+electron_1.ipcMain.handle('add-external-activity', (event, activity) => {
+    if (useJson) return { success: false };
+    try {
+        const result = db.prepare(`
+            INSERT INTO external_activities (name, type, color, icon, default_duration, is_default, sort_order)
+            VALUES (?, ?, ?, ?, ?, 0, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM external_activities)
+        `).run(activity.name, activity.type, activity.color || '#6366f1', activity.icon || 'Clock', activity.default_duration || 30);
+        return { success: true, id: result.lastInsertRowid.toString() };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to add external activity:', err);
+        return { success: false };
+    }
+});
+
+electron_1.ipcMain.handle('update-external-activity', (event, id, updates) => {
+    if (useJson) return false;
+    try {
+        const fields = [];
+        const values = [];
+        if (updates.name) { fields.push('name = ?'); values.push(updates.name); }
+        if (updates.color) { fields.push('color = ?'); values.push(updates.color); }
+        if (updates.icon) { fields.push('icon = ?'); values.push(updates.icon); }
+        if (updates.default_duration) { fields.push('default_duration = ?'); values.push(updates.default_duration); }
+        if (updates.is_visible !== undefined) { fields.push('is_visible = ?'); values.push(updates.is_visible ? 1 : 0); }
+        if (fields.length === 0) return true;
+        values.push(id);
+        db.prepare(`UPDATE external_activities SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+        return true;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to update external activity:', err);
+        return false;
+    }
+});
+
+electron_1.ipcMain.handle('delete-external-activity', (event, id) => {
+    if (useJson) return false;
+    try {
+        db.prepare('DELETE FROM external_sessions WHERE activity_id = ?').run(id);
+        db.prepare('DELETE FROM external_activities WHERE id = ? AND is_default = 0').run(id);
+        return true;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to delete external activity:', err);
+        return false;
+    }
+});
+
+// ========== External Sessions IPC Handlers ==========
+
+electron_1.ipcMain.handle('start-external-session', (event, activityId) => {
+    if (useJson) return { success: false };
+    try {
+        const result = db.prepare(`
+            INSERT INTO external_sessions (activity_id, started_at)
+            VALUES (?, ?)
+        `).run(activityId, new Date().toISOString());
+        return { success: true, sessionId: result.lastInsertRowid.toString() };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to start external session:', err);
+        return { success: false };
+    }
+});
+
+electron_1.ipcMain.handle('stop-external-session', (event, sessionId, endTime) => {
+    if (useJson) return { success: false, duration: 0 };
+    try {
+        const now = endTime ? new Date(endTime) : new Date();
+        const session = db.prepare('SELECT * FROM external_sessions WHERE id = ?').get(sessionId);
+        if (!session) return { success: false, duration: 0 };
+        
+        const startedAt = new Date(session.started_at);
+        const durationSeconds = Math.floor((now.getTime() - startedAt.getTime()) / 1000);
+        
+        db.prepare(`
+            UPDATE external_sessions 
+            SET ended_at = ?, duration_seconds = ?
+            WHERE id = ?
+        `).run(now.toISOString(), durationSeconds, sessionId);
+        
+        return { success: true, duration: durationSeconds };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to stop external session:', err);
+        return { success: false, duration: 0 };
+    }
+});
+
+electron_1.ipcMain.handle('get-external-sessions', (event, period = 'all') => {
+    if (useJson) return [];
+    try {
+        let dateFilter = '';
+        const now = new Date();
+        
+        if (period === 'today') {
+            const today = now.toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) = '${today}'`;
+        } else if (period === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) >= '${weekAgo}'`;
+        } else if (period === 'month') {
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) >= '${monthAgo}'`;
+        }
+        
+        return db.prepare(`
+            SELECT es.*, ea.name as activity_name, ea.type, ea.color, ea.icon
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE es.ended_at IS NOT NULL ${dateFilter}
+            ORDER BY es.started_at DESC
+        `).all();
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get external sessions:', err);
+        return [];
+    }
+});
+
+// ========== External Statistics IPC Handlers ==========
+
+electron_1.ipcMain.handle('get-external-stats', (event, period = 'all') => {
+    if (useJson) return { byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 };
+    try {
+        let dateFilter = '';
+        const now = new Date();
+        
+        if (period === 'today') {
+            const today = now.toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) = '${today}'`;
+        } else if (period === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) >= '${weekAgo}'`;
+        } else if (period === 'month') {
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            dateFilter = `AND date(es.started_at) >= '${monthAgo}'`;
+        }
+        
+        const sessions = db.prepare(`
+            SELECT es.*, ea.name, ea.type
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE es.ended_at IS NOT NULL ${dateFilter}
+        `).all();
+        
+        const byActivity: Record<string, { total_seconds: number; session_count: number }> = {};
+        let totalSeconds = 0;
+        
+        for (const s of sessions) {
+            if (!byActivity[s.name]) {
+                byActivity[s.name] = { total_seconds: 0, session_count: 0 };
+            }
+            byActivity[s.name].total_seconds += s.duration_seconds || 0;
+            byActivity[s.name].session_count += 1;
+            totalSeconds += s.duration_seconds || 0;
+        }
+        
+        // Calculate sleep deficit
+        const sleepSessions = sessions.filter((s: any) => s.type === 'sleep');
+        const targetSleepSeconds = 8 * 3600; // 8 hours
+        const totalSleepSeconds = sleepSessions.reduce((sum: number, s: any) => sum + (s.duration_seconds || 0), 0);
+        const sleepDeficitSeconds = (targetSleepSeconds * sleepSessions.length) - totalSleepSeconds;
+        const averageSleepHours = sleepSessions.length > 0 ? (totalSleepSeconds / sleepSessions.length / 3600) : 0;
+        
+        return {
+            byActivity,
+            total_seconds: totalSeconds,
+            sleep_deficit_seconds: sleepDeficitSeconds,
+            average_sleep_hours: averageSleepHours
+        };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get external stats:', err);
+        return { byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 };
+    }
+});
+
+electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
+    if (useJson) return { daily: [], average_bedtime: '', average_wake_time: '' };
+    try {
+        const days = period === 'week' ? 7 : 30;
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const sessions = db.prepare(`
+            SELECT es.*, ea.name, ea.type
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE ea.type = 'sleep' AND es.ended_at IS NOT NULL AND date(es.started_at) >= ?
+            ORDER BY es.started_at ASC
+        `).all(startDate);
+        
+        const daily: Array<{ date: string; sleep_seconds: number; deficit_seconds: number }> = [];
+        const targetSleep = 8 * 3600;
+        
+        // Group by date
+        const byDate: Record<string, { sleep_seconds: number; bedtime_count: number; bedtime_sum: number }> = {};
+        for (const s of sessions) {
+            const date = s.started_at.split('T')[0];
+            if (!byDate[date]) {
+                byDate[date] = { sleep_seconds: 0, bedtime_count: 0, bedtime_sum: 0 };
+            }
+            byDate[date].sleep_seconds += s.duration_seconds || 0;
+            byDate[date].bedtime_count += 1;
+            const bedtime = new Date(s.started_at);
+            byDate[date].bedtime_sum += bedtime.getHours() * 60 + bedtime.getMinutes();
+        }
+        
+        for (const [date, data] of Object.entries(byDate)) {
+            daily.push({
+                date,
+                sleep_seconds: data.sleep_seconds,
+                deficit_seconds: targetSleep - data.sleep_seconds
+            });
+        }
+        
+        // Calculate average bedtime
+        const allBedtimes = sessions.map((s: any) => {
+            const d = new Date(s.started_at);
+            return d.getHours() * 60 + d.getMinutes();
+        });
+        const avgBedtimeMinutes = allBedtimes.length > 0 ? Math.round(allBedtimes.reduce((a: number, b: number) => a + b, 0) / allBedtimes.length) : 0;
+        const avgBedtime = `${Math.floor(avgBedtimeMinutes / 60).toString().padStart(2, '0')}:${(avgBedtimeMinutes % 60).toString().padStart(2, '0')}`;
+        
+        return { daily, average_bedtime: avgBedtime, average_wake_time: '' };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get sleep trends:', err);
+        return { daily: [], average_bedtime: '', average_wake_time: '' };
+    }
+});
+
+electron_1.ipcMain.handle('get-consistency-score', (event, period = 'week') => {
+    if (useJson) return { score: 0, weekly_comparison: [] };
+    try {
+        const weeks = 4;
+        const weeklyTotals: Array<{ week: string; total_seconds: number }> = [];
+        const now = new Date();
+        
+        for (let i = weeks - 1; i >= 0; i--) {
+            const weekStart = new Date(now.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
+            const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+            const weekLabel = `${weekStart.toISOString().split('T')[0]}`;
+            
+            const sessions = db.prepare(`
+                SELECT SUM(duration_seconds) as total
+                FROM external_sessions
+                WHERE ended_at IS NOT NULL 
+                AND date(started_at) >= ? AND date(started_at) < ?
+            `).get(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0]);
+            
+            weeklyTotals.push({
+                week: weekLabel,
+                total_seconds: sessions?.total || 0
+            });
+        }
+        
+        const currentWeek = weeklyTotals[weeklyTotals.length - 1];
+        const targetSeconds = 30 * 3600; // 30 hours target
+        const variance = Math.abs((currentWeek?.total_seconds || 0) - targetSeconds) / targetSeconds;
+        const score = Math.max(0, Math.round((1 - variance) * 100));
+        
+        return { score, weekly_comparison: weeklyTotals };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get consistency score:', err);
+        return { score: 0, weekly_comparison: [] };
+    }
+});
+
 electron_1.app.on('window-all-closed', () => {
     // Keep app running in background (tray mode)
 });

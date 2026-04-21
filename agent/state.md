@@ -14,6 +14,32 @@
 
 ## 📝 Recent Changes
 
+### 2026-04-21 — External Tracker Feature (Phases 1-2)
+
+**What Changed:**
+1. ✅ Added `external_activities` table to SQLite - stores activity definitions (name, type, color, icon, etc.)
+2. ✅ Added `external_sessions` table to SQLite - stores completed sessions with duration
+3. ✅ Seeded 8 default activities: Studying (Paper), Exercise, Gym, Commute, Reading, Sleep, Eating, Short Break
+4. ✅ Added all External IPC handlers:
+   - `get-external-activities`, `add-external-activity`, `update-external-activity`, `delete-external-activity`
+   - `start-external-session`, `stop-external-session`, `get-external-sessions`
+   - `get-external-stats`, `get-sleep-trends`, `get-consistency-score`
+5. ✅ Created ExternalPage component with activity grid
+6. ✅ Added External to sidebar navigation
+7. ✅ Implemented stopwatch mode for timed activities
+8. ✅ Implemented sleep mode with wake-up time picker modal
+9. ✅ Implemented check-in mode for quick activities
+10. ✅ Added sleep deficit calculation (8h target)
+11. ✅ Added stats cards showing totals
+
+**Files Modified:**
+- `src/main.ts` - Added database tables, IPC handlers for external tracking
+- `src/preload.ts` - Added external API bindings
+- `src/App.tsx` - Added ExternalPage import and route
+- `src/pages/ExternalPage.tsx` - New page component (NEW FILE)
+
+**Result:** New "External" page in sidebar for tracking non-laptop activities with sleep tracking and wake-up time picker.
+
 ### 2026-04-21 — Browser Tracking Fix
 
 **What Changed:**

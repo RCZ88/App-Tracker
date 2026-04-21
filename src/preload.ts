@@ -209,4 +209,23 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
 
   // ========== Project Health ==========
   calculateProjectHealth: (projectId: string) => ipcRenderer.invoke('calculate-project-health', projectId),
+
+  // ========== External Tracker ==========
+  // External Activities
+  getExternalActivities: () => ipcRenderer.invoke('get-external-activities'),
+  addExternalActivity: (activity: { name: string; type: string; color?: string; icon?: string; default_duration?: number }) =>
+    ipcRenderer.invoke('add-external-activity', activity),
+  updateExternalActivity: (id: string, updates: { name?: string; color?: string; icon?: string; default_duration?: number; is_visible?: boolean }) =>
+    ipcRenderer.invoke('update-external-activity', id, updates),
+  deleteExternalActivity: (id: string) => ipcRenderer.invoke('delete-external-activity', id),
+
+  // External Sessions
+  startExternalSession: (activityId: string) => ipcRenderer.invoke('start-external-session', activityId),
+  stopExternalSession: (sessionId: string, endTime?: string) => ipcRenderer.invoke('stop-external-session', sessionId, endTime),
+  getExternalSessions: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-sessions', period),
+
+  // External Statistics
+  getExternalStats: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-stats', period),
+  getSleepTrends: (period: 'week' | 'month') => ipcRenderer.invoke('get-sleep-trends', period),
+  getConsistencyScore: (period: 'week' | 'month') => ipcRenderer.invoke('get-consistency-score', period),
 });

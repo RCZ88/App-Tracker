@@ -6,7 +6,7 @@ import {
   Home, Monitor, Globe, Code2, BarChart3, Settings, Play, Pause, Clock,
   Download, Trash2, Award, Zap, Users, Info, Database, CheckCircle, XCircle, AlertTriangle,
   Shield, ShieldAlert, ToggleLeft, ToggleRight, PieChart, CreditCard, Target,
-  ChevronLeft, ChevronRight, Calendar, Terminal, Save
+  ChevronLeft, ChevronRight, Calendar, Terminal, Save, Clock4
 } from 'lucide-react';
 import { format as dateFormat } from 'date-fns';
 import SettingsPage from './pages/SettingsPage';
@@ -17,6 +17,7 @@ import DatabasePage from './pages/DatabasePage';
 import IDEProjectsPage from './pages/IDEProjectsPage';
 import IDEHelpPage from './pages/IDEHelpPage';
 import TerminalPage from './pages/TerminalPage';
+import ExternalPage from './pages/ExternalPage';
 
 // Lazy load OrbitSystem - it's heavy and should only load when needed
 const OrbitSystem = lazy(() => import('./components/OrbitSystem').then(module => ({ default: module.default })));
@@ -1612,6 +1613,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
     { icon: Target, label: 'Productivity', path: '/productivity' },
     { icon: Globe, label: 'Browser Activity', path: '/browser' },
     { icon: Code2, label: 'IDE Projects', path: '/ide' },
+    { icon: Clock4, label: 'External', path: '/external' },
     { icon: BarChart3, label: 'Insights', path: '/reports' },
     { icon: Database, label: 'Database', path: '/database' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -2150,6 +2152,8 @@ Trend: +14% vs. yesterday. Keep it up!`;
               <Route path="/browser" element={<BrowserActivityPage selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* IDE Page */}
               <Route path="/ide" element={<IDEProjectsPage />} />
+
+              <Route path="/external" element={<ExternalPage />} />
 
               <Route path="/ide-help" element={<IDEHelpPage />} />
 
