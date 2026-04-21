@@ -4,6 +4,165 @@
 
 ### Commit Message
 ```
+feat: External Tracker - non-laptop activity tracking with sleep deficit and consistency metrics
+```
+
+### Detailed Changes
+
+#### **New Features**
+
+##### 1. External Tracker Page
+- **New "External" page** in sidebar for tracking non-laptop activities
+- **Activity button grid** displaying all available activities
+- **Stopwatch mode** for timed activities (Studying, Exercise, Gym, Commute, Reading)
+- **Sleep mode** with bedtime tracking and wake-up time picker
+- **Check-in mode** for quick activities (Eating, Short Break)
+
+##### 2. Default External Activities
+- **Pre-loaded activities:**
+  - Studying (Paper) - Stopwatch mode
+  - Exercise - Stopwatch mode
+  - Gym - Stopwatch mode
+  - Commute - Stopwatch mode
+  - Reading - Stopwatch mode
+  - Sleep - Sleep mode (bedtime/wake-up)
+  - Eating - Check-in mode (30 min default)
+  - Short Break - Check-in mode (15 min default)
+
+##### 3. Sleep Tracking System
+- **Sleep session tracking** with bedtime and wake-up timestamps
+- **Wake-up time picker** allowing past time selection
+- **Sleep deficit calculation** (8 hours - actual sleep)
+- **Color-coded deficit display:**
+  - Green (+): On target or surplus
+  - Red (-): Sleep deficit
+- **Average bedtime and wake time** statistics
+
+##### 4. Statistics & Charts
+- **Stats cards** showing today/week/month totals
+- **Sleep deficit card** with color coding
+- **Consistency chart** with multi-week line comparison
+- **Activity breakdown** horizontal bar chart
+- **Consistency score** (0-100 based on variance from target)
+
+##### 5. Custom Activities
+- **Add custom activity** modal form
+- **Edit/delete custom activities** functionality
+- **Configurable options:**
+  - Name and color
+  - Timer mode (stopwatch/sleep/check-in)
+  - Default duration (for check-in)
+  - Icon selection
+
+#### **Backend Changes (Electron Main Process)**
+
+##### New Database Tables
+- **external_activities**: Stores activity definitions
+  ```sql
+  CREATE TABLE external_activities (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    color TEXT,
+    icon TEXT,
+    default_duration INTEGER,
+    is_default INTEGER DEFAULT 0,
+    is_visible INTEGER DEFAULT 1,
+    created_at TEXT
+  );
+  ```
+
+- **external_sessions**: Stores completed sessions
+  ```sql
+  CREATE TABLE external_sessions (
+    id INTEGER PRIMARY KEY,
+    activity_id INTEGER,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    duration_seconds INTEGER,
+    notes TEXT,
+    FOREIGN KEY (activity_id) REFERENCES external_activities(id)
+  );
+  ```
+
+##### New IPC Handlers
+- `get-external-activities` - Fetch all activities
+- `add-external-activity` - Create new activity
+- `update-external-activity` - Update activity
+- `delete-external-activity` - Delete activity
+- `start-external-session` - Start tracking session
+- `stop-external-session` - Stop session with duration
+- `get-external-sessions` - Fetch sessions by period
+- `get-external-stats` - Get statistics by period
+- `get-sleep-trends` - Get sleep pattern data
+- `get-consistency-score` - Calculate consistency metrics
+
+#### **Component Structure**
+
+| Component | Purpose |
+|-----------|--------|
+| `ExternalPage.tsx` | Main external tracking page |
+| `ExternalButton.tsx` | Activity button card |
+| `ExternalActiveTimer.tsx` | Active stopwatch display |
+| `SleepSessionModal.tsx` | Wake-up time picker |
+| `AddActivityModal.tsx` | Custom activity form |
+| `StatsCards.tsx` | Dashboard stats cards |
+| `ConsistencyChart.tsx` | Multi-week line chart |
+| `SleepTrendChart.tsx` | Sleep trend line chart |
+| `ActivityBreakdown.tsx` | Horizontal bar chart |
+| `useExternalTimer.ts` | Timer logic hook |
+
+#### **Documentation**
+
+| File | Purpose |
+|------|--------|
+| `docs/EXTERNAL_TRACKER_PLAN.md` | Full implementation plan |
+| `agent/_COMMITS.md` | Updated with commit details |
+
+#### **Implementation Phases**
+
+1. **Phase 1: Core Infrastructure** (HIGH priority)
+   - Database schema creation
+   - Backend IPC implementation
+   - Basic External page with activity grid
+
+2. **Phase 2: Sleep Tracking** (HIGH priority)
+   - Sleep mode implementation
+   - Wake-up time picker
+   - Sleep statistics
+
+3. **Phase 3: Statistics & Charts** (MEDIUM priority)
+   - Consistency chart
+   - Activity breakdown chart
+
+4. **Phase 4: Customization** (MEDIUM priority)
+   - Add/edit/delete activities
+   - Activity configuration
+
+5. **Phase 5: Polish** (LOW priority)
+   - Animations and transitions
+   - Heatmap integration (deferred)
+   - Floating widget (optional)
+
+---
+
+### Commit Statistics
+- **Files Created:** 9 new components
+- **Files Modified:** 5 existing files
+- **Database Tables:** 2 new tables
+- **IPC Endpoints:** 10 new handlers
+
+### Related Issues
+- Implements non-laptop activity tracking feature
+- Adds sleep deficit monitoring
+- Provides consistency metrics for external activities
+
+---
+
+### Previous Commit
+
+### Commit Message
+```
 feat: AI-powered categorization, terminal system, IDE enhancements, and UI improvements
 ```
 
