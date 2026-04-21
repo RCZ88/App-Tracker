@@ -2,10 +2,24 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, Play, Pause, Square, Moon, Sun, BookOpen, Dumbbell, Activity,
-  Bus, Book, Utensils, Coffee, Plus, ArrowLeft, X, ChevronDown,
-  AlertTriangle, CheckCircle
+  Bus, Book, Utensils, Coffee, Plus, X, AlertTriangle,
+  TrendingUp, TrendingDown, Minus
 } from 'lucide-react';
-import { format } from 'date-fns';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Bar, Line } from 'react-chartjs-2';
+import { format, subDays } from 'date-fns';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler);
 
 interface ExternalActivity {
   id: number;
@@ -37,6 +51,17 @@ interface ExternalStats {
   average_sleep_hours: number;
 }
 
+interface ConsistencyData {
+  score: number;
+  weekly_comparison: Array<{ week: string; total_seconds: number }>;
+}
+
+interface SleepTrend {
+  daily: Array<{ date: string; sleep_seconds: number; deficit_seconds: number }>;
+  average_bedtime: string;
+  average_wake_time: string;
+}
+
 const ICON_MAP: Record<string, any> = {
   Clock,
   Moon,
@@ -49,6 +74,25 @@ const ICON_MAP: Record<string, any> = {
   Utensils,
   Coffee,
 };
+
+const AVAILABLE_ICONS = [
+  { name: 'Clock', icon: Clock },
+  { name: 'Moon', icon: Moon },
+  { name: 'Sun', icon: Sun },
+  { name: 'BookOpen', icon: BookOpen },
+  { name: 'Dumbbell', icon: Dumbbell },
+  { name: 'Activity', icon: Activity },
+  { name: 'Bus', icon: Bus },
+  { name: 'Book', icon: Book },
+  { name: 'Utensils', icon: Utensils },
+  { name: 'Coffee', icon: Coffee },
+];
+
+const ACTIVITY_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+  '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6',
+  '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#64748b',
+];
 
 function getIcon(iconName: string) {
   return ICON_MAP[iconName] || Clock;
@@ -76,12 +120,16 @@ function formatHours(seconds: number): string {
 export default function ExternalPage() {
   const [activities, setActivities] = useState<ExternalActivity[]>([]);
   const [stats, setStats] = useState<ExternalStats>({ byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 });
+  const [consistency, setConsistency] = useState<ConsistencyData>({ score: 0, weekly_comparison: [] });
+  const [sleepTrends, setSleepTrends] = useState<SleepTrend>({ daily: [], average_bedtime: '', average_wake_time: '' });
   const [activeSession, setActiveSession] = useState<{ sessionId: string; activityId: string; activity: ExternalActivity; startTime: Date } | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [wakeTime, setWakeTime] = useState({ hours: 7, minutes: 0 });
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
+  const [newActivity, setNewActivity] = useState({ name: '', type: 'stopwatch' as const, color: '#6366f1', icon: 'Clock', default_duration: 30 });
+  const [showCharts, setShowCharts] = useState(false);
 
   // Load activities on mount
   useEffect(() => {
@@ -96,6 +144,12 @@ export default function ExternalPage() {
   useEffect(() => {
     if (window.deskflowAPI?.getExternalStats) {
       window.deskflowAPI.getExternalStats(selectedPeriod).then(setStats);
+    }
+    if (window.deskflowAPI?.getConsistencyScore) {
+      window.deskflowAPI.getConsistencyScore(selectedPeriod === 'week' ? 'week' : 'month').then(setConsistency);
+    }
+    if (window.deskflowAPI?.getSleepTrends) {
+      window.deskflowAPI.getSleepTrends(selectedPeriod === 'week' ? 'week' : 'month').then(setSleepTrends);
     }
   }, [selectedPeriod]);
 
@@ -118,7 +172,6 @@ export default function ExternalPage() {
   // Start activity
   const startActivity = useCallback(async (activity: ExternalActivity) => {
     if (activity.type === 'sleep') {
-      // For sleep, start a sleep session
       if (window.deskflowAPI?.startExternalSession) {
         const result = await window.deskflowAPI.startExternalSession(activity.id.toString());
         if (result.success) {
@@ -131,7 +184,6 @@ export default function ExternalPage() {
         }
       }
     } else if (activity.type === 'stopwatch') {
-      // For stopwatch, just start the timer
       setActiveSession({
         sessionId: 'temp-' + Date.now(),
         activityId: activity.id.toString(),
@@ -139,17 +191,25 @@ export default function ExternalPage() {
         startTime: new Date(),
       });
     } else if (activity.type === 'checkin') {
-      // For check-in, record immediately with default duration
       if (window.deskflowAPI?.startExternalSession && window.deskflowAPI?.stopExternalSession) {
         const startResult = await window.deskflowAPI.startExternalSession(activity.id.toString());
         if (startResult.success) {
           await window.deskflowAPI.stopExternalSession(startResult.sessionId);
-          // Refresh stats
-          if (window.deskflowAPI?.getExternalStats) {
-            window.deskflowAPI.getExternalStats(selectedPeriod).then(setStats);
-          }
+          refreshStats();
         }
       }
+    }
+  }, []);
+
+  const refreshStats = useCallback(() => {
+    if (window.deskflowAPI?.getExternalStats) {
+      window.deskflowAPI.getExternalStats(selectedPeriod).then(setStats);
+    }
+    if (window.deskflowAPI?.getConsistencyScore) {
+      window.deskflowAPI.getConsistencyScore(selectedPeriod === 'week' ? 'week' : 'month').then(setConsistency);
+    }
+    if (window.deskflowAPI?.getSleepTrends) {
+      window.deskflowAPI.getSleepTrends(selectedPeriod === 'week' ? 'week' : 'month').then(setSleepTrends);
     }
   }, [selectedPeriod]);
 
@@ -160,15 +220,18 @@ export default function ExternalPage() {
     if (activeSession.activity.type === 'sleep') {
       setShowSleepModal(true);
     } else {
-      // Just clear the timer for stopwatch
+      // Save stopwatch session
+      if (activeSession.activity.type === 'stopwatch' && window.deskflowAPI?.startExternalSession && window.deskflowAPI?.stopExternalSession) {
+        const result = await window.deskflowAPI.startExternalSession(activeSession.activityId);
+        if (result.success) {
+          await window.deskflowAPI.stopExternalSession(result.sessionId);
+        }
+      }
       setActiveSession(null);
       setElapsedSeconds(0);
-      // Refresh stats
-      if (window.deskflowAPI?.getExternalStats) {
-        window.deskflowAPI.getExternalStats(selectedPeriod).then(setStats);
-      }
+      refreshStats();
     }
-  }, [activeSession, selectedPeriod]);
+  }, [activeSession, refreshStats]);
 
   // Confirm wake up
   const confirmWakeUp = useCallback(async () => {
@@ -178,7 +241,6 @@ export default function ExternalPage() {
     const wakeDate = new Date();
     wakeDate.setHours(wakeTime.hours, wakeTime.minutes, 0, 0);
 
-    // If wake time is earlier than current hour, assume it's for yesterday
     if (wakeDate > now) {
       wakeDate.setDate(wakeDate.getDate() - 1);
     }
@@ -190,12 +252,8 @@ export default function ExternalPage() {
     setShowSleepModal(false);
     setActiveSession(null);
     setElapsedSeconds(0);
-
-    // Refresh stats
-    if (window.deskflowAPI?.getExternalStats) {
-      window.deskflowAPI.getExternalStats(selectedPeriod).then(setStats);
-    }
-  }, [activeSession, wakeTime, selectedPeriod]);
+    refreshStats();
+  }, [activeSession, wakeTime, refreshStats]);
 
   // Cancel sleep
   const cancelSleep = useCallback(async () => {
@@ -205,20 +263,48 @@ export default function ExternalPage() {
     setShowSleepModal(false);
   }, [activeSession]);
 
-  // Get today's total external time
-  const todayTotal = useMemo(() => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
+  // Save custom activity
+  const saveCustomActivity = useCallback(async () => {
+    if (!newActivity.name.trim()) return;
 
-    if (window.deskflowAPI?.getExternalSessions) {
-      window.deskflowAPI.getExternalSessions('today').then((sessions: ExternalSession[]) => {
-        const todaySessions = sessions.filter(s => s.started_at.startsWith(today));
-        const total = todaySessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
-        return total;
+    if (window.deskflowAPI?.addExternalActivity) {
+      await window.deskflowAPI.addExternalActivity({
+        name: newActivity.name,
+        type: newActivity.type,
+        color: newActivity.color,
+        icon: newActivity.icon,
+        default_duration: newActivity.default_duration,
       });
+      
+      // Reload activities
+      if (window.deskflowAPI?.getExternalActivities) {
+        window.deskflowAPI.getExternalActivities().then(setActivities);
+      }
     }
-    return stats.total_seconds;
-  }, [stats]);
+
+    setShowAddModal(false);
+    setNewActivity({ name: '', type: 'stopwatch', color: '#6366f1', icon: 'Clock', default_duration: 30 });
+  }, [newActivity]);
+
+  // Activity breakdown chart data
+  const breakdownData = useMemo(() => {
+    const labels = Object.keys(stats.byActivity);
+    const data = labels.map(name => (stats.byActivity[name]?.total_seconds || 0) / 3600);
+    const colors = labels.map(name => {
+      const activity = activities.find(a => a.name === name);
+      return activity?.color || '#6366f1';
+    });
+
+    return { labels, data, colors };
+  }, [stats, activities]);
+
+  // Consistency chart data
+  const consistencyChartData = useMemo(() => {
+    return {
+      labels: consistency.weekly_comparison.map(w => w.week.slice(5)),
+      data: consistency.weekly_comparison.map(w => w.total_seconds / 3600),
+    };
+  }, [consistency]);
 
   return (
     <div className="flex flex-col h-full">
@@ -228,6 +314,14 @@ export default function ExternalPage() {
           <h1 className="text-xl font-semibold text-zinc-100">External Tracker</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCharts(!showCharts)}
+            className={`px-3 py-1.5 rounded-lg text-sm transition ${
+              showCharts ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Charts
+          </button>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value as any)}
@@ -298,9 +392,15 @@ export default function ExternalPage() {
             </div>
           </div>
           <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="text-sm text-zinc-400 mb-1">This Week</div>
-            <div className="text-2xl font-bold text-zinc-100">
-              {formatHours(stats.total_seconds)}
+            <div className="text-sm text-zinc-400 mb-1">Consistency</div>
+            <div className={`text-2xl font-bold ${
+              consistency.score >= 70 ? 'text-emerald-400' : 
+              consistency.score >= 40 ? 'text-amber-400' : 'text-red-400'
+            }`}>
+              {consistency.score}%
+              {consistency.score >= 70 ? <TrendingUp className="w-5 h-5 inline ml-1" /> : 
+               consistency.score >= 40 ? <Minus className="w-5 h-5 inline ml-1" /> : 
+               <TrendingDown className="w-5 h-5 inline ml-1" />}
             </div>
           </div>
           <div className="bg-zinc-800/50 rounded-xl p-4">
@@ -316,6 +416,80 @@ export default function ExternalPage() {
             </div>
           </div>
         </div>
+
+        {/* Charts Section */}
+        {showCharts && (
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            {/* Activity Breakdown Bar Chart */}
+            <div className="bg-zinc-800/50 rounded-xl p-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-4">Activity Breakdown</h3>
+              {breakdownData.labels.length > 0 ? (
+                <div className="h-48">
+                  <Bar
+                    data={{
+                      labels: breakdownData.labels,
+                      datasets: [{
+                        label: 'Hours',
+                        data: breakdownData.data,
+                        backgroundColor: breakdownData.colors,
+                        borderRadius: 4,
+                      }]
+                    }}
+                    options={{
+                      indexAxis: 'y',
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false } },
+                      scales: {
+                        x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
+                        y: { grid: { display: false }, ticks: { color: '#d4d4d8' } }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-zinc-500">
+                  No data yet
+                </div>
+              )}
+            </div>
+
+            {/* Consistency Line Chart */}
+            <div className="bg-zinc-800/50 rounded-xl p-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-4">Weekly Comparison</h3>
+              {consistencyChartData.labels.length > 0 ? (
+                <div className="h-48">
+                  <Line
+                    data={{
+                      labels: consistencyChartData.labels,
+                      datasets: [{
+                        label: 'Hours',
+                        data: consistencyChartData.data,
+                        borderColor: '#22c55e',
+                        backgroundColor: '#22c55e20',
+                        fill: true,
+                        tension: 0.3,
+                      }]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false } },
+                      scales: {
+                        x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
+                        y: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-zinc-500">
+                  No data yet
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Activity Grid */}
         {!activeSession && (
@@ -473,16 +647,102 @@ export default function ExternalPage() {
                 </button>
               </div>
 
-              <p className="text-zinc-400 text-center py-8">
-                Custom activity creation coming soon...
-              </p>
+              {/* Activity Name */}
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Name</label>
+                <input
+                  type="text"
+                  value={newActivity.name}
+                  onChange={(e) => setNewActivity({ ...newActivity, name: e.target.value })}
+                  placeholder="e.g., Yoga, Meditation"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                />
+              </div>
 
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors"
-              >
-                Close
-              </button>
+              {/* Activity Type */}
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Type</label>
+                <select
+                  value={newActivity.type}
+                  onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value as any })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value="stopwatch">Stopwatch (timed)</option>
+                  <option value="sleep">Sleep</option>
+                  <option value="checkin">Check-in (quick)</option>
+                </select>
+              </div>
+
+              {/* Icon Selection */}
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Icon</label>
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_ICONS.map(({ name, icon: Icon }) => (
+                    <button
+                      key={name}
+                      onClick={() => setNewActivity({ ...newActivity, icon: name })}
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                        newActivity.icon === name 
+                          ? 'bg-emerald-500/20 ring-2 ring-emerald-500' 
+                          : 'bg-zinc-800 hover:bg-zinc-700'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 text-zinc-300" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Selection */}
+              <div className="mb-6">
+                <label className="block text-sm text-zinc-400 mb-2">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {ACTIVITY_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setNewActivity({ ...newActivity, color })}
+                      className={`w-8 h-8 rounded-full transition ${
+                        newActivity.color === color ? 'ring-2 ring-white' : ''
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Default Duration (for check-in) */}
+              {newActivity.type === 'checkin' && (
+                <div className="mb-4">
+                  <label className="block text-sm text-zinc-400 mb-2">Default Duration (minutes)</label>
+                  <select
+                    value={newActivity.default_duration}
+                    onChange={(e) => setNewActivity({ ...newActivity, default_duration: parseInt(e.target.value) })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                  >
+                    <option value={5}>5 minutes</option>
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={45}>45 minutes</option>
+                    <option value={60}>1 hour</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveCustomActivity}
+                  disabled={!newActivity.name.trim()}
+                  className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Activity
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
