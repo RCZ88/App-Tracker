@@ -16,10 +16,49 @@ dist-electron
 # Release builds (too large for GitHub)
 release/
 
-# Agents directory
-agents/
+# Build outputs
+out/
+build/
+*.exe
+*.dmg
+*.pkg
+*.AppImage
+*.snap
+*.deb
+*.rpm
 
-# Editor directories and files
+# Electron
+electron-vendors.config.json
+.electron-builder.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+database.db
+data.db
+*.db-shm
+*.db-wal
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.env
+!env.example
+
+# API Keys & Credentials
+credentials.json
+*.credentials
+*.key
+*.pem
+*.crt
+secrets.json
+config.secrets.json
+
+# IDE & Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -29,5 +68,76 @@ agents/
 *.njsproj
 *.sln
 *.sw?
+*.sublime-*
+.project
+.classpath
+.settings/
+
+# OS Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100
+.Trashes
+
+# Vite
 .vite-source-tags.js
+
+# Vercel
 .vercel
+
+# Testing
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+tsbuildinfo
+
+# Agent/Graphify output (keep config, ignore generated)
+agent/skills/agent-reflect/README.md
+agent/skills/agent-reflect/research-prompt.md
+agent/skills/agent-reflect/result.md
+
+# Graphify generated files (keep source, ignore output)
+graphify-out/
+!graphify-out/.gitkeep
+
+# Obsidian vault sync (if synced elsewhere)
+CZVault/
+
+# Large data files
+*.arff
+*.csv
+!*.example.csv
+
+# Screenshots & media (unless in assets)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.mov
+!src/assets/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Lock files (keep package-lock.json, ignore others)
+yarn.lock
+pnpm-lock.yaml
