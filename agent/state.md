@@ -6,7 +6,7 @@
 
 ## 📊 Current Status
 
-**Version:** 1.53
+**Version:** 1.54
 **Last Updated:** 2026-04-21
 **Build Status:** ✅ Working
 
@@ -53,6 +53,22 @@
 - `src/pages/BrowserActivityPage.tsx` - Added hourly chart component and logic
 
 **Result:** Website page now has "Hourly Activity" chart similar to the application page.
+
+### 2026-04-21 — Browser API Fix
+
+**What Changed:**
+1. ✅ Added missing `getTrackedBrowsers` API to preload.ts - was missing from the API bindings
+2. ✅ Removed fake browser list (Chrome, Firefox, etc.) - dropdown now only shows user's actual browser apps from DB
+3. ✅ Console log no longer exposes API key
+4. ✅ Dropdown marks browser with extension with "★ (with extension)"
+
+**Files Modified:**
+- `src/preload.ts` - Added `getTrackedBrowsers` API binding
+- `src/pages/BrowserActivityPage.tsx` - Fixed browser detection, only shows user's browsers
+
+**Why:** The `getTrackedBrowsers` API existed in main.ts but wasn't exposed to the renderer via preload.ts, so BrowserActivityPage couldn't load user's browsers from DB.
+
+**Result:** Dropdown now shows only browser apps user has in "Browser" category, with the extension browser marked and pre-selected.
 
 ### 2026-04-21 — Browser Tracking Fix
 
@@ -2185,6 +2201,7 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.51 | 2026-04-21 | Terminal Implementation: Added calculate-project-health handler, fixed terminal container dimensions, added split-screen controls (4 directions), added project details dropdown and stats sidebar |
 | 1.52 | 2026-04-21 | Browser Tracking Fix: Added all known browsers to dropdown (Chrome, Firefox, Safari, etc.), marks browser with extension with ★, loads extension browser first |
 | 1.53 | 2026-04-21 | Browser Tracking Fix: Fixed case-insensitive deduplication, defaults to Chrome |
+| 1.54 | 2026-04-21 | Browser Tracking Fix: Added missing getTrackedBrowsers API to preload.ts, removed fake browsers from dropdown, now only shows user's actual browser apps from DB |
 | 1.39 | 2026-04-19 | IDE Help Page: Created /ide-help route with comprehensive help content and added Help button in IDE Projects |
 | 1.40 | 2026-04-19 | Settings page overhaul: Line-style color picker, App/Website toggle, expand/collapse, all data shown |
 | 1.41 | 2026-04-19 | Color picker click anywhere to open, removed duplicate Category Assignments |
