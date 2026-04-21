@@ -679,58 +679,80 @@ export default function ProductivityPage({
           )}
         </div>
 
-        {/* Time Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-emerald-500/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-400" />
-              <span className="text-sm text-zinc-400">Productive</span>
-            </div>
-            <div className="text-2xl font-semibold text-emerald-400">{formatHours(productivityData.tiers.productive.seconds)}</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              {productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.tiers.productive.seconds / productivityData.totalSeconds) * 100)
-                : 0}% of time
-            </div>
-          </div>
+        {/* Time Breakdown - based on tierFilter */}
+        {(() => {
+          // Get the correct items based on tierFilter
+          let filteredItems = productivityData.items;
+          if (tierFilter !== 'all') {
+            filteredItems = productivityData.items.filter(item => {
+              const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
+                tierAssignments.distracting.includes(item.category) ? 'distracting' : 'neutral';
+              return itemTier === tierFilter;
+            });
+          }
+          
+          // Calculate totals from filtered items
+          const filteredProductiveSec = filteredItems.filter(i => tierAssignments.productive.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+          const filteredNeutralSec = filteredItems.filter(i => tierAssignments.neutral.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+          const filteredDistractingSec = filteredItems.filter(i => tierAssignments.distracting.includes(i.category)).reduce((s, i) => s + i.duration_sec, 0);
+          const filteredTotalSec = filteredProductiveSec + filteredNeutralSec + filteredDistractingSec;
+          const filteredAppCount = filteredItems.filter(i => i.type === 'app').length;
+          const filteredWebCount = filteredItems.filter(i => i.type === 'website').length;
+          
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/50 rounded-2xl p-4 border border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                  <span className="text-sm text-zinc-400">Productive</span>
+                </div>
+                <div className="text-2xl font-semibold text-emerald-400">{formatHours(filteredProductiveSec)}</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {filteredTotalSec > 0 
+                    ? Math.round((filteredProductiveSec / filteredTotalSec) * 100)
+                    : 0}% of time
+                </div>
+              </div>
 
-          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-blue-500/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full bg-blue-400" />
-              <span className="text-sm text-zinc-400">Neutral</span>
-            </div>
-            <div className="text-2xl font-semibold text-blue-400">{formatHours(productivityData.tiers.neutral.seconds)}</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              {productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.tiers.neutral.seconds / productivityData.totalSeconds) * 100)
-                : 0}% of time
-            </div>
-          </div>
+              <div className="bg-zinc-900/50 rounded-2xl p-4 border border-blue-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-400" />
+                  <span className="text-sm text-zinc-400">Neutral</span>
+                </div>
+                <div className="text-2xl font-semibold text-blue-400">{formatHours(filteredNeutralSec)}</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {filteredTotalSec > 0 
+                    ? Math.round((filteredNeutralSec / filteredTotalSec) * 100)
+                    : 0}% of time
+                </div>
+              </div>
 
-          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-red-500/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full bg-red-400" />
-              <span className="text-sm text-zinc-400">Distracting</span>
-            </div>
-            <div className="text-2xl font-semibold text-red-400">{formatHours(productivityData.tiers.distracting.seconds)}</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              {productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.tiers.distracting.seconds / productivityData.totalSeconds) * 100)
-                : 0}% of time
-            </div>
-          </div>
+              <div className="bg-zinc-900/50 rounded-2xl p-4 border border-red-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <span className="text-sm text-zinc-400">Distracting</span>
+                </div>
+                <div className="text-2xl font-semibold text-red-400">{formatHours(filteredDistractingSec)}</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {filteredTotalSec > 0 
+                    ? Math.round((filteredDistractingSec / filteredTotalSec) * 100)
+                    : 0}% of time
+                </div>
+              </div>
 
-          <div className="bg-zinc-900/50 rounded-2xl p-4 border border-purple-500/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full bg-purple-400" />
-              <span className="text-sm text-zinc-400">Total Time</span>
+              <div className="bg-zinc-900/50 rounded-2xl p-4 border border-purple-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-400" />
+                  <span className="text-sm text-zinc-400">Total Time</span>
+                </div>
+                <div className="text-2xl font-semibold text-purple-400">{formatDuration(filteredTotalSec)}</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {filteredAppCount} apps + {filteredWebCount} sites
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-semibold text-purple-400">{formatDuration(productivityData.totalSeconds)}</div>
-            <div className="text-xs text-zinc-500 mt-1">
-              {productivityData.appVsWeb.app.count} apps + {productivityData.appVsWeb.web.count} sites
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Apps vs Websites Comparison */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -937,12 +959,26 @@ export default function ProductivityPage({
           </button>
           
           {/* Stats for current filter */}
-          <div className="ml-auto text-xs text-zinc-500">
-            {tierFilter === 'all' 
-              ? `${productivityData.tiers.productive.count + productivityData.tiers.neutral.count + productivityData.tiers.distracting.count} items`
-              : `${productivityData.tiers[tierFilter]?.count || 0} items in ${tierFilter}`
+          {(() => {
+            let totalItems = productivityData.items;
+            if (tierFilter !== 'all') {
+              totalItems = productivityData.items.filter(item => {
+                const itemTier = tierAssignments.productive.includes(item.category) ? 'productive' :
+                  tierAssignments.distracting.includes(item.category) ? 'distracting' : 'neutral';
+                return itemTier === tierFilter;
+              });
             }
-          </div>
+            const appCount = totalItems.filter(i => i.type === 'app').length;
+            const webCount = totalItems.filter(i => i.type === 'website').length;
+            return (
+              <div className="ml-auto text-xs text-zinc-500">
+                {tierFilter === 'all' 
+                  ? `${appCount + webCount} items`
+                  : `${totalItems.length} items in ${tierFilter}`
+                }
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -955,11 +991,23 @@ export default function ProductivityPage({
               <Monitor className="w-5 h-5 text-indigo-400" />
               Desktop Apps
             </h2>
-            <div className="text-sm text-zinc-500">
-              {formatDuration(productivityData.displayedAppSeconds)} ({productivityData.totalSeconds > 0 
-                ? Math.round((productivityData.displayedAppSeconds / productivityData.totalSeconds) * 100)
-                : 0}% of total)
-            </div>
+            {(() => {
+              let sourceArray = productivityData.topProductive;
+              if (tierFilter === 'neutral') sourceArray = productivityData.topNeutral;
+              else if (tierFilter === 'distracting') sourceArray = productivityData.topDistracting;
+              else if (tierFilter === 'all') sourceArray = [...productivityData.topProductive, ...productivityData.topNeutral, ...productivityData.topDistracting];
+              const apps = sourceArray.filter(i => i.type === 'app');
+              const totalSec = apps.reduce((sum, i) => sum + i.duration_sec, 0);
+              const filteredTotal = tierFilter === 'all' ? productivityData.totalSeconds : 
+                (tierFilter === 'productive' ? productivityData.tiers.productive.seconds :
+                 tierFilter === 'neutral' ? productivityData.tiers.neutral.seconds : 
+                 productivityData.tiers.distracting.seconds);
+              return (
+                <div className="text-sm text-zinc-500">
+                  {formatDuration(totalSec)} ({filteredTotal > 0 ? Math.round((totalSec / filteredTotal) * 100) : 0}% of {tierFilter === 'all' ? 'total' : tierFilter})
+                </div>
+              );
+            })()}
           </div>
           
           <div className="space-y-3">

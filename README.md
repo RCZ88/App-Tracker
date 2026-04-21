@@ -1,6 +1,6 @@
 # 🌌 DeskFlow - AI-Powered Productivity Tracker
 
-> Electron desktop app that visualizes your app and browser usage as an interactive 3D galaxy with real-time tracking.
+> Electron desktop app that visualizes your app and browser usage as an interactive 3D galaxy with real-time tracking. Now includes AI agent usage tracking, external activity tracking, and integrated terminal workspace.
 
 [![Electron](https://img.shields.io/badge/Electron-41.1.1-47848F?style=flat&logo=electron&logoColor=white)](https://electronjs.org/)
 [![React](https://img.shields.io/badge/React-19.2.0-61DAFB?style=flat&logo=react&logoColor=white)](https://reactjs.org/)
@@ -74,6 +74,27 @@ Or use the auto-created shortcut on your desktop.
 
 ---
 
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **🌌 Two-Galaxy System** | Apps Galaxy (blue/purple spiral) + Websites Galaxy (cyan/violet nebula) with smooth camera transitions |
+| **📊 Real-time Dashboard** | Focus time, productivity scores, and interactive heatmap with week navigation |
+| **🌐 Browser Tracking** | Track websites in Chrome/Firefox via browser extension with smart categorization |
+| **🔍 Deep Search** | Query your usage history across all apps and websites |
+| **⚡ Auto-start** | Launch on system boot |
+| **🔔 System Tray** | Runs in background, click to show/hide |
+| **🎯 Focus Tracking** | Categorize apps as Productive/Neutral/Distracting |
+| **🎨 Custom Colors** | Per-app, per-website, and per-category color customization |
+| **📱 Category Overrides** | Override automatic categorization for any app/website |
+| **💤 External Activities** | Track non-laptop activities: Sleep, Exercise, Gym, Commute, Reading, Studying |
+| **🖥️ Terminal Workspace** | Integrated terminal with PTY support, presets, and session history |
+| **🤖 AI Agent Tracking** | Track Claude Code, Cursor, OpenCode usage with tokens, cost, and session metrics |
+| **🧠 AI Color Magic** | Auto-generate brand-appropriate colors using OpenRouter AI |
+| **🏷️ AI Categorization** | Auto-categorize apps/websites using AI |
+
+---
+
 ## 📖 How to Use
 
 ### First Launch
@@ -89,15 +110,20 @@ Or use the auto-created shortcut on your desktop.
 | Click tray icon | Show/hide DeskFlow window |
 | Right-click tray | Context menu (Show/Toggle Tracking/Quit) |
 
-### Main Features
+### Navigation
 
-| Feature | Description |
-|---------|-------------|
-| **Galaxy View** | Two separate 3D galaxies - apps (blue) and websites (cyan/violet nebula) |
-| **Dashboard** | See today's focus time and productivity with heatmap |
-| **Applications** | Detailed breakdown by app with time totals |
-| **Browser Activity** | Track websites in Chrome/Firefox |
-| **Settings** | Customize categories, colors, animation speed, auto-start |
+| Page | Access | Features |
+|------|--------|----------|
+| **Dashboard** | Sidebar | Focus time, productivity, heatmap with week navigation |
+| **Galaxy** | Sidebar | 3D visualization with two separate galaxies |
+| **Applications** | Sidebar | Detailed breakdown by app with time totals |
+| **Browser Activity** | Sidebar | Website tracking, hourly charts, category breakdown |
+| **Productivity** | Sidebar | Apps vs Websites comparison, productivity scores |
+| **IDE Projects** | Sidebar | AI agent tracking, project management, Git metrics |
+| **Terminal** | Sidebar | Terminal workspace with presets |
+| **External** | Sidebar | Track non-laptop activities |
+| **Settings** | Sidebar | Categories, colors, preferences |
+| **Database** | Sidebar | Raw data viewer |
 
 ### Galaxy Navigation
 
@@ -114,6 +140,7 @@ Use the timeline buttons (Today/Week/Month/All) to filter data on:
 - Applications page
 - Browser Activity page
 - Galaxy view
+- Productivity page
 
 ### Auto-Start
 
@@ -175,19 +202,23 @@ App Tracker/
 │   │   └── OrbitSystem.tsx  # 3D galaxy visualization
 │   └── pages/
 │       ├── StatsPage.tsx          # Applications breakdown
-│       ├── ProductivityPage.tsx   # Productivity scores & trends
+│       ├── ProductivityPage.tsx # Productivity scores & trends
 │       ├── BrowserActivityPage.tsx # Website tracking
-│       ├── SettingsPage.tsx       # Category/colors/settings
-│       └── DatabasePage.tsx       # DB viewer
+│       ├── IDEProjectsPage.tsx     # AI agent & project tracking
+│       ├── TerminalPage.tsx        # Terminal workspace
+│       ├── ExternalPage.tsx       # External activities
+│       ├── SettingsPage.tsx      # Category/colors/settings
+│       └── DatabasePage.tsx    # DB viewer
 ├── browser-extension/       # Chrome/Firefox extension
-├── agent/                   # AI agent resources & docs
-├── public/                  # Static assets
-├── dist/                    # Built renderer
-├── dist-electron/           # Built Electron main/preload
+├── agent/                 # AI agent resources & docs
+├── public/                 # Static assets
+├── dist/                   # Built renderer
+├── dist-electron/          # Built Electron main/preload
 ├── release/win-unpacked/    # Packaged executable
 │   └── DeskFlow.exe
-└── PROBLEMS.md             # Known issues
+└── README.md
 ```
+
 ---
 
 ## 🧰 Tech Stack
@@ -217,6 +248,7 @@ App Tracker/
 |-----------|------------|
 | **Database** | better-sqlite3 ^12.8.0 |
 | **Window Tracking** | active-win ^8.2.1 |
+| **Terminal** | node-pty ^0.11.0 |
 | **Date Handling** | date-fns ^4.1.0 |
 
 ### UI & Animation
@@ -235,49 +267,70 @@ App Tracker/
 
 ### 3D Galaxy Visualization
 - **Two-Galaxy System** - Apps Galaxy and Websites Galaxy are separate 3D worlds
-- **Apps Galaxy** - Spiral galaxy with 8,000+ particles, blue/purple color theme
+- **Apps Galaxy** - Spiral galaxy with 4,000+ particles, blue/purple color theme
 - **Websites Galaxy** - Nebula-style dust cloud with cyan/violet colors
 - **Camera-Based Detection** - Drag right to visit Websites Galaxy, left for Apps Galaxy
-- **Spiral Galaxy Rendering** - 8,000+ particles with custom color gradients
+- **Spiral Galaxy Rendering** - Particles with custom color gradients
 - **Solar System View** - Animated planets with orbits, rings, and moons
 - **Custom Shaders** - GLSL shaders for particle systems and effects
 - **Post-Processing** - Bloom, tone mapping, vignette, chromatic aberration
 - **Performance Optimization** - Adaptive quality with PerformanceMonitor
-- **GPU Acceleration** - High-performance WebGL settings
+
+### AI Agent Integration
+- **Claude Code Tracking** - Parse ~/.claude/projects for token usage
+- **Cursor Tracking** - Query cursorDiskKV for chat data
+- **OpenCode Tracking** - Read SQLite sessions table
+- **Usage Analytics** - Tokens, cost, sessions per agent
+- **Project Breakdown** - Which projects each AI is used on
+- **Model Tracking** - Which models were used and how much
+
+### Terminal Workspace
+- **PTY Support** - Full terminal with node-pty
+- **xterm.js** - Terminal emulator in React
+- **Presets** - Save and execute command presets
+- **Sessions** - Track terminal sessions with resume capability
+- **Split View** - Multi-pane terminal layout
+
+### External Activities
+- **Timed Activities** - Stopwatch mode for Exercise, Gym, Studying
+- **Check-in Mode** - Quick activities (Commute, Eating, Short Break)
+- **Sleep Tracking** - Sleep deficit calculation with 8h target
+- **Wake-up Reminder** - Optional wake-up time picker
 
 ### Visual Effects
-- **Bloom/Glow** - HDR bloom for emissive objects (sun, stars)
+- **Bloom/Glow** - HDR bloom for emissive objects
 - **ACES Filmic Tone Mapping** - Cinematic color grading
 - **Atmospheric Scattering** - Fresnel effects for planet atmospheres
 - **Layered Corona** - Multi-layer sun glow with additive blending
 - **Vignette & Chromatic Aberration** - Cinematic lens effects
 
-### Graphics Pipeline
-- **Custom Point Materials** - Soft glow particles with vertex colors
-- **Emissive Materials** - High-intensity emissive with toneMapped=false
-- **Additive Blending** - For all glow effects
-- **Depth Management** - Proper depthWrite handling for transparency
+### AI Features
+- **Magic Color** - Auto-generate brand-appropriate colors
+- **Magic Category** - Auto-categorize apps/websites
+- **OpenRouter API** - AI integration with multiple model fallbacks
 
 ### Electron Features
 - **System Tray** - Background operation with show/hide toggle
-- **Window Tracking** - Native active window detection via active-win
-- **Browser Extension** - Chrome/Firefox website tracking with delta-based updates
+- **Window Tracking** - Native active window detection
+- **Browser Extension** - Chrome/Firefox website tracking
 - **SQLite Storage** - Persistent local data with JSON fallback
-- **Auto-Start** - Launch on system boot (configurable)
+- **Auto-Start** - Launch on system boot
 
 ---
 
 ## 🧠 Core Computer Science Concepts
 
 | Concept | Where It's Used |
-|---------|------------------|
-| **Event-Driven Architecture** | IPC communication between main process and renderer |
-| **Real-time Data Polling** | 30-second interval refresh for live dashboard updates |
-| **Caching Strategies** | Single source of truth pattern for computed stats |
-| **Procedural Texture Generation** | Canvas-based planet textures from seed values |
-| **GPU-Accelerated Rendering** | Three.js WebGL with post-processing pipeline |
-| **SQLite with Fallback** | Hybrid storage with automatic JSON failover |
-| **Delta-Based Updates** | Browser extension sends incremental duration updates |
+|---------|----------------|
+| **Event-Driven Architecture** | IPC between main process and renderer |
+| **Real-time Data Polling** | 30-second interval for live dashboard |
+| **Caching Strategies** | Single source of truth pattern |
+| **Procedural Texture Generation** | Canvas-based planet textures |
+| **GPU-Accelerated Rendering** | Three.js WebGL pipeline |
+| **SQLite with Fallback** | Hybrid storage with failover |
+| **Delta-Based Updates** | Browser extension incremental updates |
+| **PTY Process Management** | Terminal pseudo-terminal spawning |
+| **Agentic AI Parsing** | Multi-format AI log parsing |
 
 ---
 
@@ -307,40 +360,33 @@ npx electron-builder --win nsis
 
 ---
 
-## 📋 Key Features
-
-- 🌌 **Two-Galaxy System** - Apps Galaxy (blue/purple) + Websites Galaxy (cyan/violet nebula)
-- 📊 **Dashboard** - Focus time, productivity scores, and heatmap with week navigation
-- 🌐 **Browser Tracking** - Track websites in Chrome/Firefox via browser extension
-- 🔍 **Deep Search** - Query your usage history across all apps and websites
-- ⚡ **Auto-start** - Launch on system boot
-- 🔔 **System Tray** - Runs in background, click to show/hide
-- 📈 **Heatmap** - Daily activity visualization with week navigation
-- 🎯 **Focus Tracking** - Categorize apps as Productive/Neutral/Distracting
-- 🎨 **Custom Colors** - Per-app and per-category color customization
-- 📱 **Category Overrides** - Override automatic categorization for any app/website
-
----
-
 ## 🏗️ Architecture
 
 ```mermaid
 graph TD
     A[User Desktop] -->|Window Tracking| B[active-win<br/>Polling 2s]
-    B --> C[Electron Main Process<br/>main.ts]
+    B --> C[Electron Main<br/>main.ts]
     C --> D[SQLite DB<br/>better-sqlite3]
     C --> E[JSON Fallback<br/>Auto-failover]
-    C -->|IPC Bridge| F[Preload Script<br/>preload.ts]
+    C -->|IPC Bridge| F[Preload<br/>preload.ts]
     F -->|contextBridge| G[React App<br/>App.tsx]
-    G -->|State| H[Pages<br/>Stats/Productivity/Browser/Settings]
-    G -->|3D Render| I[OrbitSystem<br/>OrbitSystem.tsx]
-    I -->|Galaxy| J[Apps Galaxy<br/>Blue/Purple Spiral]
-    I -->|Galaxy| K[Websites Galaxy<br/>Cyan/Violet Nebula]
+    G -->|State| H[Pages]
+    G -->|3D Render| I[OrbitSystem]
 
-    L[Browser Extension<br/>Chrome/Firefox] -->|Website Data| C
+    H -->|Apps| J[StatsPage]
+    H -->|Browser| K[BrowserActivityPage]
+    H -->|Productivity| L[ProductivityPage]
+    H -->|IDE| M[IDEProjectsPage]
+    H -->|Terminal| N[TerminalPage]
+    H -->|External| O[ExternalPage]
 
-    style J fill:#6366f1,color:#fff
-    style K fill:#06b6d4,color:#fff
+    I -->|Apps Galaxy| P[Apps Galaxy<br/>Blue/Purple]
+    I -->|Websites Galaxy| Q[Websites Galaxy<br/>Cyan/Violet]
+
+    R[Browser Extension] -->|Website Data| C
+
+    style P fill:#6366f1,color:#fff
+    style Q fill:#06b6d4,color:#fff
     style D fill:#003B57,color:#fff
 ```
 
@@ -351,7 +397,7 @@ graph TD
 - **Quick Start Guide** - Above
 - **Development** - [`agent/`](agent/)
 - **Project State** - [`agent/state.md`](agent/state.md)
-- **Architecture** - [`agent/context.md`](agent/context.md)
+- **Architecture** - Graphify knowledge graph
 - **Known Issues** - [`agent/PROBLEMS.md`](agent/PROBLEMS.md)
 - **Browser Extension** - [`browser-extension/`](browser-extension/)
 
@@ -362,75 +408,62 @@ graph TD
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-04-04 | Initial release |
-| 1.1 | 2026-04-05 | Fixed data persistence, added storage diagnostics |
-| 1.2 | 2026-04-05 | Solar system visual overhaul, DB expansion, period filtering |
-| 1.3 | 2026-04-07 | Data persistence fixes, heatmap fix, time period unification |
-| 1.4 | 2026-04-07 | Productivity tracking, smart YouTube categorization |
-| 1.5 | 2026-04-08 | Browser tracking delta fix, data cleanup button |
-| 1.6 | 2026-04-09 | Customizable productivity & category system |
-| 1.7 | 2026-04-09 | Focus/Total pie chart sync, historical data toggle |
-| 1.7.1 | 2026-04-10 | Real-time 30-second polling, day change detection |
-| 1.11 | 2026-04-14 | Fixed Top Bar Total, OrbitSystem data filtering |
-| 1.12 | 2026-04-15 | App colors persistence, console spam removal |
-| 1.14 | 2026-04-16 | Settings page verification - all features working |
-| 1.15 | 2026-04-16 | Category override reload fix |
-| 1.17 | 2026-04-16 | Category config persistence across restarts |
-| 1.18 | 2026-04-16 | Two-galaxy system: Apps + Websites separate |
-| 1.19 | 2026-04-16 | Reflection documentation, auto-reflect rules |
+| 1.1 | 2026-04-05 | Fixed data persistence |
+| 1.12 | 2026-04-15 | App colors persistence |
+| 1.18 | 2026-04-16 | Two-galaxy system |
+| 1.44 | 2026-04-19 | Terminal + AI integration |
+| 1.50 | 2026-04-20 | External activities |
+| 1.55 | 2026-04-21 | Browser extension + IDE fixes |
 
 ---
 
 ## 🚀 Development Highlights
 
-### Recent Updates (v1.18 - Two Galaxy System)
-- **Two-Galaxy System** - Apps Galaxy and Websites Galaxy are now separate
-- **Apps Galaxy** - 8,000+ particles with spiral arm distribution (blue/purple theme)
-- **Websites Galaxy** - Nebula-style dust cloud (cyan/violet theme)
-- **Camera-Based Detection** - Automatically switches galaxy when you drag
-- **Galaxy Type Indicator** - UI shows current galaxy (APPS / WEBSITES)
-- **Data Consistency** - Galaxy data now matches Applications page exactly
+### v1.55 (2026-04-21)
+- **Open in IDE Fix** - Full path to IDE executable
+- **Browser Extension ID** - Extension identifies browser name
+- **Tracking Browser Setting** - Configure which browser has extension
+- **External Activities** - Sleep, Exercise, Gym tracking with modes
 
-### Previous Updates (v1.12 - v1.17)
-- **Category Override Persistence** - Changes now persist across app restarts
-- **Real-Time Data Refresh** - 30-second polling keeps all views updated
-- **Heatmap Week Navigation** - LEFT/RIGHT arrows to navigate weeks
-- **Productivity Score Sync** - Dashboard and Productivity page now match
-- **App Colors Persistence** - Colors saved and restored correctly
-- **Console Spam Removal** - Removed 10+ debug logs flooding console
+### v1.50 (2026-04-20)
+- **External Page** - Track non-laptop activities
+- **Sleep Tracking** - With wake-up time picker
+- **Timed Activities** - Stopwatch mode
 
-### Building from Source
-```bash
-# Install dependencies
-npm install
+### v1.44 (2026-04-19)
+- **Terminal Window** - Full PTY with xterm.js
+- **Terminal Presets** - Save and execute commands
+- **Terminal Sessions** - Session history with resume
+- **AI Magic Color** - OpenRouter AI color generation
+- **AI Magic Category** - Auto-categorization
 
-# Development mode
-npm run dev
+### v1.40 (2026-04-19)
+- **IDE Projects Page** - AI agent tracking
+- **Claude/Cursor/OpenCode Parsing** - Multi-format support
+- **Project Health** - Git metrics per project
 
-# Production build
-npm run build
-
-# Package as executable
-npx electron-builder --win portable
-```
+### v1.18 (2026-04-16)
+- **Two-Galaxy System** - Separate Apps + Websites galaxies
+- **Data Consistency** - Galaxy matches Applications page
+- **Category Override Persistence** - Saves across restarts
 
 ---
 
 ## 🔧 Debugging & Development
 
 ### Opening DevTools
-Press **Ctrl+Shift+I** to open the developer console. This works in both development and production modes.
+Press **Ctrl+Shift+I** to open the developer console.
 
 ### Performance Monitoring
-The app includes a built-in PerformanceMonitor that:
+The app includes PerformanceMonitor that:
 - Monitors FPS during 3D rendering
 - Automatically reduces quality if FPS drops below 30
 - Can increase quality when performance improves
 
 ### Console Logs
-Check the console for:
-- `[DeskFlow]` - App state and loading information
-- `[OrbitSystem]` - 3D visualization logs
-- Errors will appear in red
+- `[DeskFlow]` - App state and loading
+- `[OrbitSystem]` - 3D visualization
+- Errors appear in red
 
 ---
 
@@ -438,7 +471,7 @@ Check the console for:
 
 If you encounter issues:
 
-1. Check the [Troubleshooting](#-troubleshooting) section above
+1. Check the [Troubleshooting](#-troubleshooting) section
 2. Check [`PROBLEMS.md`](PROBLEMS.md) for known issues
 3. Restart the app
 4. Clear data in Settings if needed
@@ -449,10 +482,10 @@ If you encounter issues:
 
 **Built with ❤️ using Electron + React + Three.js**
 
-[Report Bug](https://github.com/yourproject/issues) · [Request Feature](https://github.com/yourproject/issues)
+[Report Bug](https://github.com/anomalyco/deskflow/issues) · [Request Feature](https://github.com/anomalyco/deskflow/issues)
 
 </div>
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-04-21
 
 **Maintained By:** DeskFlow Team

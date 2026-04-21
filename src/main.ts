@@ -2043,6 +2043,7 @@ function createWindow() {
         height: 900,
         minWidth: 1024,
         minHeight: 700,
+        title: 'DeskFlow',
         icon: path_1.default.join(__dirname, '../public/deskflow-icon.png'),
         webPreferences: {
             preload: preloadPath,

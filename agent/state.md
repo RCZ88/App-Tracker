@@ -6,13 +6,39 @@
 
 ## 📊 Current Status
 
-**Version:** 1.54
+**Version:** 1.55
 **Last Updated:** 2026-04-21
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-21 — Open in IDE Fix + Tracking Browser Extension
+
+**What Changed:**
+1. ✅ Fixed "Open in IDE" button not opening projects - now uses full path to IDE executable instead of just `agy` command
+2. ✅ Added browser extension identification: extension detects browser name and sends to desktop app via `/browser-identify` endpoint
+3. ✅ Added `browserWithExtension` preference to track which browser has the extension
+4. ✅ Updated `get-tracked-browsers` to query DB for apps categorized as "Browser"
+5. ✅ Removed hardcoded Chrome fallback from dropdown - now shows only DB-categorized browsers
+6. ✅ Only the tracking browser (with extension) is excluded from app totals, not ALL browsers
+
+**Files Modified:**
+- `browser-extension/background.js` - Added `detectBrowserName()` and `identifyBrowser()` functions
+- `src/main.ts` - Added `/browser-identify` endpoint, updated `get-tracked-browsers`, fixed open-project exec
+- `src/preload.ts` - Added `setBrowserWithExtension` API
+- `src/App.tsx` - Added `trackingBrowser` state, only exclude tracking browser from totals
+- `src/pages/BrowserActivityPage.tsx` - Removed Chrome fallback, loads browserWithExtension from prefs
+
+**Why:** 
+1. `agy` command wasn't in PATH - needed full path like `C:\Users\...\Antigravity.exe`
+2. Tracking browser dropdown should only show browsers categorized as "Browser" in DB, default to the one with extension
+
+**Result:**
+- "Open in IDE" now works with Google Antigravity
+- Dropdown shows browsers from DB (Chrome if tracked, Comet when extension identifies)
+- Other browsers (without extension) still show in app charts
 
 ### 2026-04-21 — External Tracker Feature (Phases 1-2)
 
