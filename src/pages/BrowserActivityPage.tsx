@@ -81,7 +81,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
         let extBrowser = '';
         if (window.deskflowAPI?.getPreferences) {
           const prefs = await window.deskflowAPI.getPreferences();
-          console.log('[BrowserActivity] Preferences loaded:', prefs);
+          console.log('[BrowserActivity] Preferences loaded: {browserWithExtension:', prefs?.browserWithExtension, '}');
           if (prefs?.browserWithExtension) {
             extBrowser = prefs.browserWithExtension;
             setExtensionBrowser(extBrowser);
@@ -92,49 +92,35 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
           console.log('[BrowserActivity] No getPreferences API');
         }
         
-        // Load available browsers (all known browsers + from DB)
+        // Load available browsers from DB only - ONLY show browsers user actually has
         if (window.deskflowAPI?.getTrackedBrowsers) {
-          let tracked = await window.deskflowAPI.getTrackedBrowsers();
-          console.log('[BrowserActivity] Tracked browsers from DB:', tracked);
+          const tracked = await window.deskflowAPI.getTrackedBrowsers();
+          console.log('[BrowserActivity] Tracked browsers from DB (user has these):', tracked);
           
-          // Add known browsers if not already in list (case-insensitive check)
-          const knownBrowsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Brave', 'Opera', 'Vivaldi', 'Arc'];
-          knownBrowsers.forEach(b => {
-            const exists = tracked.some(t => t.toLowerCase() === b.toLowerCase());
-            if (!exists) {
-              tracked.push(b);
-              console.log('[BrowserActivity] Added known browser:', b);
+          if (tracked && tracked.length > 0) {
+            // Remove duplicates (case-insensitive)
+            const seen = new Set<string>();
+            const uniqueBrowsers = tracked.filter(b => {
+              const key = b.toLowerCase();
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            
+            console.log('[BrowserActivity] User browser apps:', uniqueBrowsers);
+            setAvailableBrowsers(uniqueBrowsers);
+            
+            // If no extension browser set, use first browser from user's list
+            if (!extBrowser && uniqueBrowsers.length > 0) {
+              setMainBrowser(uniqueBrowsers[0]);
+              console.log('[BrowserActivity] Set main browser to:', uniqueBrowsers[0]);
             }
-          });
-          
-          // If no main browser set yet, set to Chrome or first available
-          if (!extBrowser && tracked.length > 0) {
-            // Default to Chrome if available, otherwise first
-            const chromeIdx = tracked.findIndex(t => t.toLowerCase() === 'chrome');
-            setMainBrowser(chromeIdx >= 0 ? tracked[chromeIdx] : tracked[0]);
-            console.log('[BrowserActivity] Set main browser to:', chromeIdx >= 0 ? tracked[chromeIdx] : tracked[0]);
+          } else {
+            console.log('[BrowserActivity] No browser apps found in DB');
+            setAvailableBrowsers([]);
           }
-          
-          // Remove duplicates (case-insensitive)
-          const seen = new Set<string>();
-          const uniqueBrowsers = tracked.filter(b => {
-            const key = b.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-          
-          console.log('[BrowserActivity] Final unique browsers:', uniqueBrowsers);
-          setAvailableBrowsers(uniqueBrowsers);
         } else {
-          console.log('[BrowserActivity] No getTrackedBrowsers API - using fallback');
-          // Fallback: show all known browsers
-          const knownBrowsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Brave', 'Opera', 'Vivaldi', 'Arc'];
-          setAvailableBrowsers(knownBrowsers);
-          if (!extBrowser) {
-            setMainBrowser('Chrome');
-          }
-          console.log('[BrowserActivity] Using fallback browsers:', knownBrowsers);
+          console.log('[BrowserActivity] No getTrackedBrowsers API');
         }
       } catch (err) {
         console.error('[BrowserActivity] Error initializing browser tracking:', err);

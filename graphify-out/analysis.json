@@ -14,12 +14,14 @@
       "main_execpromise",
       "main_execsyncsafe",
       "main_expandpath",
+      "main_extractjsonfromresponse",
       "main_findexe",
       "main_getbrowsercategorystats",
       "main_getbrowserdomainstats",
       "main_getbrowserlogs",
       "main_getlogs",
       "main_getmodelpricing",
+      "main_getopenrouterapikey",
       "main_getstats",
       "main_gettierforcategory",
       "main_handlebrowserdata",
@@ -42,6 +44,37 @@
       "main_yieldtoeventloop"
     ],
     "1": [
+      "app",
+      "app_cleancorrupteddata",
+      "app_cleardata",
+      "app_cleartoday",
+      "app_exportdata",
+      "app_formatduration",
+      "app_formattime",
+      "app_generateaisummary",
+      "app_generatedistinctcolors",
+      "app_getappdistribution",
+      "app_getheatcolor",
+      "app_gettotaltime",
+      "app_handleactivity",
+      "app_handlefocus",
+      "app_handlestorage",
+      "app_handlevisibilitychange",
+      "app_hsltohex",
+      "app_loaddata",
+      "app_loaddbtables",
+      "app_loadoverrides",
+      "app_loadtrackingbrowser",
+      "app_reloadoverrides",
+      "app_switchapp",
+      "app_toggletracking",
+      "idehelppage",
+      "idehelppage_handlekeydown",
+      "statspage",
+      "statspage_formatduration",
+      "statspage_statspage"
+    ],
+    "2": [
       "orbitsystem",
       "orbitsystem_adjustcolor",
       "orbitsystem_animatecamera",
@@ -72,41 +105,13 @@
       "orbitsystem_setstoredanimationspeed",
       "orbitsystem_switchtogalaxy"
     ],
-    "2": [
-      "app",
-      "app_cleancorrupteddata",
-      "app_cleardata",
-      "app_cleartoday",
-      "app_exportdata",
-      "app_formatduration",
-      "app_formattime",
-      "app_generateaisummary",
-      "app_generatedistinctcolors",
-      "app_getappdistribution",
-      "app_getheatcolor",
-      "app_gettotaltime",
-      "app_handleactivity",
-      "app_handlefocus",
-      "app_handlestorage",
-      "app_handlevisibilitychange",
-      "app_hsltohex",
-      "app_loaddata",
-      "app_loaddbtables",
-      "app_loadoverrides",
-      "app_reloadoverrides",
-      "app_switchapp",
-      "app_toggletracking",
-      "idehelppage",
-      "idehelppage_handlekeydown",
-      "statspage",
-      "statspage_formatduration",
-      "statspage_statspage"
-    ],
     "3": [
       "background",
       "background_checkbrowserfocus",
+      "background_detectbrowsername",
       "background_extractdomain",
       "background_healthcheck",
+      "background_identifybrowser",
       "background_loadstate",
       "background_logprevioussession",
       "background_onstartup",
@@ -125,6 +130,7 @@
       "terminalpage",
       "terminalpage_formatdate",
       "terminalpage_generateterminalid",
+      "terminalpage_logonce",
       "terminalwindow",
       "terminalwindow_createpanenode",
       "terminalwindow_handleclosepaneevent",
@@ -134,16 +140,25 @@
     ],
     "5": [
       "browseractivitypage",
-      "browseractivitypage_detectbrowsers",
       "browseractivitypage_formatduration",
       "browseractivitypage_handlecategorychange",
       "browseractivitypage_handleevent",
       "browseractivitypage_handlesavelogs",
-      "browseractivitypage_loadmainbrowser",
+      "browseractivitypage_init",
       "browseractivitypage_starteditcategory",
       "browseractivitypage_toggleexpanded"
     ],
     "6": [
+      "settingspage",
+      "settingspage_activeid",
+      "settingspage_async",
+      "settingspage_fetchdomainstats",
+      "settingspage_handleclickoutside",
+      "settingspage_handleesc",
+      "settingspage_loadoverrides",
+      "settingspage_setlocalappcolors"
+    ],
+    "7": [
       "complete",
       "complete_beep",
       "complete_main",
@@ -151,7 +166,7 @@
       "complete_rationale_43",
       "complete_speak"
     ],
-    "7": [
+    "8": [
       "graphify_maintain",
       "graphify_maintain_rationale_120",
       "graphify_maintain_rationale_209",
@@ -159,76 +174,76 @@
       "graphify_maintain_sync_to_vault",
       "graphify_maintain_validate_report"
     ],
-    "8": [
+    "9": [
       "databasepage",
       "databasepage_databasepage",
       "databasepage_formatcellvalue",
       "databasepage_formatduration",
       "databasepage_settabledata"
     ],
-    "9": [
+    "10": [
       "productivitypage",
       "productivitypage_formatduration",
       "productivitypage_formathours",
       "productivitypage_getcategorycolor",
       "productivitypage_toggledomain"
     ],
-    "10": [
-      "settingspage",
-      "settingspage_activeid",
-      "settingspage_async",
-      "settingspage_colorpicker",
-      "settingspage_fetchdomainstats"
-    ],
     "11": [
+      "externalpage",
+      "externalpage_formatduration",
+      "externalpage_formathours",
+      "externalpage_geticon"
+    ],
+    "12": [
       "graphify_pipeline",
       "graphify_pipeline_rationale_1"
     ],
-    "12": [
+    "13": [
       "preload",
       "preload_handler"
     ],
-    "13": [
+    "14": [
       "electron_vite_config"
     ],
-    "14": [
+    "15": [
       "eslint_config"
     ],
-    "15": [
+    "16": [
       "vite_config"
     ],
-    "16": [
+    "17": [
       "node_pty_d"
     ]
   },
   "cohesion": {
     "0": 0.07,
-    "1": 0.09,
-    "2": 0.07,
-    "3": 0.34,
-    "4": 0.18,
-    "5": 0.22,
-    "6": 0.47,
-    "7": 0.33,
-    "8": 0.5,
-    "9": 0.4,
+    "1": 0.07,
+    "2": 0.09,
+    "3": 0.28,
+    "4": 0.17,
+    "5": 0.25,
+    "6": 0.25,
+    "7": 0.47,
+    "8": 0.33,
+    "9": 0.5,
     "10": 0.4,
-    "11": 1.0,
+    "11": 0.5,
     "12": 1.0,
     "13": 1.0,
     "14": 1.0,
     "15": 1.0,
-    "16": 1.0
+    "16": 1.0,
+    "17": 1.0
   },
   "gods": [
     {
-      "id": "background_updateactivetab",
-      "label": "updateActiveTab()",
-      "edges": 7
-    },
-    {
       "id": "background_onstartup",
       "label": "onStartup()",
+      "edges": 8
+    },
+    {
+      "id": "background_updateactivetab",
+      "label": "updateActiveTab()",
       "edges": 7
     },
     {

@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   setBrowserExcludedDomains: (domains: string[]) => ipcRenderer.invoke('set-browser-excluded-domains', domains),
   setBrowserWithExtension: (browser: string) => ipcRenderer.invoke('set-browser-with-extension', browser),
 
+  // Get tracked browsers (apps categorized as Browser)
+  getTrackedBrowsers: () => ipcRenderer.invoke('get-tracked-browsers'),
+
   // Productivity tracking
   getDailyProductivity: (date: string) => ipcRenderer.invoke('get-daily-productivity', date),
   getProductivityRange: (startDate: string, endDate: string) => ipcRenderer.invoke('get-productivity-range', startDate, endDate),
