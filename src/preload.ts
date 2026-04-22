@@ -233,4 +233,6 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   getActivityStats: (activityId: string) => ipcRenderer.invoke('get-activity-stats', activityId),
   getSleepTrends: (period: 'week' | 'month') => ipcRenderer.invoke('get-sleep-trends', period),
   getConsistencyScore: (period: 'week' | 'month') => ipcRenderer.invoke('get-consistency-score', period),
+  getExternalSettings: (key: string) => ipcRenderer.invoke('get-external-settings', key),
+  setExternalSettings: (key: string, value: string) => ipcRenderer.invoke('set-external-settings', key, value),
 });

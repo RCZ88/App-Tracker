@@ -1469,6 +1469,14 @@ function initializeStorage() {
           )
         `);
 
+        // External tracker settings
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS external_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+          )
+        `);
+
         // Seed default external activities if table is empty
         const activityCount = db.prepare('SELECT COUNT(*) as count FROM external_activities').get();
         if (activityCount.count === 0) {
@@ -6143,6 +6151,33 @@ electron_1.app.on('before-quit', () => {
         const category = categorizeApp(currentApp);
         addLog(new Date(sessionStart).toISOString(), currentApp, category, duration, `${currentApp} Window`, null);
         console.log('[DeskFlow] ✅ Logged final session before quit:', currentApp);
+    }
+    // Auto-stop active external sessions before quit
+    try {
+        const activeSession = db.prepare(`
+            SELECT es.*, ea.type
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE es.ended_at IS NULL
+        `).get();
+        if (activeSession) {
+            const now = new Date();
+            const startedAt = new Date(activeSession.started_at);
+            let durationMs = now.getTime() - startedAt.getTime();
+            // Handle midnight crossing for sleep
+            if (durationMs < 0) {
+                durationMs += 24 * 60 * 60 * 1000;
+            }
+            const durationSeconds = Math.floor(durationMs / 1000);
+            db.prepare(`
+                UPDATE external_sessions 
+                SET ended_at = ?, duration_seconds = ?
+                WHERE id = ?
+            `).run(now.toISOString(), durationSeconds, activeSession.id);
+            console.log('[DeskFlow] ✅ Auto-stopped external session:', activeSession.id, 'Duration:', durationSeconds, 's');
+        }
+    } catch (err) {
+        console.error('[DeskFlow] Failed to auto-stop external session:', err);
     }
     // Ensure JSON data is flushed
     if (useJson) {

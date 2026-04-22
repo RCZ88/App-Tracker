@@ -164,20 +164,34 @@ export default function ExternalPage() {
     if (window.deskflowAPI?.getActiveExternalSession) {
       window.deskflowAPI.getActiveExternalSession().then((session) => {
         if (session) {
-          const activity = activities.find(a => a.id === session.activity_id) || {
-            id: session.activity_id,
-            name: session.name,
-            type: session.type,
-            color: session.color,
-            icon: session.icon,
-          };
-          setRecoverySession({
-            sessionId: session.id.toString(),
-            activityId: session.activity_id.toString(),
-            activity: activity as ExternalActivity,
-            startTime: new Date(session.started_at),
-          });
-          setShowRecoveryModal(true);
+          const startTime = new Date(session.started_at);
+          const now = new Date();
+          const durationHours = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+          const startHour = startTime.getHours();
+          
+          const isNightSleep = startHour >= 22 || startHour <= 4;
+          const isLongSession = durationHours >= 3;
+          
+          if (isLongSession || isNightSleep) {
+            const activity = activities.find(a => a.id === session.activity_id) || {
+              id: session.activity_id,
+              name: session.name,
+              type: session.type,
+              color: session.color,
+              icon: session.icon,
+            };
+            setRecoverySession({
+              sessionId: session.id.toString(),
+              activityId: session.activity_id.toString(),
+              activity: activity as ExternalActivity,
+              startTime,
+            });
+            setShowRecoveryModal(true);
+          } else {
+            if (window.deskflowAPI?.stopExternalSession) {
+              window.deskflowAPI.stopExternalSession(session.id.toString());
+            }
+          }
         }
       });
     }
