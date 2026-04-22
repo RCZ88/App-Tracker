@@ -254,7 +254,9 @@ export default function ExternalPage() {
       if (window.deskflowAPI?.startExternalSession && window.deskflowAPI?.stopExternalSession) {
         const startResult = await window.deskflowAPI.startExternalSession(activity.id.toString());
         if (startResult.success) {
-          await window.deskflowAPI.stopExternalSession(startResult.sessionId);
+          const durationMs = ((activity.default_duration || 30) * 60 * 1000);
+          const endTime = new Date(Date.now() + durationMs);
+          await window.deskflowAPI.stopExternalSession(startResult.sessionId, endTime.toISOString());
           refreshStats();
         }
       }
