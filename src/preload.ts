@@ -226,9 +226,11 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   startExternalSession: (activityId: string) => ipcRenderer.invoke('start-external-session', activityId),
   stopExternalSession: (sessionId: string, endTime?: string) => ipcRenderer.invoke('stop-external-session', sessionId, endTime),
   getExternalSessions: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-sessions', period),
+  getActiveExternalSession: () => ipcRenderer.invoke('get-active-external-session'),
 
   // External Statistics
   getExternalStats: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-stats', period),
+  getActivityStats: (activityId: string) => ipcRenderer.invoke('get-activity-stats', activityId),
   getSleepTrends: (period: 'week' | 'month') => ipcRenderer.invoke('get-sleep-trends', period),
   getConsistencyScore: (period: 'week' | 'month') => ipcRenderer.invoke('get-consistency-score', period),
 });

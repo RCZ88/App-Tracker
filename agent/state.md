@@ -6,13 +6,32 @@
 
 ## 📊 Current Status
 
-**Version:** 1.55
-**Last Updated:** 2026-04-21
+**Version:** 1.56
+**Last Updated:** 2026-04-22
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-22 — External Tracker Restructuring
+
+**What Changed:**
+1. ✅ Fixed Sleep mode - now shows static "Sleeping since [time]" instead of running timer
+2. ✅ Fixed sleep after midnight logic (11PM → 7AM = 8 hours correctly calculated)
+3. ✅ Added session recovery modal - detects incomplete sessions on app restart
+4. ✅ Added per-activity stats display in active session view (Today/Week/Month)
+5. ✅ Created InsightsPage with charts (Weekly Consistency, Sleep Trends, Activity Breakdown)
+6. ✅ Updated /reports route to show InsightsPage instead of placeholder
+
+**Files Modified:**
+- `src/pages/ExternalPage.tsx` - Fixed sleep display, added activity stats, recovery modal
+- `src/pages/InsightsPage.tsx` - NEW - Charts and insights page
+- `src/main.ts` - Added `get-active-external-session` and `get-activity-stats` IPC handlers
+- `src/preload.ts` - Added new API bindings
+- `src/App.tsx` - Added InsightsPage route
+
+**Result:** External page shows static sleep display, Insights page shows all charts
 
 ### 2026-04-21 — Open in IDE Fix + Tracking Browser Extension
 
@@ -2228,6 +2247,7 @@ Planets use a predefined 12-color vivid palette (no reds):
 | 1.52 | 2026-04-21 | Browser Tracking Fix: Added all known browsers to dropdown (Chrome, Firefox, Safari, etc.), marks browser with extension with ★, loads extension browser first |
 | 1.53 | 2026-04-21 | Browser Tracking Fix: Fixed case-insensitive deduplication, defaults to Chrome |
 | 1.54 | 2026-04-21 | Browser Tracking Fix: Added missing getTrackedBrowsers API to preload.ts, removed fake browsers from dropdown, now only shows user's actual browser apps from DB |
+| 1.55 | 2026-04-22 | External Tracker Restructuring: Fixed sleep mode (static display), midnight crossing logic, session recovery, per-activity stats, created InsightsPage |
 | 1.39 | 2026-04-19 | IDE Help Page: Created /ide-help route with comprehensive help content and added Help button in IDE Projects |
 | 1.40 | 2026-04-19 | Settings page overhaul: Line-style color picker, App/Website toggle, expand/collapse, all data shown |
 | 1.41 | 2026-04-19 | Color picker click anywhere to open, removed duplicate Category Assignments |

@@ -18,6 +18,7 @@ import IDEProjectsPage from './pages/IDEProjectsPage';
 import IDEHelpPage from './pages/IDEHelpPage';
 import TerminalPage from './pages/TerminalPage';
 import ExternalPage from './pages/ExternalPage';
+import InsightsPage from './pages/InsightsPage';
 
 // Lazy load OrbitSystem - it's heavy and should only load when needed
 const OrbitSystem = lazy(() => import('./components/OrbitSystem').then(module => ({ default: module.default })));
@@ -2159,7 +2160,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
 
               <Route path="/terminal" element={<TerminalPage />} />
               {/* Reports/Insights Page */}
-              <Route path="/reports" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Insights and reports are coming soon</div></div></div>} />
+              <Route path="/reports" element={<InsightsPage />} />
               {/* Database Page */}
               <Route path="/database" element={<DatabasePage />} />
               {/* Pricing Page */}

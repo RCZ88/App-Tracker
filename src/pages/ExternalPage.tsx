@@ -62,6 +62,13 @@ interface SleepTrend {
   average_wake_time: string;
 }
 
+interface ActivityStats {
+  today_seconds: number;
+  week_seconds: number;
+  month_seconds: number;
+  session_count: number;
+}
+
 const ICON_MAP: Record<string, any> = {
   Clock,
   Moon,
@@ -117,6 +124,19 @@ function formatHours(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+function calculateSleepDuration(start: Date, end: Date): number {
+  let endMs = end.getTime();
+  const startMs = start.getTime();
+  if (endMs < startMs) {
+    endMs += 24 * 60 * 60 * 1000;
+  }
+  return Math.min(endMs - startMs, 24 * 60 * 60 * 1000);
+}
+
+function formatBedtime(date: Date): string {
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 export default function ExternalPage() {
   const [activities, setActivities] = useState<ExternalActivity[]>([]);
   const [stats, setStats] = useState<ExternalStats>({ byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 });
@@ -130,12 +150,35 @@ export default function ExternalPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
   const [newActivity, setNewActivity] = useState({ name: '', type: 'stopwatch' as const, color: '#6366f1', icon: 'Clock', default_duration: 30 });
   const [showCharts, setShowCharts] = useState(false);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoverySession, setRecoverySession] = useState<{ sessionId: string; activityId: string; activity: ExternalActivity; startTime: Date } | null>(null);
+  const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
 
   // Load activities on mount
   useEffect(() => {
     if (window.deskflowAPI?.getExternalActivities) {
       window.deskflowAPI.getExternalActivities().then((data) => {
         setActivities(data);
+      });
+    }
+    if (window.deskflowAPI?.getActiveExternalSession) {
+      window.deskflowAPI.getActiveExternalSession().then((session) => {
+        if (session) {
+          const activity = activities.find(a => a.id === session.activity_id) || {
+            id: session.activity_id,
+            name: session.name,
+            type: session.type,
+            color: session.color,
+            icon: session.icon,
+          };
+          setRecoverySession({
+            sessionId: session.id.toString(),
+            activityId: session.activity_id.toString(),
+            activity: activity as ExternalActivity,
+            startTime: new Date(session.started_at),
+          });
+          setShowRecoveryModal(true);
+        }
       });
     }
   }, []);
@@ -171,6 +214,9 @@ export default function ExternalPage() {
 
   // Start activity
   const startActivity = useCallback(async (activity: ExternalActivity) => {
+    if (window.deskflowAPI?.getActivityStats) {
+      window.deskflowAPI.getActivityStats(activity.id.toString()).then(setActivityStats);
+    }
     if (activity.type === 'sleep') {
       if (window.deskflowAPI?.startExternalSession) {
         const result = await window.deskflowAPI.startExternalSession(activity.id.toString());
@@ -241,8 +287,12 @@ export default function ExternalPage() {
     const wakeDate = new Date();
     wakeDate.setHours(wakeTime.hours, wakeTime.minutes, 0, 0);
 
-    if (wakeDate > now) {
-      wakeDate.setDate(wakeDate.getDate() - 1);
+    const startDate = activeSession.startTime;
+    const startMs = startDate.getTime();
+    const wakeMs = wakeDate.getTime();
+
+    if (wakeMs < startMs) {
+      wakeDate.setDate(wakeDate.getDate() + 1);
     }
 
     if (window.deskflowAPI?.stopExternalSession) {
@@ -351,13 +401,21 @@ export default function ExternalPage() {
                 style={{ backgroundColor: activeSession.activity.color + '20', border: `2px solid ${activeSession.activity.color}` }}
               >
                 <div className="text-center mb-6">
-                  <div className="text-sm text-zinc-400 mb-1">
-                    {activeSession.activity.type === 'sleep' ? 'Sleeping since' : 'Tracking'}
-                  </div>
-                  <div className="text-5xl font-mono font-bold text-zinc-100">
-                    {formatDuration(elapsedSeconds)}
-                  </div>
-                  <div className="text-lg text-zinc-300 mt-2">{activeSession.activity.name}</div>
+                  {activeSession.activity.type === 'sleep' ? (
+                    <>
+                      <div className="text-6xl mb-4">😴</div>
+                      <div className="text-2xl font-bold text-zinc-100 mb-2">Sleeping</div>
+                      <div className="text-xl text-zinc-300">Since {formatBedtime(activeSession.startTime)}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm text-zinc-400 mb-1">Tracking</div>
+                      <div className="text-5xl font-mono font-bold text-zinc-100">
+                        {formatDuration(elapsedSeconds)}
+                      </div>
+                      <div className="text-lg text-zinc-300 mt-2">{activeSession.activity.name}</div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -378,6 +436,22 @@ export default function ExternalPage() {
                     </button>
                   )}
                 </div>
+                {activityStats && (
+                  <div className="mt-6 grid grid-cols-3 gap-4 w-full max-w-md">
+                    <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-zinc-400">Today</div>
+                      <div className="text-lg font-bold text-zinc-100">{formatHours(activityStats.today_seconds)}</div>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-zinc-400">This Week</div>
+                      <div className="text-lg font-bold text-zinc-100">{formatHours(activityStats.week_seconds)}</div>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-zinc-400">This Month</div>
+                      <div className="text-lg font-bold text-zinc-100">{formatHours(activityStats.month_seconds)}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -545,6 +619,65 @@ export default function ExternalPage() {
           </div>
         )}
       </div>
+
+      {/* Recovery Modal */}
+      <AnimatePresence>
+        {showRecoveryModal && recoverySession && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-zinc-900 rounded-2xl p-8 max-w-md w-full mx-4"
+            >
+              <div className="text-center mb-6">
+                {recoverySession.activity.type === 'sleep' ? (
+                  <>
+                    <div className="text-6xl mb-4">😴</div>
+                    <h2 className="text-xl font-semibold text-zinc-100">You were sleeping!</h2>
+                    <p className="text-zinc-400 mt-2">Sleeping since {formatBedtime(recoverySession.startTime)}</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-6xl mb-4">⏱️</div>
+                    <h2 className="text-xl font-semibold text-zinc-100">Active Session Found</h2>
+                    <p className="text-zinc-400 mt-2">{recoverySession.activity.name} started at {formatBedtime(recoverySession.startTime)}</p>
+                  </>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (window.deskflowAPI?.stopExternalSession) {
+                      await window.deskflowAPI.stopExternalSession(recoverySession.sessionId);
+                      refreshStats();
+                    }
+                    setShowRecoveryModal(false);
+                    setRecoverySession(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveSession(recoverySession);
+                    setShowRecoveryModal(false);
+                  }}
+                  className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors"
+                >
+                  Resume
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Sleep Wake Up Modal */}
       <AnimatePresence>

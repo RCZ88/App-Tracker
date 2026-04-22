@@ -5897,6 +5897,24 @@ electron_1.ipcMain.handle('stop-external-session', (event, sessionId, endTime) =
     }
 });
 
+electron_1.ipcMain.handle('get-active-external-session', (event) => {
+    if (useJson) return null;
+    try {
+        const session = db.prepare(`
+            SELECT es.*, ea.name, ea.type, ea.color, ea.icon
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE es.ended_at IS NULL
+            ORDER BY es.started_at DESC
+            LIMIT 1
+        `).get();
+        return session || null;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get active external session:', err);
+        return null;
+    }
+});
+
 electron_1.ipcMain.handle('get-external-sessions', (event, period = 'all') => {
     if (useJson) return [];
     try {
@@ -5981,6 +5999,44 @@ electron_1.ipcMain.handle('get-external-stats', (event, period = 'all') => {
     } catch (err) {
         console.error('[DeskFlow] Failed to get external stats:', err);
         return { byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 };
+    }
+});
+
+electron_1.ipcMain.handle('get-activity-stats', (event, activityId: string) => {
+    if (useJson) return { today_seconds: 0, week_seconds: 0, month_seconds: 0, session_count: 0 };
+    try {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const todayStats = db.prepare(`
+            SELECT COALESCE(SUM(duration_seconds), 0) as total, COUNT(*) as count
+            FROM external_sessions
+            WHERE activity_id = ? AND ended_at IS NOT NULL AND date(started_at) = ?
+        `).get(activityId, today) as any;
+        
+        const weekStats = db.prepare(`
+            SELECT COALESCE(SUM(duration_seconds), 0) as total, COUNT(*) as count
+            FROM external_sessions
+            WHERE activity_id = ? AND ended_at IS NOT NULL AND date(started_at) >= ?
+        `).get(activityId, weekAgo) as any;
+        
+        const monthStats = db.prepare(`
+            SELECT COALESCE(SUM(duration_seconds), 0) as total, COUNT(*) as count
+            FROM external_sessions
+            WHERE activity_id = ? AND ended_at IS NOT NULL AND date(started_at) >= ?
+        `).get(activityId, monthAgo) as any;
+        
+        return {
+            today_seconds: todayStats?.total || 0,
+            week_seconds: weekStats?.total || 0,
+            month_seconds: monthStats?.total || 0,
+            session_count: todayStats?.count || 0
+        };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get activity stats:', err);
+        return { today_seconds: 0, week_seconds: 0, month_seconds: 0, session_count: 0 };
     }
 });
 
