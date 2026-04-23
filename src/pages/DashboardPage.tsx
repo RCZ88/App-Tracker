@@ -93,6 +93,12 @@ interface DashboardPageProps {
   categoryOverrides?: Record<string, string>;
   timerBehavior?: TimerBehavior;
   selectedPeriod?: 'today' | 'week' | 'month' | 'all';
+  trackingBrowser?: string;
+  tierAssignments?: {
+    productive: string[];
+    neutral: string[];
+    distracting: string[];
+  };
 }
 
 export default function DashboardPage({
@@ -106,7 +112,9 @@ export default function DashboardPage({
   appColors = {},
   categoryOverrides = {},
   timerBehavior = { neutralAction: 'pause', distractingAction: 'reset' },
-  selectedPeriod = 'week'
+  selectedPeriod = 'week',
+  trackingBrowser = '',
+  tierAssignments = { productive: ['IDE', 'AI Tools', 'Education', 'Productivity', 'Tools'], neutral: ['Browser', 'Communication', 'Design', 'News', 'Uncategorized', 'Other'], distracting: ['Entertainment', 'Social Media', 'Shopping'] }
 }: DashboardPageProps) {
   const [selectedExternalActivity, setSelectedExternalActivity] = useState<ExternalActivity | null>(null);
   const [externalSessionRunning, setExternalSessionRunning] = useState(false);
@@ -124,6 +132,8 @@ export default function DashboardPage({
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
   const activityFeedRef = useRef<ActivityFeedItem[]>([]);
   const [resetCount, setResetCount] = useState(0);
+  const [lastNonBrowserApp, setLastNonBrowserApp] = useState<ForegroundData | null>(null);
+  const [currentWebsite, setCurrentWebsite] = useState<{ title?: string; url?: string; category?: string } | null>(null);
 
   const DEFAULT_ACTIVITIES: ExternalActivity[] = [
     { id: 1, name: 'Study', type: 'stopwatch', color: '#10b981', icon: 'BookOpen', is_productive: true },
@@ -179,11 +189,32 @@ export default function DashboardPage({
     if (!window.deskflowAPI?.onForegroundChange) return;
 
     window.deskflowAPI.onForegroundChange((data: ForegroundData) => {
+      // Ignore Electron app itself - keep showing the previous app
+      if (data.app && data.app.toLowerCase().includes('electron')) {
+        return;
+      }
+
+      // Check if this is the tracking browser
+      const isTrackingBrowser = trackingBrowser && data.app && 
+        data.app.toLowerCase().includes(trackingBrowser.toLowerCase());
+
+      // If it's the tracking browser, don't update current app - use browser logs for website
+      if (isTrackingBrowser) {
+        // Track the website instead (will be updated via browser tracking events)
+        // Keep showing last non-browser app
+        setCurrentApp(lastNonBrowserApp);
+        return;
+      }
+
+      // Track non-browser apps
+      setLastNonBrowserApp(data);
+
+      // If we're currently tracking a browser, the category should be from the website
       const tier = getTierFromCategory(data.category);
       const newItem: ActivityFeedItem = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date(),
-        type: data.is_browser_tracking ? 'browser' : 'app',
+        type: 'app',
         name: data.app || data.title || 'Unknown',
         category: data.category || 'Unknown',
         tier
@@ -192,10 +223,41 @@ export default function DashboardPage({
       setActivityFeed([...activityFeedRef.current]);
       setCurrentApp(data);
     });
-  }, []);
+  }, [trackingBrowser, lastNonBrowserApp]);
+
+  // Listen for browser tracking events (website changes)
+  useEffect(() => {
+    if (!window.deskflowAPI?.onBrowserTrackingEvent) return;
+
+    window.deskflowAPI.onBrowserTrackingEvent((data: any) => {
+      if (data.type === 'browser-data' || data.type === 'live-log') {
+        setCurrentWebsite({
+          title: data.title,
+          url: data.url,
+          category: data.category
+        });
+
+        // Only add to feed if we're on the tracking browser
+        if (!trackingBrowser) return;
+
+        const tier = getTierFromCategory(data.category || 'Uncategorized');
+        const newItem: ActivityFeedItem = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date(),
+          type: 'browser',
+          name: data.domain || data.title || 'Unknown',
+          category: data.category || 'Uncategorized',
+          tier
+        };
+        activityFeedRef.current = [...activityFeedRef.current.slice(-49), newItem];
+        setActivityFeed([...activityFeedRef.current]);
+      }
+    });
+  }, [trackingBrowser]);
 
   // Auto-counting timer logic for app/browser productivity
   useEffect(() => {
+    // If Electron app, don't track - keep last non-browser app state
     if (!currentApp || !currentApp.category) return;
 
     const currentTier = getTierFromCategory(currentApp.category);
@@ -286,9 +348,9 @@ export default function DashboardPage({
 
   const getHeatmapColor = (hours: number) => {
     if (hours === 0) return '#1f2937';
-    if (hours < 1) return '#374151';
-    if (hours < 2) return '#059669';
-    if (hours < 4) return '#0d9488';
+    if (hours < 1) return '#059669';
+    if (hours < 2) return '#0d9488';
+    if (hours < 4) return '#10b981';
     if (hours < 6) return '#10b981';
     return '#34d399';
   };
@@ -764,8 +826,8 @@ export default function DashboardPage({
                  <div className="flex items-end justify-between gap-1 h-40">
                   {heatmapData.map((day, i) => {
                     const height = (day.hours / maxHours) * 100;
-                    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 1);
-                    const isToday = day.day === today;
+                    const todayName = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+                    const isToday = day.day === todayName;
                     
                     return (
                       <div key={day.day} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
@@ -882,8 +944,8 @@ export default function DashboardPage({
                     <div className="flex items-end justify-between gap-2 h-80">
                       {heatmapData.map((day, i) => {
                         const height = (day.hours / maxHours) * 100;
-                        const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 1);
-                        const isToday = day.day === today;
+                        const todayName = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+                        const isToday = day.day === todayName;
                         
                         return (
                           <div key={day.day} className="flex-1 flex flex-col items-center gap-3 group">
@@ -1002,6 +1064,152 @@ export default function DashboardPage({
                         </div>
                         <div className="text-zinc-500">
                           {item.category}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Recent Sessions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="rounded-2xl p-6 border backdrop-blur-sm"
+            style={{
+              backgroundColor: 'rgba(10, 10, 10, 0.8)',
+              borderColor: 'rgba(107, 114, 128, 0.2)'
+            }}
+          >
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Recent Sessions</h2>
+                <p className="text-xs text-zinc-600 mt-1">Apps and websites</p>
+              </div>
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {(() => {
+                  const WEBSITE_CATEGORY_MAP: Record<string, string> = {
+                    'Developer Tools': 'Tools',
+                    'AI Tools': 'AI Tools',
+                    'Social Media': 'Social Media',
+                    'Entertainment': 'Entertainment',
+                    'News': 'News',
+                    'Shopping': 'Shopping',
+                    'Productivity': 'Productivity',
+                    'Design': 'Design',
+                    'Search Engine': 'Productivity',
+                    'Communication': 'Communication',
+                    'Education': 'Education',
+                    'Uncategorized': 'Uncategorized',
+                    'Other': 'Other'
+                  };
+
+                  const getTier = (category: string): 'productive' | 'neutral' | 'distracting' => {
+                    if (tierAssignments.productive.includes(category)) return 'productive';
+                    if (tierAssignments.distracting.includes(category)) return 'distracting';
+                    return 'neutral';
+                  };
+
+                  const formatDur = (seconds: number): string => {
+                    if (seconds < 60) return `${Math.round(seconds)}s`;
+                    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+                    const h = Math.floor(seconds / 3600);
+                    const m = Math.floor((seconds % 3600) / 60);
+                    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                  };
+
+                  const appSessions = (logs as any[] || []).map(log => ({
+                    type: 'app' as const,
+                    name: log.app || 'Unknown',
+                    category: log.category || 'Other',
+                    duration: log.duration || 0,
+                    timestamp: new Date(log.timestamp || Date.now()),
+                    tier: getTier(log.category)
+                  }));
+
+                  const websiteSessions = (browserLogs as any[] || []).map(log => ({
+                    type: 'website' as const,
+                    name: log.domain || 'Unknown',
+                    category: WEBSITE_CATEGORY_MAP[log.category] || 'Other',
+                    duration: log.duration || 0,
+                    timestamp: new Date(log.start_time || Date.now()),
+                    tier: getTier(WEBSITE_CATEGORY_MAP[log.category] || log.category)
+                  }));
+
+                  return [...appSessions, ...websiteSessions]
+                    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+                    .slice(0, 15);
+                })().length === 0 ? (
+                  <div className="text-xs text-zinc-500 text-center py-4">
+                    No sessions tracked yet
+                  </div>
+                ) : (
+                  [...(() => {
+                    const WEBSITE_CATEGORY_MAP: Record<string, string> = {
+                      'Developer Tools': 'Tools', 'AI Tools': 'AI Tools',
+                      'Social Media': 'Social Media', 'Entertainment': 'Entertainment',
+                      'News': 'News', 'Shopping': 'Shopping', 'Productivity': 'Productivity',
+                      'Design': 'Design', 'Search Engine': 'Productivity',
+                      'Communication': 'Communication', 'Education': 'Education',
+                      'Uncategorized': 'Uncategorized', 'Other': 'Other'
+                    };
+                    const getTier = (category: string) => {
+                      if (tierAssignments.productive.includes(category)) return 'productive';
+                      if (tierAssignments.distracting.includes(category)) return 'distracting';
+                      return 'neutral';
+                    };
+                    const formatDur = (seconds: number): string => {
+                      if (seconds < 60) return `${Math.round(seconds)}s`;
+                      if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+                      const h = Math.floor(seconds / 3600);
+                      const m = Math.floor((seconds % 3600) / 60);
+                      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                    };
+                    const appS = (logs as any[] || []).map(log => ({
+                      type: 'app' as const, name: log.app || 'Unknown',
+                      category: log.category || 'Other', duration: log.duration || 0,
+                      timestamp: new Date(log.timestamp || Date.now()),
+                      tier: getTier(log.category)
+                    }));
+                    const webS = (browserLogs as any[] || []).map(log => ({
+                      type: 'website' as const, name: log.domain || 'Unknown',
+                      category: WEBSITE_CATEGORY_MAP[log.category] || 'Other',
+                      duration: log.duration || 0,
+                      timestamp: new Date(log.start_time || Date.now()),
+                      tier: getTier(WEBSITE_CATEGORY_MAP[log.category] || log.category)
+                    }));
+                    return [...appS, ...webS].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 15);
+                  })()].map((session, idx) => {
+                    const tierColor = session.tier === 'productive' ? '#10b981' : 
+                                     session.tier === 'distracting' ? '#ef4444' : '#6b7280';
+                    const tierLabel = session.tier === 'productive' ? 'P' : 
+                                    session.tier === 'distracting' ? 'D' : 'N';
+                    const formatDur = (seconds: number): string => {
+                      if (seconds < 60) return `${Math.round(seconds)}s`;
+                      if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+                      const h = Math.floor(seconds / 3600);
+                      const m = Math.floor((seconds % 3600) / 60);
+                      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                    };
+                    
+                    return (
+                      <div key={idx} className="flex items-center gap-3 text-xs py-1.5 border-b border-zinc-800 last:border-0">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: tierColor }}>
+                          {tierLabel}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-zinc-300 truncate font-medium">{session.name}</div>
+                          <div className="text-zinc-600 text-xs">{session.category}</div>
+                        </div>
+                        <div className="text-zinc-400 font-mono text-right">
+                          {formatDur(session.duration)}
+                        </div>
+                        <div className="text-zinc-600 text-xs">
+                          {session.type === 'app' ? 'App' : 'Web'}
                         </div>
                       </div>
                     );

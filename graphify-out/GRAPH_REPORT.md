@@ -1,11 +1,11 @@
-# Graph Report - .  (2026-04-22)
+# Graph Report - .  (2026-04-23)
 
 ## Corpus Check
-- 25 files · ~330,174 words
+- 26 files · ~373,078 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 182 nodes · 219 edges · 18 communities detected
+- 186 nodes · 223 edges · 18 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -31,7 +31,7 @@ Cohesion: 0.07
 Nodes (17): addLog(), calculateCost(), calculateProductivityScore(), categorizeApp(), categorizeDomain(), getModelPricing(), getTierForCategory(), handleBrowserData() (+9 more)
 
 ### Community 1 - "OrbitSystem Visualization"
-Cohesion: 0.07
+Cohesion: 0.06
 Nodes (2): handleStorage(), reloadOverrides()
 
 ### Community 2 - "Electron Main Process"
@@ -122,6 +122,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `App State Management` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `OrbitSystem Visualization` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
 - **Should `Electron Main Process` be split into smaller, more focused modules?**
   _Cohesion score 0.09 - nodes in this community are weakly interconnected._

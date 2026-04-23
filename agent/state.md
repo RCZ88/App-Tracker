@@ -6,7 +6,7 @@
 
 ## 📊 Current Status
 
-**Version:** 1.61
+**Version:** 1.64
 **Last Updated:** 2026-04-23
 **Build Status:** ✅ Working
 
@@ -18,12 +18,19 @@
 
 **What Changed:**
 1. ✅ Created comprehensive dashboard redesign plan
-2. ✅ Identified page allocation to avoid data duplication
-3. ✅ Clarified requirements with user
-4. ✅ Committed and pushed previous changes (v1.60)
+2. ✅ Fixed heatmap "Today" indicator bug — was comparing day name ("Mon") against first letter ("T")
+3. ✅ Fixed heatmap 0-hour color — was dark gray on dark background, now uses lighter green (#059669)
+4. ✅ Added tierAssignments prop to DashboardPage
+5. ✅ Added Recent Sessions section to Dashboard — shows both apps and websites
+6. ✅ Removed "Recent Sessions" section from ProductivityPage (moved to Dashboard)
 
 **Files Modified:**
-- `agent/state.md` - Updated version and plan entry
+- `agent/state.md` - Updated version
+- `src/pages/DashboardPage.tsx` - Fixed isToday comparison, fixed 0h color, added tierAssignments prop, added Recent Sessions section
+- `src/App.tsx` - Passed tierAssignments to DashboardPage
+- `src/pages/ProductivityPage.tsx` - Removed "Recent Sessions" section and unused useMemo/getTierForCategory
+
+**Result:** Heatmap now correctly highlights "Today" in emerald, and 0-hour cells are visible (light green instead of dark gray). Build passes.
 
 **Next Steps (Dashboard Only):**
 1. Add stats cards row (Productive Time, Total Time, %, Longest Focus, Reset Count, External Time)

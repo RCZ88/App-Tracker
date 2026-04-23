@@ -489,9 +489,35 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     };
     loadOverrides();
   }, []);
-  const [dataSyncMode, setDataSyncMode] = useState<'forward' | 'refactor'>('forward');
+  const [dataSyncMode, setDataSyncMode] = useState<'forward' | 'refactor'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deskflow-data-sync-mode');
+      if (saved === 'refactor' || saved === 'forward') return saved;
+    }
+    return 'forward';
+  });
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncMessage, setSyncMessage] = useState('');
+
+  // Save dataSyncMode when it changes
+  useEffect(() => {
+    localStorage.setItem('deskflow-data-sync-mode', dataSyncMode);
+  }, [dataSyncMode]);
+
+  // Auto-refactor when category overrides change (if dataSyncMode is 'refactor')
+  useEffect(() => {
+    if (dataSyncMode === 'refactor' && syncStatus === 'idle' && (Object.keys(appCategoryOverrides).length > 0 || Object.keys(domainCategoryOverrides).length > 0)) {
+      // Only auto-refactor if we've already loaded overrides (not on initial mount)
+      if (hasInitiallyLoadedRef.current) {
+        console.log('[Settings] Auto-refactoring due to category override change...');
+        performRefactor();
+      } else {
+        hasInitiallyLoadedRef.current = true;
+      }
+    }
+  }, [appCategoryOverrides, domainCategoryOverrides, dataSyncMode]);
+
+  const hasInitiallyLoadedRef = useRef(false);
 
   const performRefactor = async () => {
     if (!window.deskflowAPI?.updateCategoriesFromOverrides) {
