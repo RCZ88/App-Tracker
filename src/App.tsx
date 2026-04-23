@@ -19,6 +19,7 @@ import IDEHelpPage from './pages/IDEHelpPage';
 import TerminalPage from './pages/TerminalPage';
 import ExternalPage from './pages/ExternalPage';
 import InsightsPage from './pages/InsightsPage';
+import DashboardPage from './pages/DashboardPage';
 
 // Lazy load OrbitSystem - it's heavy and should only load when needed
 const OrbitSystem = lazy(() => import('./components/OrbitSystem').then(module => ({ default: module.default })));
@@ -582,8 +583,16 @@ function App() {
       try {
         const saved = localStorage.getItem('deskflow-app-category-overrides');
         if (saved) {
-          setCategoryOverrides(JSON.parse(saved));
-          console.log('[DeskFlow] Reloaded category overrides:', JSON.parse(saved));
+          const newOverrides = JSON.parse(saved);
+          setCategoryOverrides((prev: Record<string, string>) => {
+            const prevStr = JSON.stringify(prev);
+            const newStr = JSON.stringify(newOverrides);
+            if (prevStr !== newStr) {
+              console.log('[DeskFlow] Reloaded category overrides:', newOverrides);
+              return newOverrides;
+            }
+            return prev;
+          });
         }
       } catch { /* ignore */ }
     };
@@ -1608,17 +1617,17 @@ Trend: +14% vs. yesterday. Keep it up!`;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   };
 
-  const sidebarItems = [
-    { icon: Home, label: 'Dashboard', path: '/' },
-    { icon: PieChart, label: 'Applications', path: '/stats' },
-    { icon: Target, label: 'Productivity', path: '/productivity' },
-    { icon: Globe, label: 'Browser Activity', path: '/browser' },
-    { icon: Code2, label: 'IDE Projects', path: '/ide' },
-    { icon: Clock4, label: 'External', path: '/external' },
-    { icon: BarChart3, label: 'Insights', path: '/reports' },
-    { icon: Database, label: 'Database', path: '/database' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
-  ];
+   const sidebarItems = [
+     { icon: Home, label: 'Dashboard', path: '/' },
+     { icon: Target, label: 'Productivity', path: '/productivity' },
+     { icon: PieChart, label: 'Applications', path: '/stats' },
+     { icon: Globe, label: 'Browser Activity', path: '/browser' },
+     { icon: Code2, label: 'IDE Projects', path: '/ide' },
+     { icon: Clock4, label: 'External', path: '/external' },
+     { icon: BarChart3, label: 'Insights', path: '/reports' },
+     { icon: Database, label: 'Database', path: '/database' },
+     { icon: Settings, label: 'Settings', path: '/settings' },
+   ];
 
   const renderHeatmap = () => {
     const currentHour = new Date().getHours();
@@ -1916,235 +1925,9 @@ Trend: +14% vs. yesterday. Keep it up!`;
           <AnimatePresence mode="sync">
             <Routes location={location} key={location.pathname}>
               {/* Dashboard */}
-              <Route path="/" element={
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
-                >
-                  <div className="glass rounded-3xl p-8">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="uppercase tracking-[3px] text-xs text-zinc-500">FOREGROUND</div>
-                          <motion.button
-                            onClick={() => setAutoDetect(!autoDetect)}
-                            className={`px-3 py-1 rounded-full text-[10px] font-medium transition flex items-center gap-1.5 ${autoDetect
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-                          >
-                            <div className={`w-1.5 h-1.5 rounded-full ${autoDetect ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}`} />
-                            {autoDetect ? 'ON' : 'OFF'}
-                          </motion.button>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-4xl font-semibold tabular-nums tracking-tighter">{formatTime(elapsedTime)}</div>
-                          <div>
-                            <div className="text-xl font-medium flex items-center gap-2">
-                              {currentApp}
-                              {autoDetect && <span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded">LIVE</span>}
-                            </div>
-                            <div className="text-sm text-zinc-500">{currentCategory.cat}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <div className="text-xs text-zinc-500 mb-2 flex items-center gap-2">
-                        <Users className="w-3 h-3" /> BACKGROUND APPS
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {backgroundApps.length > 0 ? (
-                          backgroundApps.map((app, i) => (
-                            <div key={i} className="px-3 py-1 text-xs bg-zinc-900 text-zinc-400 rounded-full border border-zinc-800 flex items-center gap-1">
-                              <div className="w-1 h-1 bg-zinc-500 rounded-full" />
-                              {app}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-zinc-500">No background apps</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-zinc-800">
-                      <div className="text-xs text-zinc-500 mb-2">MANUAL OVERRIDE</div>
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          const loggedApps = Array.from(new Set(logs.map(l => l.app)));
-                          const predefinedApps = ['VS Code', 'Chrome', 'Claude', 'PyCharm', 'Slack', 'Figma', 'Terminal', 'YouTube'];
-                          const allApps = Array.from(new Set([...loggedApps, ...predefinedApps]));
-
-                          return allApps.map((app) => (
-                            <motion.button
-                              key={app}
-                              onClick={() => switchApp(app)}
-                              className={`px-4 py-2 rounded-2xl text-sm border transition ${currentApp === app
-                                ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow'
-                                : 'border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white'
-                                }`}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                            >
-                              {app}
-                            </motion.button>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="glass rounded-3xl p-6">
-                      <Clock className="w-5 h-5 text-zinc-400" />
-                      <div className="text-3xl font-semibold text-indigo-400 mt-2">{displayTime > 0 ? formatDuration(displayTime) : '0s'}</div>
-                      <div className="text-sm text-zinc-400">Total Time</div>
-                    </div>
-                    <div className="glass rounded-3xl p-6">
-                      <Award className="w-5 h-5 text-zinc-400" />
-                      <div className="text-3xl font-semibold text-indigo-400 mt-2">{Math.round(productivityScore)}%</div>
-                      <div className="text-sm text-zinc-400">Productivity</div>
-                    </div>
-                    <div className="glass rounded-3xl p-6">
-                      <Monitor className="w-5 h-5 text-zinc-400" />
-                      <div className="text-3xl font-semibold text-violet-400 mt-2">{appData.length}</div>
-                      <div className="text-sm text-zinc-400">Active Apps</div>
-                    </div>
-                    <div className="glass rounded-3xl p-6">
-                      <Zap className="w-5 h-5 text-zinc-400" />
-                      <div className="text-3xl font-semibold text-emerald-400 mt-2">{formatDuration(focusAndTotalTime.focus)}</div>
-                      <div className="text-sm text-zinc-400">Focus Time</div>
-                    </div>
-                  </div>
-
-                  {/* Live Activity Logs */}
-                  <div className="glass rounded-3xl p-6 border border-zinc-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Terminal className="text-emerald-400" size={20} />
-                        <span className="font-medium">Live Activity</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const content = liveActivityLogs
-                            .map(log => `[${dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}] ${log.type.toUpperCase()}: ${log.name} ${log.category ? `(${log.category})` : ''} ${log.title ? `- ${log.title}` : ''}`)
-                            .join('\n');
-                          const blob = new Blob([content], { type: 'text/plain' });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `activity-logs-${dateFormat(new Date(), 'yyyy-MM-dd-HHmmss')}.txt`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        disabled={liveActivityLogs.length === 0}
-                        className="px-3 py-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Save size={12} />
-                        Save
-                      </button>
-                    </div>
-                    <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3 h-40 overflow-y-auto font-mono text-xs">
-                      {liveActivityLogs.length === 0 ? (
-                        <div className="text-zinc-500 text-center py-6">Waiting for activity...</div>
-                      ) : (
-                        <div className="space-y-1">
-                          {liveActivityLogs.slice().reverse().map((log) => (
-                            <div key={log.id} className="flex items-start gap-2">
-                              <span className="text-zinc-600 shrink-0">
-                                {dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}
-                              </span>
-                              <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                log.type === 'browser' ? 'bg-blue-500/20 text-blue-400' :
-                                log.type === 'ide' ? 'bg-purple-500/20 text-purple-400' :
-                                'bg-emerald-500/20 text-emerald-400'
-                              }`}>
-                                {log.type.toUpperCase()}
-                              </span>
-                              <span className="text-zinc-300">{log.name}</span>
-                              {log.category && <span className="text-zinc-600">({log.category})</span>}
-                              {log.title && <span className="text-zinc-500 truncate">{log.title}</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="glass rounded-3xl p-8 w-full">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-xl font-semibold">Activity Visualization</div>
-                      <div className="flex items-center gap-3">
-                        {vizMode === 'heatmap' && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setWeekOffset(w => w - 1)}
-                              className="p-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 text-zinc-400 hover:text-white transition"
-                              title="Previous week"
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <span className="text-sm text-zinc-400 min-w-[120px] text-center">{heatmapWeekLabel}</span>
-                            <button
-                              onClick={() => setWeekOffset(w => w + 1)}
-                              className="p-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 text-zinc-400 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="Next week"
-                              disabled={weekOffset >= 0}
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                            {weekOffset !== 0 && (
-                              <button
-                                onClick={() => setWeekOffset(0)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition hover:scale-105"
-                                title="Jump to today"
-                              >
-                                <Calendar className="w-3.5 h-3.5" />
-                                Today
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1 bg-zinc-800/50 rounded-lg p-1">
-                          <button
-                            onClick={() => setVizMode('heatmap')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                              vizMode === 'heatmap' 
-                                ? 'bg-emerald-500/20 text-emerald-400' 
-                                : 'text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            Heatmap
-                          </button>
-                          <button
-                            onClick={() => setVizMode('solar')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 ${
-                              vizMode === 'solar' 
-                                ? 'bg-indigo-500/20 text-indigo-400' 
-                                : 'text-zinc-400 hover:text-white'
-                            }`}
-                          >
-                            <Globe className="w-3.5 h-3.5" />
-                            Planetary
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {vizMode === 'heatmap' ? renderHeatmap() : (
-                      <div className="h-[600px] rounded-2xl overflow-hidden border border-zinc-800">
-                        <OrbitSystemWrapper 
-                          logs={filteredLogs.filter(l => !l.is_browser_tracking)}
-                          browserLogs={browserLogs}
-                          appColors={appColors}
-                          categoryOverrides={categoryOverrides}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              } />
+               <Route path="/" element={
+                  <DashboardPage logs={logs} allLogs={allLogs} />
+                } />
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* Productivity Page */}
@@ -2155,6 +1938,8 @@ Trend: +14% vs. yesterday. Keep it up!`;
               <Route path="/ide" element={<IDEProjectsPage />} />
 
               <Route path="/external" element={<ExternalPage />} />
+              {/* Legacy routes */}
+              <Route path="/old-dashboard" element={<ExternalPage />} />
 
               <Route path="/ide-help" element={<IDEHelpPage />} />
 
