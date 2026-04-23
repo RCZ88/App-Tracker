@@ -636,6 +636,37 @@ export default function ProductivityPage({
     ]
   };
 
+  // Build sessions list from logs (app sessions) and browserLogs (website sessions)
+  const sessions = useMemo(() => {
+    const getTier = (category: string): 'productive' | 'neutral' | 'distracting' => {
+      if (tierAssignments.productive.includes(category)) return 'productive';
+      if (tierAssignments.distracting.includes(category)) return 'distracting';
+      return 'neutral';
+    };
+
+    const appSessions = (logs as any[] || []).map(log => ({
+      type: 'app',
+      name: log.app || 'Unknown',
+      category: log.category || 'Other',
+      duration_ms: (log.duration || 0) * 1000,
+      timestamp: new Date(log.timestamp || Date.now()),
+      tier: getTier(log.category)
+    }));
+
+    const websiteSessions = (browserLogsProp as any[] || []).map(log => ({
+      type: 'website',
+      name: log.domain || 'Unknown',
+      category: WEBSITE_CATEGORY_MAP[log.category] || 'Other',
+      duration_ms: (log.duration || 0) * 1000,
+      timestamp: new Date(log.start_time || Date.now()),
+      tier: getTier(WEBSITE_CATEGORY_MAP[log.category] || log.category)
+    }));
+
+    return [...appSessions, ...websiteSessions]
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 20);
+  }, [logs, browserLogsProp, tierAssignments]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
