@@ -1,21 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Clock, TrendingUp, Moon, Calendar, BarChart3, Target } from 'lucide-react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
-import { Bar, Line } from 'react-chartjs-2';
-import { format, subDays } from 'date-fns';
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler);
+import { useState, useEffect } from 'react';
+import { BarChart3 } from 'lucide-react';
 
 interface ExternalStats {
   byActivity: Record<string, { total_seconds: number; session_count: number }>;
@@ -49,8 +33,10 @@ const CHART_COLORS = [
 
 export default function InsightsPage() {
   const [stats, setStats] = useState<ExternalStats>({ byActivity: {}, total_seconds: 0, sleep_deficit_seconds: 0, average_sleep_hours: 0 });
-  const [consistency, setConsistency] = useState<ConsistencyData>({ score: 0, weekly_comparison: [] });
+  const [consistency, setConsistency] = useState<ConsistencyData & { this_week: number; last_week: number; trend: string; streak: number }>({ score: 0, weekly_comparison: [], this_week: 0, last_week: 0, trend: 'stable', streak: 0 });
   const [sleepTrends, setSleepTrends] = useState<SleepTrend>({ daily: [], average_bedtime: '', average_wake_time: '' });
+  const [bestDays, setBestDays] = useState<{ bestDay: string; worstDay: string; averages: Record<string, number> }>({ bestDay: 'Mon', worstDay: 'Sun', averages: {} });
+  const [typicalDay, setTypicalDay] = useState<Array<{ hour: number; primaryActivity: string; totalSeconds: number }>>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week');
 
   useEffect(() => {
@@ -62,6 +48,12 @@ export default function InsightsPage() {
     }
     if (window.deskflowAPI?.getSleepTrends) {
       window.deskflowAPI.getSleepTrends(selectedPeriod).then(setSleepTrends);
+    }
+    if (window.deskflowAPI?.getBestDays) {
+      window.deskflowAPI.getBestDays().then(setBestDays);
+    }
+    if (window.deskflowAPI?.getTypicalDay) {
+      window.deskflowAPI.getTypicalDay(30).then(setTypicalDay);
     }
   }, [selectedPeriod]);
 
@@ -113,7 +105,7 @@ export default function InsightsPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-zinc-800/50 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 mb-1">
               <Clock className="w-4 h-4" />
@@ -135,6 +127,18 @@ export default function InsightsPage() {
           </div>
           <div className="bg-zinc-800/50 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 mb-1">
+              <span className="text-sm">Streak</span>
+            </div>
+            <div className="text-2xl font-bold text-amber-400">🔥 {consistency.streak}w</div>
+          </div>
+          <div className="bg-zinc-800/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-zinc-400 mb-1">
+              <span className="text-sm">Best Day</span>
+            </div>
+            <div className="text-2xl font-bold text-emerald-400">{bestDays.bestDay}</div>
+          </div>
+          <div className="bg-zinc-800/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-zinc-400 mb-1">
               <Moon className="w-4 h-4" />
               <span className="text-sm">Sleep Deficit</span>
             </div>
@@ -144,13 +148,6 @@ export default function InsightsPage() {
             }`}>
               {stats.sleep_deficit_seconds < 0 ? '+' : '-'}{formatHours(Math.abs(stats.sleep_deficit_seconds))}
             </div>
-          </div>
-          <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-zinc-400 mb-1">
-              <TrendingUp className="w-4 h-4" />
-              <span className="text-sm">Avg Sleep</span>
-            </div>
-            <div className="text-2xl font-bold text-zinc-100">{stats.average_sleep_hours.toFixed(1)}h</div>
           </div>
         </div>
 
@@ -298,6 +295,31 @@ export default function InsightsPage() {
             ) : (
               <div className="h-48 flex items-center justify-center text-zinc-500">
                 No activity data yet
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-zinc-800/50 rounded-xl p-4"
+          >
+            <h3 className="text-sm font-medium text-zinc-300 mb-4">Typical Day (Hourly)</h3>
+            {typicalDay.length > 0 ? (
+              <div className="grid grid-cols-12 gap-1">
+                {typicalDay.map((slot, i) => (
+                  <div key={i} className="text-center p-2 rounded bg-zinc-700/50">
+                    <div className="text-xs text-zinc-500">{i}</div>
+                    <div className="text-sm font-medium text-zinc-200 truncate" title={slot.primaryActivity}>
+                      {slot.primaryActivity === 'none' ? '-' : slot.primaryActivity.slice(0, 4)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-24 flex items-center justify-center text-zinc-500">
+                No typical day data yet
               </div>
             )}
           </motion.div>

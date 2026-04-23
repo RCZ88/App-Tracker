@@ -143,6 +143,7 @@ export default function ExternalPage() {
   const [consistency, setConsistency] = useState<ConsistencyData>({ score: 0, weekly_comparison: [] });
   const [sleepTrends, setSleepTrends] = useState<SleepTrend>({ daily: [], average_bedtime: '', average_wake_time: '' });
   const [activeSession, setActiveSession] = useState<{ sessionId: string; activityId: string; activity: ExternalActivity; startTime: Date } | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ExternalActivity | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [wakeTime, setWakeTime] = useState({ hours: 7, minutes: 0 });
@@ -590,16 +591,27 @@ export default function ExternalPage() {
               const totalSeconds = activityStats?.total_seconds || 0;
 
               return (
-                <motion.button
-                  key={activity.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => startActivity(activity)}
-                  className="rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:ring-2"
-                  style={{ backgroundColor: activity.color + '20', border: `1px solid ${activity.color}40` }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = activity.color)}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = activity.color + '40')}
-                >
+                 <motion.button
+                   key={activity.id}
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                   onClick={() => setSelectedActivity(activity)}
+                   className={`rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:ring-2 ${selectedActivity?.id === activity.id ? 'ring-2' : ''}`}
+                   style={{ 
+                     backgroundColor: selectedActivity?.id === activity.id ? activity.color + '40' : activity.color + '20', 
+                     borderColor: selectedActivity?.id === activity.id ? activity.color : activity.color + '40'
+                   }}
+                   onMouseEnter={(e) => {
+                     if (selectedActivity?.id !== activity.id) {
+                       e.currentTarget.style.borderColor = activity.color;
+                     }
+                   }}
+                   onMouseLeave={(e) => {
+                     if (selectedActivity?.id !== activity.id) {
+                       e.currentTarget.style.borderColor = activity.color + '40';
+                     }
+                   }}
+                 >
                   <div
                     className="w-14 h-14 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: activity.color }}
@@ -631,9 +643,26 @@ export default function ExternalPage() {
               <div className="text-center">
                 <div className="font-medium text-zinc-400">Add Custom</div>
               </div>
-            </motion.button>
-          </div>
-        )}
+             </motion.button>
+           </div>
+         )}
+
+         {/* START Button - Show only when activity is selected and no active session */}
+         {selectedActivity && !activeSession && (
+           <motion.button
+             initial={{ opacity: 0, y: 10 }}
+             animate={{ opacity: 1, y: 0 }}
+             exit={{ opacity: 0, y: 10 }}
+             onClick={() => {
+               startActivity(selectedActivity);
+               setSelectedActivity(null);
+             }}
+             className="w-full mt-4 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+           >
+             <Play className="w-5 h-5" />
+             Start {selectedActivity.name}
+           </motion.button>
+         )}
       </div>
 
       {/* Recovery Modal */}

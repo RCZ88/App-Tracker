@@ -1,11 +1,11 @@
-# Graph Report - .  (2026-04-21)
+# Graph Report - .  (2026-04-22)
 
 ## Corpus Check
-- 24 files · ~321,421 words
+- 25 files · ~330,174 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 178 nodes · 215 edges · 18 communities detected
+- 182 nodes · 219 edges · 18 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -63,15 +63,15 @@ Cohesion: 0.33
 Nodes (4): Check GRAPH_REPORT.md exists and has content. Regenerate if broken., Sync graphify-out/ to Obsidian vault., sync_to_vault(), validate_report()
 
 ### Community 9 - "Database Page"
+Cohesion: 0.33
+Nodes (0): 
+
+### Community 10 - "AI Pricing Integration"
 Cohesion: 0.5
 Nodes (2): formatCellValue(), formatDuration()
 
-### Community 10 - "AI Pricing Integration"
-Cohesion: 0.4
-Nodes (0): 
-
 ### Community 11 - "Graphify Pipeline"
-Cohesion: 0.5
+Cohesion: 0.4
 Nodes (0): 
 
 ### Community 12 - "Browser Tracking Server"

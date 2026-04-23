@@ -235,6 +235,11 @@ When issue is resolved:
 - **Explain briefly** - Short explanations
 - **Ask when unsure** - Don't assume
 
+### Git Commands
+- **NEVER use git commands without explicit permission** from the user
+- If you want to `git commit`, `git push`, `git add`, or any git operations, ASK first
+- Only the user decides when code is committed and pushed
+
 ---
 
 ## 🔔 Notification System (complete.py)
@@ -274,7 +279,8 @@ python complete.py --speak "[message]" --project "[project name]"
 - Leave debug code
 - Change unrelated code
 - Use outdated patterns
-- **Run ALTER TABLE without error handling** (SQLite ALTER TABLE fails if column exists; wrap in `try { db.exec(...) } catch {}`)
+- **Run ALTER TABLE without error handling** (SQLite ALTER TABLE fails if column exists; wrap in `try { db.exec(...) } catch {})
+- **Use git commands without permission** - ALWAYS ask before running `git commit`, `git push`, `git add`, or any git commands. The user controls when code is committed.
 
 ### ✅ Always:
 - Start with agent files

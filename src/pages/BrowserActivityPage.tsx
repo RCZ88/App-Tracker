@@ -309,6 +309,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
 
   const domainBarOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -336,6 +337,7 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
 
   const categoryPieOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'right' as const,
@@ -629,63 +631,54 @@ export default function BrowserActivityPage({ selectedPeriod = 'week', timeMode 
         </div>
       </div>
 
-      {/* Live Logs Panel */}
-      <div className="glass rounded-3xl p-6 border border-zinc-800">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Terminal className="text-emerald-400" size={20} />
-            <span className="font-medium">Live Detection</span>
-            <button
-              onClick={() => setIsLiveMode(!isLiveMode)}
-              className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition ${
-                isLiveMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
-              }`}
-            >
-              {isLiveMode ? <Pause size={12} /> : <Play size={12} />}
-              {isLiveMode ? 'Live' : 'Paused'}
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">{liveLogs.length} events</span>
-            <button
-              onClick={handleSaveLogs}
-              disabled={liveLogs.length === 0}
-              className="px-3 py-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save size={12} />
-              Save
-            </button>
-          </div>
-        </div>
+       {/* Live Logs Panel */}
+       <div className="glass rounded-3xl p-6 border border-zinc-800">
+         <div className="flex items-center justify-between mb-4">
+           <div className="flex items-center gap-3">
+             <Terminal className="text-emerald-400" size={20} />
+             <span className="font-medium">Live Detection</span>
+           </div>
+           <div className="flex items-center gap-2">
+             <span className="text-xs text-zinc-500">{liveLogs.length} events</span>
+             <button
+               onClick={handleSaveLogs}
+               disabled={liveLogs.length === 0}
+               className="px-3 py-1.5 bg-zinc-800 rounded-lg hover:bg-zinc-700 text-xs flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <Save size={12} />
+               Save
+             </button>
+           </div>
+         </div>
 
-        {/* Logs Display */}
-        <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3 h-48 overflow-y-auto font-mono text-xs">
-          {liveLogs.length === 0 ? (
-            <div className="text-zinc-500 text-center py-8">
-              {isLiveMode ? 'Waiting for detection events...' : 'Live detection paused'}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {liveLogs.slice().reverse().map((log) => (
-                <div key={log.id} className="flex items-start gap-2">
-                  <span className="text-zinc-600 shrink-0">
-                    {dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}
-                  </span>
-                  <span className={`shrink-0 px-1.5 py-0.5 rounded ${
-                    log.level === 'error' ? 'bg-red-500/20 text-red-400' :
-                    log.level === 'warning' ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-emerald-500/20 text-emerald-400'
-                  }`}>
-                    {log.level || 'INFO'}
-                  </span>
-                  <span className="text-blue-400">{log.domain}</span>
-                  {log.title && <span className="text-zinc-500 truncate">{log.title}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+         {/* Logs Display */}
+         <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3 h-48 overflow-y-auto font-mono text-xs">
+           {liveLogs.length === 0 ? (
+             <div className="text-zinc-500 text-center py-8">
+               Live detection paused
+             </div>
+           ) : (
+             <div className="space-y-1">
+               {liveLogs.slice().reverse().map((log) => (
+                 <div key={log.id} className="flex items-start gap-2">
+                   <span className="text-zinc-600 shrink-0">
+                     {dateFormat(new Date(log.timestamp), 'HH:mm:ss.SSS')}
+                   </span>
+                   <span className={`shrink-0 px-1.5 py-0.5 rounded ${
+                     log.level === 'error' ? 'bg-red-500/20 text-red-400' :
+                     log.level === 'warning' ? 'bg-amber-500/20 text-amber-400' :
+                     'bg-emerald-500/20 text-emerald-400'
+                   }`}>
+                     {log.level || 'INFO'}
+                   </span>
+                   <span className="text-blue-400">{log.domain}</span>
+                   {log.title && <span className="text-zinc-500 truncate">{log.title}</span>}
+                 </div>
+               ))}
+             </div>
+           )}
+         </div>
+       </div>
 
       {/* Hourly Activity Chart */}
       <div className="glass rounded-3xl p-8">

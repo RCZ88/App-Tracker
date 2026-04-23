@@ -135,6 +135,11 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   addProject: (projectData: { name: string; path: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string; defaultIde?: string }) =>
     ipcRenderer.invoke('add-project', projectData),
   getProjects: () => ipcRenderer.invoke('get-projects'),
+  getAllProjects: () => ipcRenderer.invoke('get-all-projects'),
+  updateProject: (projectId: string, updates: { name?: string; path?: string; repositoryUrl?: string; vcsType?: string; primaryLanguage?: string; defaultIde?: string }) =>
+    ipcRenderer.invoke('update-project', projectId, updates),
+  deleteProject: (projectId: string) => ipcRenderer.invoke('delete-project', projectId),
+  restoreProject: (projectId: string) => ipcRenderer.invoke('restore-project', projectId),
   getProjectTools: (projectId: string) => ipcRenderer.invoke('get-project-tools', projectId),
   removeProject: (projectId: string) => ipcRenderer.invoke('remove-project', projectId),
   openProject: (projectId: string, ideId?: string) => ipcRenderer.invoke('open-project', projectId, ideId),
@@ -235,4 +240,7 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   getConsistencyScore: (period: 'week' | 'month') => ipcRenderer.invoke('get-consistency-score', period),
   getExternalSettings: (key: string) => ipcRenderer.invoke('get-external-settings', key),
   setExternalSettings: (key: string, value: string) => ipcRenderer.invoke('set-external-settings', key, value),
+  getTypicalDay: (days?: number) => ipcRenderer.invoke('get-typical-day', days),
+  getHourlyHeatmap: (days?: number) => ipcRenderer.invoke('get-hourly-heatmap', days),
+  getBestDays: () => ipcRenderer.invoke('get-best-days'),
 });

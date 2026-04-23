@@ -4,8 +4,37 @@
 
 ### Commit Message
 ```
-feat: Add External Tracker - all phases complete with charts and custom activities
+feat: Dashboard redesign - stats cards, pinned activities, activity feed
 ```
+
+### Detailed Changes
+
+#### DashboardPage.tsx
+- Add stats cards row: Productive Time, Total Time, % Productive, Longest Focus, Resets Today, External Time
+- Stats use selectedPeriod from navigation (today/week/month/all) - scope changes based on timeline
+- Longest Focus calculates longest uninterrupted productive session per timeline scope
+- Pinned Activities section with edit mode (add/remove activities, max 6)
+- Pinned activities persist to localStorage ('dashboard-pinned-activities')
+- Activity Feed at bottom showing recent activity changes only (not periodic)
+- Activity Feed shows: time, app/website name, category, productive status icon
+- Remove reset/pause notifications from timer (logs already show this)
+- Add new icons: Edit3, Check, Plus, Minus, TrendingUp, Target, ZapCircle, RefreshCw, Clock3
+
+#### App.tsx
+- Pass selectedPeriod prop from App.tsx to DashboardPage
+
+#### New Interfaces
+- ActivityFeedItem: id, timestamp, type (app/browser), name, category, tier
+- TimerBehavior: neutralAction, distractingAction
+
+#### New State Variables
+- pinnedActivitiesEditMode: boolean
+- pinnedActivities: ExternalActivity[]
+- activityFeed: ActivityFeedItem[]
+- resetCount: number
+
+#### LocalStorage
+- 'dashboard-pinned-activities': JSON array of pinned activities
 
 ### Detailed Changes (ALL PHASES COMPLETE)
 

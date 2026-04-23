@@ -38,7 +38,10 @@ function logOnce(key: string, message: string, ...args: any[]) {
 
 export default function TerminalPage({ projectId: propProjectId }: { projectId?: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'presets' | 'sessions' | 'map' | 'analytics'>('presets');
+  const [activeTab, setActiveTab] = useState<'presets' | 'sessions' | 'map' | 'analytics'>(() => {
+    const saved = localStorage.getItem('terminal-activeTab');
+    return (saved as any) || 'presets';
+  });
   const [presets, setPresets] = useState<Preset[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showAddPreset, setShowAddPreset] = useState(false);
@@ -103,6 +106,11 @@ export default function TerminalPage({ projectId: propProjectId }: { projectId?:
       window.deskflowAPI.getAIUsageSummary('day').then(setAiSummary).catch(() => {});
     }
   }, [activeTab, selectedProject, loadPresets, loadSessions]);
+
+  // Persist active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('terminal-activeTab', activeTab);
+  }, [activeTab]);
 
   const spawnTerminal = useCallback(async (terminalId: string, cwd?: string) => {
     console.log('[TerminalPage] spawnTerminal called:', terminalId, cwd);

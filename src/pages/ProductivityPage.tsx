@@ -636,6 +636,39 @@ export default function ProductivityPage({
     ]
   };
 
+  // Build sessions list from logs (app sessions) and browserLogs (website sessions)
+  const sessions = useMemo(() => {
+    const appSessions = (logs as any[] || []).map(log => ({
+      type: 'app',
+      name: log.app || 'Unknown',
+      category: log.category || 'Other',
+      duration_ms: (log.duration || 0) * 1000,
+      timestamp: new Date(log.timestamp || Date.now()),
+      tier: getTierForCategory(log.category)
+    }));
+
+    const websiteSessions = (browserLogsProp as any[] || []).map(log => ({
+      type: 'website',
+      name: log.domain || 'Unknown',
+      category: WEBSITE_CATEGORY_MAP[log.category] || 'Other',
+      duration_ms: (log.duration || 0) * 1000,
+      timestamp: new Date(log.start_time || Date.now()),
+      tier: getTierForCategory(WEBSITE_CATEGORY_MAP[log.category] || log.category)
+    }));
+
+    // Combine and sort by timestamp (newest first)
+    return [...appSessions, ...websiteSessions]
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 20); // Show top 20 most recent sessions
+  }, [logs, browserLogsProp]);
+
+  // Helper to determine tier
+  function getTierForCategory(category: string): 'productive' | 'neutral' | 'distracting' {
+    if (tierAssignments.productive.includes(category)) return 'productive';
+    if (tierAssignments.distracting.includes(category)) return 'distracting';
+    return 'neutral';
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -647,6 +680,54 @@ export default function ProductivityPage({
           </h1>
           <p className="text-zinc-500 mt-1">Apps vs Websites — where your time goes</p>
         </div>
+      </div>
+
+      {/* Recent Sessions */}
+      <div className="glass rounded-3xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Clock className="w-5 h-5 text-blue-400" />
+          <h2 className="text-lg font-semibold">Recent Sessions</h2>
+        </div>
+        
+        {sessions.length > 0 ? (
+          <div className="space-y-2">
+            {sessions.map((session, idx) => {
+              const tierColor = session.tier === 'productive' ? 'text-emerald-400' : 
+                               session.tier === 'distracting' ? 'text-red-400' : 'text-blue-400';
+              const bgColor = session.tier === 'productive' ? 'bg-emerald-500/10' : 
+                             session.tier === 'distracting' ? 'bg-red-500/10' : 'bg-blue-500/10';
+              
+              return (
+                <div key={idx} className={`p-3 rounded-lg ${bgColor} border ${
+                  session.tier === 'productive' ? 'border-emerald-500/20' : 
+                  session.tier === 'distracting' ? 'border-red-500/20' : 'border-blue-500/20'
+                } flex items-center justify-between`}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white">{session.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{session.category}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${tierColor}`}>
+                        {session.tier.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      {session.timestamp.toLocaleTimeString()} • {session.type === 'app' ? '💻 App' : '🌐 Website'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-white">
+                      {formatDuration(session.duration_ms / 1000)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-zinc-500">
+            No sessions tracked yet. Start using your apps and websites to build a history.
+          </div>
+        )}
       </div>
 
       {/* Main Score Card */}

@@ -3156,6 +3156,7 @@ export default function OrbitSystem({ logs, appColors, categoryOverrides, websit
                     <CameraTracker cameraPosRef={cameraPosRef} />
                     <Stars radius={4000} depth={200} count={3000} factor={6} fade speed={0.1} saturation={0.3} />
                     <OrbitControls 
+                      ref={controlsRef}
                       enablePan={true} 
                       enableZoom={true} 
                       minDistance={50} 

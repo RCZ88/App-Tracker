@@ -134,7 +134,6 @@ export function TerminalPane({ terminalId, onTerminalReady, onFocus }: TerminalP
     };
   }, [terminalId]);
 
-  console.log('[TerminalPane] Rendering for terminalId:', terminalId);
   return (
     <div 
       ref={containerRef} 

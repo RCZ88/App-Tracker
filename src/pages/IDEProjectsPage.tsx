@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import TerminalPage from './TerminalPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -37,6 +37,9 @@ import {
   DollarSign,
   Download,
   BarChart3,
+  Pencil,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -129,7 +132,11 @@ export default function IDEProjectsPage() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [showAddProject, setShowAddProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', path: '', repositoryUrl: '', defaultIde: '' });
-  const [activeTab, setActiveTab] = useState<'overview' | 'ides' | 'tools' | 'projects' | 'ai' | 'git'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ides' | 'tools' | 'projects' | 'ai' | 'git' | 'trash'>(() => {
+    const saved = localStorage.getItem('ide-projects-activeTab');
+    return (saved as any) || 'overview';
+  });
+  const commitHistoryRef = useRef<any[]>([]);
   const [commitHistory, setCommitHistory] = useState<any[]>([]);
   const [contributorStats, setContributorStats] = useState<any>(null);
   const [doraMetrics, setDoraMetrics] = useState<any>(null);
@@ -152,11 +159,27 @@ export default function IDEProjectsPage() {
   const [addProjectError, setAddProjectError] = useState<string | null>(null);
   const [addingProject, setAddingProject] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('ide-projects-expandedProjects');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
   const [projectDetailsCache, setProjectDetailsCache] = useState<Record<string, any>>({});
   const [loadingProjectDetails, setLoadingProjectDetails] = useState<Set<string>>(new Set());
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [workspaceProject, setWorkspaceProject] = useState<any>(null);
+
+  // Edit/Delete project states
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [editingProject, setEditingProject] = useState<any>(null);
+  const [editProjectForm, setEditProjectForm] = useState({
+    name: '', path: '', repositoryUrl: '', vcsType: '', primaryLanguage: '', defaultIde: ''
+  });
+  const [updatingProject, setUpdatingProject] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [deletingProjectName, setDeletingProjectName] = useState<string>('');
+  const [showTrashBin, setShowTrashBin] = useState(false);
+  const [trashProjects, setTrashProjects] = useState<any[]>([]);
 
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('ide-projects-onboarding-seen');
@@ -179,6 +202,16 @@ export default function IDEProjectsPage() {
       loadGitData(selectedProject);
     }
   }, [selectedProject, activeTab]);
+
+  // Persist active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('ide-projects-activeTab', activeTab);
+  }, [activeTab]);
+
+  // Persist expanded projects to localStorage
+  useEffect(() => {
+    localStorage.setItem('ide-projects-expandedProjects', JSON.stringify([...expandedProjects]));
+  }, [expandedProjects]);
 
   const loadGitData = async (projectId: string) => {
     try {
@@ -329,6 +362,102 @@ export default function IDEProjectsPage() {
     } catch (err) {
       console.error('Failed to open project:', err);
       alert('Error opening project: ' + err);
+    }
+  };
+
+  const handleEditProjectClick = (project: any) => {
+    setEditingProject(project);
+    setEditProjectForm({
+      name: project.name || '',
+      path: project.path || '',
+      repositoryUrl: project.repository_url || '',
+      vcsType: project.vcs_type || '',
+      primaryLanguage: project.primary_language || '',
+      defaultIde: project.default_ide || ''
+    });
+    setShowEditProject(true);
+  };
+
+  const handleUpdateProject = async () => {
+    if (!editingProject) return;
+    if (!editProjectForm.name || !editProjectForm.path) {
+      setAddProjectError('Project name and path are required');
+      return;
+    }
+    setAddProjectError(null);
+    setUpdatingProject(true);
+
+    try {
+      const result = await window.deskflowAPI!.updateProject(editingProject.id, {
+        name: editProjectForm.name,
+        path: editProjectForm.path,
+        repositoryUrl: editProjectForm.repositoryUrl || undefined,
+        vcsType: editProjectForm.vcsType || undefined,
+        primaryLanguage: editProjectForm.primaryLanguage || undefined,
+        defaultIde: editProjectForm.defaultIde || undefined
+      });
+      if (result.success) {
+        setShowEditProject(false);
+        setEditingProject(null);
+        setEditProjectForm({ name: '', path: '', repositoryUrl: '', vcsType: '', primaryLanguage: '', defaultIde: '' });
+        await loadOverview();
+      } else {
+        setAddProjectError(result.message || 'Failed to update project');
+      }
+    } catch (err: any) {
+      console.error('Failed to update project:', err);
+      setAddProjectError(err.message || 'An error occurred');
+    } finally {
+      setUpdatingProject(false);
+    }
+  };
+
+  const handleDeleteClick = (project: any) => {
+    setDeletingProjectId(project.id);
+    setDeletingProjectName(project.name);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingProjectId) return;
+    try {
+      await window.deskflowAPI!.deleteProject(deletingProjectId);
+      await loadOverview();
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeletingProjectId(null);
+      setDeletingProjectName('');
+    }
+  };
+
+  const handleRestoreProject = async (projectId: string) => {
+    try {
+      await window.deskflowAPI!.restoreProject(projectId);
+      await loadOverview();
+      await loadTrashProjects();
+    } catch (err) {
+      console.error('Failed to restore project:', err);
+    }
+  };
+
+  const handlePermanentDelete = async (projectId: string) => {
+    if (!confirm('This will permanently delete the project and cannot be undone. Are you sure?')) return;
+    try {
+      await window.deskflowAPI!.removeProject(projectId);
+      await loadTrashProjects();
+    } catch (err) {
+      console.error('Failed to permanently delete project:', err);
+    }
+  };
+
+  const loadTrashProjects = async () => {
+    try {
+      const allProjects = await window.deskflowAPI!.getAllProjects();
+      setTrashProjects(allProjects.filter((p: any) => p.deleted_at));
+    } catch (err) {
+      console.error('Failed to load trash projects:', err);
     }
   };
 
@@ -644,10 +773,13 @@ export default function IDEProjectsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-zinc-900/50 rounded-2xl w-fit">
-        {(['overview', 'ides', 'tools', 'projects', 'ai', 'git'] as const).map((tab) => (
+        {(['overview', 'ides', 'tools', 'projects', 'ai', 'git', 'trash'] as const).map((tab) => (
           <motion.button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setActiveTab(tab);
+              if (tab === 'trash') loadTrashProjects();
+            }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
@@ -1055,13 +1187,19 @@ export default function IDEProjectsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => handleEditProjectClick(project)}
+                          className="p-2 text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => toggleProjectExpand(project)}
                           className={`p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-all ${isExpanded ? 'rotate-180' : ''}`}
                         >
                           <ChevronDown className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleRemoveProject(project.id)}
+                          onClick={() => handleDeleteClick(project)}
                           className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2014,7 +2152,7 @@ export default function IDEProjectsPage() {
             </motion.div>
           )}
 
-          {/* Commit Stats */}
+{/* Commit Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'Total Commits', value: overview?.commits?.totalCommits || 0, icon: GitCommit, color: '#f59e0b', bg: 'bg-amber-500/10' },
@@ -2040,83 +2178,64 @@ export default function IDEProjectsPage() {
               </motion.div>
             ))}
           </div>
+        </motion.div>
+      )}
 
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Contributors */}
-            {contributorStats && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-3xl p-8"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <Users className="w-5 h-5 text-blue-400" />
-                  <div>
-                    <div className="text-lg font-semibold">Contributors</div>
-                    <div className="text-sm text-zinc-500">{contributorStats.topContributors?.length || 0} contributors</div>
-                  </div>
+      {/* Trash Tab - Deleted Projects */}
+      {activeTab === 'trash' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <div className="glass rounded-3xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 className="w-6 h-6 text-zinc-400" />
+              <div>
+                <h2 className="text-xl font-semibold text-white">Trash</h2>
+                <p className="text-sm text-zinc-400">Restore or permanently delete projects</p>
+              </div>
+            </div>
+
+            {trashProjects.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-800 flex items-center justify-center">
+                  <Trash2 className="w-8 h-8 text-zinc-600" />
                 </div>
-                <div className="space-y-4">
-                  {contributorStats.topContributors?.map((contributor: any, index: number) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-medium">
-                        {contributor.author?.charAt(0)?.toUpperCase() || '?'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-medium truncate">{contributor.author || 'Unknown'}</div>
-                        <div className="text-xs text-zinc-500">{contributor.commits} commits</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-emerald-400">+{contributor.additions}</div>
-                        <div className="text-xs text-red-400">-{contributor.deletions}</div>
-                      </div>
+                <p className="text-zinc-400">Trash is empty</p>
+                <p className="text-sm text-zinc-500 mt-1">Deleted projects will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {trashProjects.map((project: any) => (
+                  <div key={project.id} className="flex items-center justify-between p-4 bg-zinc-900/50 rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-medium truncate">{project.name}</h3>
+                      <p className="text-sm text-zinc-500 font-mono truncate">{project.path}</p>
+                      <p className="text-xs text-zinc-600 mt-1">
+                        Deleted: {project.deleted_at ? new Date(project.deleted_at).toLocaleDateString() : 'Unknown'}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </motion.div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => handleRestoreProject(project.id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 rounded-lg transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => handlePermanentDelete(project.id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Forever
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-
-            {/* Commit History */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass rounded-3xl p-8"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <GitBranch className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <div className="text-lg font-semibold">Recent Commits</div>
-                  <div className="text-sm text-zinc-500">{commitHistory.length} commits</div>
-                </div>
-              </div>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {commitHistory.length > 0 ? (
-                  commitHistory.map((commit: any, index: number) => (
-                    <div key={index} className="flex items-start gap-3 p-3 bg-zinc-900/30 rounded-xl">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-white font-medium truncate">{commit.message || 'No message'}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-zinc-500 font-mono">{commit.sha?.substring(0, 7)}</span>
-                          <span className="text-xs text-zinc-600">•</span>
-                          <span className="text-xs text-zinc-500">{commit.author}</span>
-                        </div>
-                      </div>
-                      <div className="text-xs text-zinc-500 flex-shrink-0">
-                        {commit.date ? format(new Date(commit.date), 'MMM dd') : ''}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-zinc-500">
-                    <GitCommit className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No commits synced yet</p>
-                    <p className="text-sm mt-2">Select a project and sync</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
           </div>
         </motion.div>
       )}
@@ -2909,6 +3028,194 @@ export default function IDEProjectsPage() {
                   className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {addingProject ? 'Adding...' : 'Add Project'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Project Modal */}
+      <AnimatePresence>
+        {showEditProject && editingProject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowEditProject(false); setEditingProject(null); setAddProjectError(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl max-w-lg w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-violet-400" />
+                  Edit Project
+                </h3>
+                <button
+                  onClick={() => { setShowEditProject(false); setEditingProject(null); setAddProjectError(null); }}
+                  className="p-1 text-zinc-400 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {addProjectError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                  {addProjectError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Project Name *</label>
+                  <input
+                    type="text"
+                    value={editProjectForm.name}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, name: e.target.value })}
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Project Path *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editProjectForm.path}
+                      onChange={(e) => setEditProjectForm({ ...editProjectForm, path: e.target.value })}
+                      className="flex-1 px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={async () => {
+                        const result = await window.deskflowAPI!.pickFolder();
+                        if (result.success && result.path) {
+                          setEditProjectForm({ ...editProjectForm, path: result.path });
+                        }
+                      }}
+                      className="px-4 py-3 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-lg border border-zinc-600 transition"
+                      title="Browse for folder"
+                    >
+                      <FolderOpen className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Repository URL (optional)</label>
+                  <input
+                    type="text"
+                    value={editProjectForm.repositoryUrl}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, repositoryUrl: e.target.value })}
+                    placeholder="https://github.com/user/repo"
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Primary Language (optional)</label>
+                  <input
+                    type="text"
+                    value={editProjectForm.primaryLanguage}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, primaryLanguage: e.target.value })}
+                    placeholder="TypeScript, Python, Go, etc."
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">VCS Type (optional)</label>
+                  <select
+                    value={editProjectForm.vcsType}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, vcsType: e.target.value })}
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Select VCS...</option>
+                    <option value="git">Git</option>
+                    <option value="svn">SVN</option>
+                    <option value="mercurial">Mercurial</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Default IDE (optional)</label>
+                  <select
+                    value={editProjectForm.defaultIde}
+                    onChange={(e) => setEditProjectForm({ ...editProjectForm, defaultIde: e.target.value })}
+                    className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Select an IDE...</option>
+                    {overview?.ides?.map((ide: any) => (
+                      <option key={ide.id} value={ide.id}>{ide.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-800">
+                <button
+                  onClick={() => { setShowEditProject(false); setEditingProject(null); setAddProjectError(null); }}
+                  className="px-4 py-2 text-zinc-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateProject}
+                  disabled={!editProjectForm.name || !editProjectForm.path || updatingProject}
+                  className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updatingProject ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowDeleteConfirm(false); setDeletingProjectId(null); setDeletingProjectName(''); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl max-w-md w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-red-500/20 rounded-full">
+                  <AlertTriangle className="w-8 h-8 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Delete Project?</h3>
+                  <p className="text-sm text-zinc-400">This action can be undone later</p>
+                </div>
+              </div>
+
+              <p className="text-zinc-300 mb-6">
+                Are you sure you want to delete <span className="text-white font-medium">"{deletingProjectName}"</span>? 
+                The project will be moved to trash and can be restored at any time.
+              </p>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeletingProjectId(null); setDeletingProjectName(''); }}
+                  className="px-4 py-2 text-zinc-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition"
+                >
+                  Delete Project
                 </button>
               </div>
             </motion.div>

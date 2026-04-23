@@ -70,6 +70,8 @@
       "app_toggletracking",
       "idehelppage",
       "idehelppage_handlekeydown",
+      "insightspage",
+      "insightspage_formathours",
       "statspage",
       "statspage_formatduration",
       "statspage_statspage"
@@ -175,24 +177,26 @@
       "graphify_maintain_validate_report"
     ],
     "9": [
+      "externalpage",
+      "externalpage_calculatesleepduration",
+      "externalpage_formatbedtime",
+      "externalpage_formatduration",
+      "externalpage_formathours",
+      "externalpage_geticon"
+    ],
+    "10": [
       "databasepage",
       "databasepage_databasepage",
       "databasepage_formatcellvalue",
       "databasepage_formatduration",
       "databasepage_settabledata"
     ],
-    "10": [
+    "11": [
       "productivitypage",
       "productivitypage_formatduration",
       "productivitypage_formathours",
       "productivitypage_getcategorycolor",
       "productivitypage_toggledomain"
-    ],
-    "11": [
-      "externalpage",
-      "externalpage_formatduration",
-      "externalpage_formathours",
-      "externalpage_geticon"
     ],
     "12": [
       "graphify_pipeline",
@@ -225,9 +229,9 @@
     "6": 0.25,
     "7": 0.47,
     "8": 0.33,
-    "9": 0.5,
-    "10": 0.4,
-    "11": 0.5,
+    "9": 0.33,
+    "10": 0.5,
+    "11": 0.4,
     "12": 1.0,
     "13": 1.0,
     "14": 1.0,

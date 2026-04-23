@@ -11,7 +11,17 @@ export function useTerminalLayout(projectId: string | null = null, initialLayout
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadLayout = useCallback(async () => {
+    // Fallback timeout to ensure loading doesn't get stuck
+    const timeout = setTimeout(() => {
+      if (loggedProjects.has('timeout')) return;
+      loggedProjects.add('timeout');
+      console.warn('[useTerminalLayout] Layout load timeout - using default');
+      setLayoutState(initialLayout || { id: 'root', type: 'leaf', terminalId: 'term-initial', size: 50 });
+      setIsLoading(false);
+    }, 3000);
+
     if (typeof window === 'undefined' || !window.deskflowAPI) {
+      clearTimeout(timeout);
       setIsLoading(false);
       return;
     }
@@ -20,6 +30,8 @@ export function useTerminalLayout(projectId: string | null = null, initialLayout
       const layouts = await window.deskflowAPI.getTerminalLayouts(projectId || undefined);
       const activeLayout = layouts?.find((l: any) => l.is_active);
       const projectLayout = projectId ? layouts?.find((l: any) => l.project_id === projectId) : activeLayout;
+
+      clearTimeout(timeout);
 
       if (projectLayout?.layout_data) {
         try {
@@ -38,6 +50,7 @@ export function useTerminalLayout(projectId: string | null = null, initialLayout
         setLayoutState(initialLayout || { id: 'root', type: 'leaf', terminalId: 'term-initial', size: 50 });
       }
     } catch (e) {
+      clearTimeout(timeout);
       if (projectId && !loggedProjects.has(projectId)) {
         console.warn('[useTerminalLayout] Failed to load layout:', e);
         loggedProjects.add(projectId);

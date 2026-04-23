@@ -1303,7 +1303,8 @@ function initializeStorage() {
         primary_language TEXT,
         default_ide TEXT,
         added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_activity_at DATETIME
+        last_activity_at DATETIME,
+        deleted_at DATETIME
       )
     `);
 
@@ -1919,28 +1920,29 @@ async function pollForeground() {
             consecutiveNullPolls = 0;
             return;
         }
-        // Successful poll — reset counter
-        consecutiveNullPolls = 0;
-        const appName = result.owner?.name || 'Unknown';
-        const windowTitle = result.title || '';
-        // Only log if app changed
-        if (appName !== currentApp) {
-            const rawDuration = now - sessionStart;
-            // Log previous session if it was > 5 seconds AND within reasonable bounds
-            if (currentApp && rawDuration > 5000) {
-                // Cap duration to prevent sleep-time inflation from creating bogus multi-hour sessions
-                const duration = Math.min(rawDuration, MAX_SESSION_MS);
-                // If the raw duration was much larger than the cap, the system was likely asleep
-                // Only log up to the cap and warn
-                if (rawDuration > MAX_SESSION_MS) {
-                    console.log(`[DeskFlow] ⚠️ Session capped: ${currentApp} had ${Math.round(rawDuration / 1000)}s, capped to ${Math.round(duration / 1000)}s (likely sleep artifact)`);
-                }
-                const category = categorizeApp(currentApp);
-                addLog(new Date(sessionStart).toISOString(), currentApp, category, duration, `${currentApp} Window`, null);
-            }
-            // Start new session
-            currentApp = appName;
-            sessionStart = now;
+         // Successful poll — reset counter
+         consecutiveNullPolls = 0;
+         const appName = result.owner?.name || 'Unknown';
+         const windowTitle = result.title || '';
+         // Only log if app changed
+         if (appName !== currentApp) {
+             const rawDuration = now - sessionStart;
+             // Log previous session if it was > 5 seconds AND within reasonable bounds
+             // BUT: Filter out Electron/DeskFlow app (don't track the app itself)
+             if (currentApp && rawDuration > 5000 && currentApp !== 'DeskFlow' && currentApp !== 'Electron') {
+                 // Cap duration to prevent sleep-time inflation from creating bogus multi-hour sessions
+                 const duration = Math.min(rawDuration, MAX_SESSION_MS);
+                 // If the raw duration was much larger than the cap, the system was likely asleep
+                 // Only log up to the cap and warn
+                 if (rawDuration > MAX_SESSION_MS) {
+                     console.log(`[DeskFlow] ⚠️ Session capped: ${currentApp} had ${Math.round(rawDuration / 1000)}s, capped to ${Math.round(duration / 1000)}s (likely sleep artifact)`);
+                 }
+                 const category = categorizeApp(currentApp);
+                 addLog(new Date(sessionStart).toISOString(), currentApp, category, duration, `${currentApp} Window`, null);
+             }
+             // Start new session
+             currentApp = appName;
+             sessionStart = now;
             // Send to renderer
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send('foreground-changed', {
@@ -3745,6 +3747,88 @@ electron_1.ipcMain.handle('add-project', (event, projectData) => {
     }
 });
 
+// Update project details
+electron_1.ipcMain.handle('update-project', (event, projectId: string, updates: {
+    name?: string;
+    path?: string;
+    repositoryUrl?: string;
+    vcsType?: string;
+    primaryLanguage?: string;
+    defaultIde?: string;
+}) => {
+    if (useJson) return { success: false, message: 'Projects require SQLite' };
+
+    try {
+        const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+        if (!project) {
+            return { success: false, message: 'Project not found' };
+        }
+
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+        if (updates.path !== undefined) { fields.push('path = ?'); values.push(updates.path); }
+        if (updates.repositoryUrl !== undefined) { fields.push('repository_url = ?'); values.push(updates.repositoryUrl || null); }
+        if (updates.vcsType !== undefined) { fields.push('vcs_type = ?'); values.push(updates.vcsType || null); }
+        if (updates.primaryLanguage !== undefined) { fields.push('primary_language = ?'); values.push(updates.primaryLanguage || null); }
+        if (updates.defaultIde !== undefined) { fields.push('default_ide = ?'); values.push(updates.defaultIde || null); }
+
+        if (fields.length === 0) {
+            return { success: false, message: 'No fields to update' };
+        }
+
+        values.push(projectId);
+        db.prepare(`UPDATE projects SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+        console.log('[DeskFlow] Project updated:', projectId, updates);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] Failed to update project:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Soft delete project (mark as deleted, can be restored)
+electron_1.ipcMain.handle('delete-project', (event, projectId: string) => {
+    if (useJson) return { success: false, message: 'Projects require SQLite' };
+
+    try {
+        const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+        if (!project) {
+            return { success: false, message: 'Project not found' };
+        }
+
+        db.prepare('UPDATE projects SET deleted_at = ? WHERE id = ?').run(new Date().toISOString(), projectId);
+
+        console.log('[DeskFlow] Project soft-deleted:', projectId);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] Failed to delete project:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+// Restore soft-deleted project
+electron_1.ipcMain.handle('restore-project', (event, projectId: string) => {
+    if (useJson) return { success: false, message: 'Projects require SQLite' };
+
+    try {
+        const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+        if (!project) {
+            return { success: false, message: 'Project not found' };
+        }
+
+        db.prepare('UPDATE projects SET deleted_at = NULL WHERE id = ?').run(projectId);
+
+        console.log('[DeskFlow] Project restored:', projectId);
+        return { success: true };
+    } catch (err: any) {
+        console.error('[DeskFlow] Failed to restore project:', err);
+        return { success: false, message: err.message };
+    }
+});
+
 // Open project in specified IDE
 electron_1.ipcMain.handle('open-project', async (event, projectId: string, ideId?: string) => {
     if (useJson) return { success: false, message: 'Projects require SQLite' };
@@ -3911,8 +3995,18 @@ function scanProjectTools(projectId: string, projectPath: string) {
     console.log('[DeskFlow] Project tools detected:', projectTools.join(', '));
 }
 
-// Get all projects
+// Get all projects (excluding soft-deleted)
 electron_1.ipcMain.handle('get-projects', () => {
+    if (useJson) return [];
+    try {
+        return db.prepare('SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY last_activity_at DESC').all();
+    } catch {
+        return [];
+    }
+});
+
+// Get all projects including soft-deleted (for restore)
+electron_1.ipcMain.handle('get-all-projects', () => {
     if (useJson) return [];
     try {
         return db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC').all();
@@ -6048,6 +6142,79 @@ electron_1.ipcMain.handle('get-activity-stats', (event, activityId: string) => {
     }
 });
 
+electron_1.ipcMain.handle('get-typical-day', (event, days = 30) => {
+    if (useJson) return [];
+    try {
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const sessions = db.prepare(`
+            SELECT es.started_at, es.duration_seconds, ea.name
+            FROM external_sessions es
+            JOIN external_activities ea ON es.activity_id = ea.id
+            WHERE es.ended_at IS NOT NULL AND date(es.started_at) >= ?
+        `).all(startDate) as any[];
+        const hourlyMap: Record<number, Record<string, number>> = {};
+        for (let h = 0; h < 24; h++) hourlyMap[h] = {};
+        for (const s of sessions) {
+            const hour = new Date(s.started_at).getHours();
+            if (!hourlyMap[hour][s.name]) hourlyMap[hour][s.name] = 0;
+            hourlyMap[hour][s.name] += s.duration_seconds || 0;
+        }
+        const result = [];
+        for (let h = 0; h < 24; h++) {
+            const sorted = Object.entries(hourlyMap[h]).sort((a, b) => b[1] - a[1]);
+            result.push({ hour: h, primaryActivity: sorted[0]?.[0] || 'none', totalSeconds: sorted[0]?.[1] || 0 });
+        }
+        return result;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get typical day:', err);
+        return [];
+    }
+});
+
+electron_1.ipcMain.handle('get-hourly-heatmap', (event, days = 7) => {
+    if (useJson) return [[0]];
+    try {
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const sessions = db.prepare(`
+            SELECT es.started_at, es.duration_seconds
+            FROM external_sessions es
+            WHERE es.ended_at IS NOT NULL AND date(es.started_at) >= ?
+        `).all(startDate) as any[];
+        const grid: number[][] = [];
+        for (let d = 0; d < 7; d++) { grid[d] = []; for (let h = 0; h < 24; h++) grid[d][h] = 0; }
+        for (const s of sessions) {
+            const date = new Date(s.started_at);
+            grid[date.getDay()][date.getHours()] += (s.duration_seconds || 0) / 3600;
+        }
+        return grid;
+    } catch (err) { return [[0]]; }
+});
+
+electron_1.ipcMain.handle('get-best-days', () => {
+    if (useJson) return { bestDay: 'Mon', worstDay: 'Sun', averages: {} };
+    try {
+        const sessions = db.prepare(`SELECT started_at, duration_seconds FROM external_sessions WHERE ended_at IS NOT NULL`).all() as any[];
+        const dayTotals: Record<number, { total: number; count: number }> = {};
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let d = 0; d < 7; d++) dayTotals[d] = { total: 0, count: 0 };
+        for (const s of sessions) {
+            const day = new Date(s.started_at).getDay();
+            dayTotals[day].total += s.duration_seconds || 0;
+            dayTotals[day].count += 1;
+        }
+        const averages: Record<string, number> = {};
+        let bestDay = 'Mon', worstDay = 'Sun', bestAvg = 0, worstAvg = Infinity;
+        for (let d = 0; d < 7; d++) {
+            const name = dayNames[d];
+            const avg = dayTotals[d].count > 0 ? dayTotals[d].total / dayTotals[d].count : 0;
+            averages[name] = Math.round(avg / 3600 * 10) / 10;
+            if (avg > bestAvg) { bestAvg = avg; bestDay = name; }
+            if (avg < worstAvg && dayTotals[d].count > 0) { worstAvg = avg; worstDay = name; }
+        }
+        return { bestDay, worstDay, averages };
+    } catch (err) { return { bestDay: 'Mon', worstDay: 'Sun', averages: {} }; }
+});
+
 electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
     if (useJson) return { daily: [], average_bedtime: '', average_wake_time: '' };
     try {
@@ -6102,23 +6269,29 @@ electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
 });
 
 electron_1.ipcMain.handle('get-consistency-score', (event, period = 'week') => {
-    if (useJson) return { score: 0, weekly_comparison: [] };
+    if (useJson) return { score: 0, weekly_comparison: [], this_week: 0, last_week: 0, trend: 'stable', streak: 0 };
     try {
         const weeks = 4;
         const weeklyTotals: Array<{ week: string; total_seconds: number }> = [];
         const now = new Date();
         
         for (let i = weeks - 1; i >= 0; i--) {
-            const weekStart = new Date(now.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
-            const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+            const daysAgo = (i + 1) * 7;
+            const weekStart = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+            weekStart.setHours(0, 0, 0, 0);
+            
+            const daysAgoEnd = i * 7;
+            const weekEnd = new Date(now.getTime() - daysAgoEnd * 24 * 60 * 60 * 1000);
+            weekEnd.setHours(0, 0, 0, 0);
+            
             const weekLabel = `${weekStart.toISOString().split('T')[0]}`;
             
             const sessions = db.prepare(`
-                SELECT SUM(duration_seconds) as total
+                SELECT COALESCE(SUM(duration_seconds), 0) as total
                 FROM external_sessions
                 WHERE ended_at IS NOT NULL 
-                AND date(started_at) >= ? AND date(started_at) < ?
-            `).get(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0]);
+                AND date(started_at) >= date(?) AND date(started_at) < date(?, '+1 day')
+            `).get(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0]) as any;
             
             weeklyTotals.push({
                 week: weekLabel,
@@ -6127,14 +6300,33 @@ electron_1.ipcMain.handle('get-consistency-score', (event, period = 'week') => {
         }
         
         const currentWeek = weeklyTotals[weeklyTotals.length - 1];
-        const targetSeconds = 30 * 3600; // 30 hours target
+        const lastWeek = weeklyTotals.length > 1 ? weeklyTotals[weeklyTotals.length - 2] : { week: '', total_seconds: 0 };
+        const targetSeconds = 30 * 3600;
+        
+        let trend: 'up' | 'down' | 'stable' = 'stable';
+        if (currentWeek.total_seconds > lastWeek.total_seconds * 1.1) trend = 'up';
+        else if (currentWeek.total_seconds < lastWeek.total_seconds * 0.9) trend = 'down';
+        
         const variance = Math.abs((currentWeek?.total_seconds || 0) - targetSeconds) / targetSeconds;
         const score = Math.max(0, Math.round((1 - variance) * 100));
         
-        return { score, weekly_comparison: weeklyTotals };
+        let streak = 0;
+        for (const w of [...weeklyTotals].reverse()) {
+            if (w.total_seconds >= targetSeconds * 0.8) streak++;
+            else break;
+        }
+        
+        return { 
+            score, 
+            weekly_comparison: weeklyTotals, 
+            this_week: currentWeek.total_seconds,
+            last_week: lastWeek.total_seconds,
+            trend,
+            streak
+        };
     } catch (err) {
         console.error('[DeskFlow] Failed to get consistency score:', err);
-        return { score: 0, weekly_comparison: [] };
+        return { score: 0, weekly_comparison: [], this_week: 0, last_week: 0, trend: 'stable', streak: 0 };
     }
 });
 
@@ -6145,13 +6337,14 @@ electron_1.app.on('before-quit', () => {
     electron_1.app.isQuitting = true;
     if (trackingInterval)
         clearInterval(trackingInterval);
-    // Log current session before quit
-    if (currentApp && Date.now() - sessionStart > 5000) {
-        const duration = Date.now() - sessionStart;
-        const category = categorizeApp(currentApp);
-        addLog(new Date(sessionStart).toISOString(), currentApp, category, duration, `${currentApp} Window`, null);
-        console.log('[DeskFlow] ✅ Logged final session before quit:', currentApp);
-    }
+     // Log current session before quit
+     // Filter out Electron/DeskFlow app (don't track the app itself)
+     if (currentApp && Date.now() - sessionStart > 5000 && currentApp !== 'DeskFlow' && currentApp !== 'Electron') {
+         const duration = Date.now() - sessionStart;
+         const category = categorizeApp(currentApp);
+         addLog(new Date(sessionStart).toISOString(), currentApp, category, duration, `${currentApp} Window`, null);
+         console.log('[DeskFlow] ✅ Logged final session before quit:', currentApp);
+     }
     // Auto-stop active external sessions before quit
     try {
         const activeSession = db.prepare(`
