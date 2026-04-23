@@ -6,7 +6,7 @@
 
 ## 📊 Current Status
 
-**Version:** 1.64
+**Version:** 1.65
 **Last Updated:** 2026-04-23
 **Build Status:** ✅ Working
 
@@ -14,54 +14,21 @@
 
 ## 📝 Recent Changes
 
-### 2026-04-23 — Dashboard Redesign Planning (IN PROGRESS)
+### 2026-04-23 — Dashboard Fixes
 
 **What Changed:**
-1. ✅ Created comprehensive dashboard redesign plan
-2. ✅ Fixed heatmap "Today" indicator bug — was comparing day name ("Mon") against first letter ("T")
-3. ✅ Fixed heatmap 0-hour color — was dark gray on dark background, now uses lighter green (#059669)
-4. ✅ Added tierAssignments prop to DashboardPage
-5. ✅ Added Recent Sessions section to Dashboard — shows both apps and websites
-6. ✅ Removed "Recent Sessions" section from ProductivityPage (moved to Dashboard)
+1. ✅ Heatmap 0-hour cells now use #374151 (visible gray) instead of #1f2937 (invisible on dark bg)
+2. ✅ Fixed heatmap "Today" comparison — was comparing "Mon" to first letter "T", now compares full names
+3. ✅ Removed duplicate Recent Sessions section from Dashboard — Activity Feed already exists there
+4. ✅ Restored Recent Sessions to ProductivityPage
+5. ✅ Removed dead sessions useMemo from ProductivityPage earlier, restored it with proper getTier function
 
 **Files Modified:**
-- `agent/state.md` - Updated version
-- `src/pages/DashboardPage.tsx` - Fixed isToday comparison, fixed 0h color, added tierAssignments prop, added Recent Sessions section
+- `src/pages/DashboardPage.tsx` - Fixed heatmap colors, removed duplicate Recent Sessions
+- `src/pages/ProductivityPage.tsx` - Restored Recent Sessions section
 - `src/App.tsx` - Passed tierAssignments to DashboardPage
-- `src/pages/ProductivityPage.tsx` - Removed "Recent Sessions" section and unused useMemo/getTierForCategory
 
-**Result:** Heatmap now correctly highlights "Today" in emerald, and 0-hour cells are visible (light green instead of dark gray). Build passes.
-
-**Next Steps (Dashboard Only):**
-1. Add stats cards row (Productive Time, Total Time, %, Longest Focus, Reset Count, External Time)
-2. Implement pinned external activities with edit mode in dashboard
-3. Add activity feed at bottom of dashboard (compact, shows changes only)
-4. Refine time display format (numbers with percentage, no charts)
-5. Remove reset/pause notifications from timer section
-
-**Dashboard Design Principles:**
-- Dashboard should NOT duplicate data from other pages
-- Stats should use timeline from navigation (this week/month/all)
-- Longest focus time scope changes based on timeline
-- Pinned activities configurable in dashboard itself (edit mode)
-- Activity feed at bottom, compact, only logs on CHANGE
-- Time display: "X.Xh / Xh (XX%)" format, NO charts
-- No toast notifications - logs already show what caused changes
-
-**What Changed:**
-1. ✅ Added resetTrigger state to track what caused timer reset (app/category that switched from productive)
-2. ✅ Updated timer reset logic to capture the distracting app/category when timer resets
-3. ✅ Added reset trigger display in dashboard UI showing which app/category caused the reset
-4. ✅ Replaced simplified heatmap modal with full OrbitSystem 3D galaxy visualization
-5. ✅ Replaced simplified solar system modal with full OrbitSystem 3D galaxy visualization
-6. ✅ Reordered dashboard sections: Timer → Quick Activities → Stats (heatmap+solar)
-7. ✅ Passed browserLogs, appColors, and categoryOverrides props to DashboardPage from App.tsx
-
-**Files Modified:**
-- `src/pages/DashboardPage.tsx` - Added resetTrigger state, modal enhancements, section reordering, OrbitSystem lazy loading
-- `src/App.tsx` - Added new props to DashboardPage component usage
-
-**Result:** Dashboard now shows which app/category caused the timer to reset, displays full interactive 3D galaxy when clicking heatmap/solar, and has Quick Activities above the Stats section.
+**Result:** Heatmap 0h cells now visible on dark background. Dashboard has Activity Feed (live changes) only. ProductivityPage has Recent Sessions (historical). Build passes.
 
 ### 2026-04-22 — Browser Activity Page UI Cleanup
 1. ✅ Removed Play/Pause toggle button from Live Detection panel
