@@ -538,6 +538,9 @@ function App() {
           if (prefs?.browserWithExtension) {
             setTrackingBrowser(prefs.browserWithExtension.toLowerCase());
           }
+          if (prefs?.timerBehavior) {
+            setTimerBehavior(prefs.timerBehavior);
+          }
         }
       } catch { /* ignore */ }
     };
@@ -797,6 +800,7 @@ function App() {
   const [autoDetect, setAutoDetect] = useState(true);
   const [autoExport, setAutoExport] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+  const [timerBehavior, setTimerBehavior] = useState<{ neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' }>({ neutralAction: 'pause', distractingAction: 'reset' });
   const [foregroundApps, setForegroundApps] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -1926,7 +1930,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
             <Routes location={location} key={location.pathname}>
               {/* Dashboard */}
                <Route path="/" element={
-                  <DashboardPage logs={logs} allLogs={allLogs} />
+                  <DashboardPage logs={logs} allLogs={allLogs} browserLogs={browserLogs} appColors={appColors} categoryOverrides={categoryOverrides} timerBehavior={timerBehavior} />
                 } />
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
@@ -1951,7 +1955,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
               {/* Pricing Page */}
               <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
               {/* Settings Page */}
-              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} onHasChangesChange={setSettingsHasChanges} />} />
+              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} onHasChangesChange={setSettingsHasChanges} timerBehavior={timerBehavior} setTimerBehavior={setTimerBehavior} />} />
             </Routes>
           </AnimatePresence>
 

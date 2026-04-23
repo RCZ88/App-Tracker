@@ -54,6 +54,8 @@ interface SettingsPageProps {
   setCategoryOrder?: (order: string[]) => void;
   autoStartEnabled?: boolean;
   setAutoStartEnabled?: (enabled: boolean) => void;
+  timerBehavior?: { neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' };
+  setTimerBehavior?: (behavior: { neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' }) => void;
 }
 
 type AnimationSpeed = 'slow' | 'normal' | 'instant';
@@ -314,8 +316,13 @@ export default function SettingsPage({
   setCategoryOrder,
   autoStartEnabled: autoStartEnabledProp = false,
   setAutoStartEnabled: setAutoStartEnabledProp = () => {},
+  timerBehavior: timerBehaviorProp = { neutralAction: 'pause', distractingAction: 'reset' },
+  setTimerBehavior: setTimerBehaviorProp = () => {},
 }: Partial<SettingsPageProps> & { onRegisterSave: (fn: () => void) => void; onReloadData?: () => void }) {
-  const [activeTab, setActiveTab] = useState<'category' | 'colors' | 'general'>('category');
+  const [activeTab, setActiveTab] = useState<'category' | 'colors' | 'general'>(() => {
+    const saved = localStorage.getItem('settings-activeTab');
+    return (saved as any) || 'category';
+  });
   const [tierAssignments, setTierAssignments] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('deskflow-tier-assignments');
@@ -343,6 +350,7 @@ export default function SettingsPage({
   });
   const [localCategoryOrder, setLocalCategoryOrder] = useState<string[]>(categoryOrder);
   const [autoStartEnabled, setAutoStartEnabled] = useState(autoStartEnabledProp);
+  const [localTimerBehavior, setLocalTimerBehavior] = useState(timerBehaviorProp);
   
   // Drag-and-drop state for dnd-kit
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -719,6 +727,11 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     if (activeTab === 'category') {
       fetchDomainStats();
     }
+  }, [activeTab]);
+
+  // Persist active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('settings-activeTab', activeTab);
   }, [activeTab]);
 
   const [editingAppCategory, setEditingAppCategory] = useState<string | null>(null);
@@ -1687,6 +1700,60 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-zinc-400 mb-2 block">When using Neutral apps</label>
+                  <div className="flex gap-2">
+                    {(['pause', 'reset', 'ignore'] as const).map(action => (
+                      <button
+                        key={action}
+                        onClick={() => {
+                          const newBehavior = { ...localTimerBehavior, neutralAction: action };
+                          setLocalTimerBehavior(newBehavior);
+                          setTimerBehaviorProp(newBehavior);
+                          if (window.deskflowAPI?.setPreference) {
+                            window.deskflowAPI.setPreference('timerBehavior', newBehavior);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                          localTimerBehavior.neutralAction === action
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {action === 'pause' ? '⏸ Pause' : action === 'reset' ? '🔄 Reset' : '⏭ Ignore'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">What happens when you switch from productive to neutral (e.g., Communication, Design)</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-zinc-400 mb-2 block">When using Distracting apps</label>
+                  <div className="flex gap-2">
+                    {(['pause', 'reset', 'ignore'] as const).map(action => (
+                      <button
+                        key={action}
+                        onClick={() => {
+                          const newBehavior = { ...localTimerBehavior, distractingAction: action };
+                          setLocalTimerBehavior(newBehavior);
+                          setTimerBehaviorProp(newBehavior);
+                          if (window.deskflowAPI?.setPreference) {
+                            window.deskflowAPI.setPreference('timerBehavior', newBehavior);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                          localTimerBehavior.distractingAction === action
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {action === 'pause' ? '⏸ Pause' : action === 'reset' ? '🔄 Reset' : '⏭ Ignore'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">What happens when you switch from productive to distracting (e.g., Entertainment, Social Media)</p>
                 </div>
 
                 <div className="flex items-center justify-between py-2">

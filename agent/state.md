@@ -6,13 +6,57 @@
 
 ## 📊 Current Status
 
-**Version:** 1.56
-**Last Updated:** 2026-04-22
+**Version:** 1.60
+**Last Updated:** 2026-04-23
 **Build Status:** ✅ Working
 
 ---
 
 ## 📝 Recent Changes
+
+### 2026-04-23 — Dashboard Lock-In Timer Enhancements
+
+**What Changed:**
+1. ✅ Added resetTrigger state to track what caused timer reset (app/category that switched from productive)
+2. ✅ Updated timer reset logic to capture the distracting app/category when timer resets
+3. ✅ Added reset trigger display in dashboard UI showing which app/category caused the reset
+4. ✅ Replaced simplified heatmap modal with full OrbitSystem 3D galaxy visualization
+5. ✅ Replaced simplified solar system modal with full OrbitSystem 3D galaxy visualization
+6. ✅ Reordered dashboard sections: Timer → Quick Activities → Stats (heatmap+solar)
+7. ✅ Passed browserLogs, appColors, and categoryOverrides props to DashboardPage from App.tsx
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added resetTrigger state, modal enhancements, section reordering, OrbitSystem lazy loading
+- `src/App.tsx` - Added new props to DashboardPage component usage
+
+**Result:** Dashboard now shows which app/category caused the timer to reset, displays full interactive 3D galaxy when clicking heatmap/solar, and has Quick Activities above the Stats section.
+
+### 2026-04-22 — Browser Activity Page UI Cleanup
+1. ✅ Removed Play/Pause toggle button from Live Detection panel
+2. ✅ Simplified live logs display to show consistent messaging
+
+### 2026-04-22 — IDE Project Edit + Delete Features
+
+**What Changed:**
+1. ✅ Added edit functionality for IDE projects - can change name, path, IDE, language, repo URL, VCS type
+2. ✅ Added soft-delete - projects can be deleted and restored from trash
+3. ✅ Added trash/restore UI tab in IDE Projects page
+4. ✅ Added delete confirmation dialog with warning before deleting
+5. ✅ Fixed log spam in App.tsx (reloadOverrides was logging every second)
+6. ✅ Fixed log spam in TerminalWindow.tsx (removed render logging)
+7. ✅ Made tabs persistent across page navigation (IDE Projects, Terminal, Settings)
+8. ✅ Made project expand state persistent in IDE Projects
+
+**Files Modified:**
+- `src/main.ts` - Added `update-project`, `delete-project`, `restore-project`, `get-all-projects` IPC handlers; added `deleted_at` column to projects table
+- `src/preload.ts` - Added `updateProject`, `deleteProject`, `restoreProject`, `getAllProjects` API bindings
+- `src/pages/IDEProjectsPage.tsx` - Added edit modal, delete confirmation dialog, trash tab with restore/permanent delete, tab/expand persistence
+- `src/pages/TerminalPage.tsx` - Added tab persistence with localStorage
+- `src/pages/SettingsPage.tsx` - Added tab persistence with localStorage
+- `src/App.tsx` - Fixed reloadOverrides to only log when data actually changes
+- `src/components/TerminalWindow.tsx` - Removed console.log on render
+
+**Result:** IDE Projects now supports editing existing projects, soft-delete with restore, and log spam is fixed. Tab states now persist across page navigation.
 
 ### 2026-04-22 — External Tracker Restructuring
 
