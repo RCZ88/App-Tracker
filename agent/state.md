@@ -6,7 +6,7 @@
 
 ## 📊 Current Status
 
-**Version:** 1.60
+**Version:** 1.61
 **Last Updated:** 2026-04-23
 **Build Status:** ✅ Working
 
@@ -14,7 +14,32 @@
 
 ## 📝 Recent Changes
 
-### 2026-04-23 — Dashboard Lock-In Timer Enhancements
+### 2026-04-23 — Dashboard Redesign Planning (IN PROGRESS)
+
+**What Changed:**
+1. ✅ Created comprehensive dashboard redesign plan
+2. ✅ Identified page allocation to avoid data duplication
+3. ✅ Clarified requirements with user
+4. ✅ Committed and pushed previous changes (v1.60)
+
+**Files Modified:**
+- `agent/state.md` - Updated version and plan entry
+
+**Next Steps (Dashboard Only):**
+1. Add stats cards row (Productive Time, Total Time, %, Longest Focus, Reset Count, External Time)
+2. Implement pinned external activities with edit mode in dashboard
+3. Add activity feed at bottom of dashboard (compact, shows changes only)
+4. Refine time display format (numbers with percentage, no charts)
+5. Remove reset/pause notifications from timer section
+
+**Dashboard Design Principles:**
+- Dashboard should NOT duplicate data from other pages
+- Stats should use timeline from navigation (this week/month/all)
+- Longest focus time scope changes based on timeline
+- Pinned activities configurable in dashboard itself (edit mode)
+- Activity feed at bottom, compact, only logs on CHANGE
+- Time display: "X.Xh / Xh (XX%)" format, NO charts
+- No toast notifications - logs already show what caused changes
 
 **What Changed:**
 1. ✅ Added resetTrigger state to track what caused timer reset (app/category that switched from productive)

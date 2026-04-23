@@ -1930,7 +1930,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
             <Routes location={location} key={location.pathname}>
               {/* Dashboard */}
                <Route path="/" element={
-                  <DashboardPage logs={logs} allLogs={allLogs} browserLogs={browserLogs} appColors={appColors} categoryOverrides={categoryOverrides} timerBehavior={timerBehavior} />
+                  <DashboardPage logs={logs} allLogs={allLogs} browserLogs={browserLogs} appColors={appColors} categoryOverrides={categoryOverrides} timerBehavior={timerBehavior} selectedPeriod={selectedPeriod} />
                 } />
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />

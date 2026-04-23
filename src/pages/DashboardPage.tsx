@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, Dumbbell, Activity, Moon,
   Utensils, Coffee, Bus, Book, Timer, Zap,
-  Sun, Zap as ZapIcon, Focus, Clock, X
+  Sun, Zap as ZapIcon, Focus, Clock, X,
+  Edit3, Check, Plus, Minus, TrendingUp,
+  Target, ZapCircle, RefreshCw, Clock3
 } from 'lucide-react';
 
 const OrbitSystem = lazy(() => import('../components/OrbitSystem').then(module => ({ default: module.default })));
@@ -70,6 +72,15 @@ interface TimerBehavior {
   distractingAction: 'pause' | 'reset' | 'ignore';
 }
 
+interface ActivityFeedItem {
+  id: string;
+  timestamp: Date;
+  type: 'app' | 'browser';
+  name: string;
+  category: string;
+  tier: 'productive' | 'neutral' | 'distracting';
+}
+
 interface DashboardPageProps {
   externalActivities?: ExternalActivity[];
   hourlyHeatmap?: HourlyHeatmapData[];
@@ -81,6 +92,7 @@ interface DashboardPageProps {
   appColors?: Record<string, string>;
   categoryOverrides?: Record<string, string>;
   timerBehavior?: TimerBehavior;
+  selectedPeriod?: 'today' | 'week' | 'month' | 'all';
 }
 
 export default function DashboardPage({
@@ -93,7 +105,8 @@ export default function DashboardPage({
   browserLogs = [],
   appColors = {},
   categoryOverrides = {},
-  timerBehavior = { neutralAction: 'pause', distractingAction: 'reset' }
+  timerBehavior = { neutralAction: 'pause', distractingAction: 'reset' },
+  selectedPeriod = 'week'
 }: DashboardPageProps) {
   const [selectedExternalActivity, setSelectedExternalActivity] = useState<ExternalActivity | null>(null);
   const [externalSessionRunning, setExternalSessionRunning] = useState(false);
@@ -106,6 +119,11 @@ export default function DashboardPage({
   const [resetTrigger, setResetTrigger] = useState<{ app: string; category: string; timestamp: Date } | null>(null);
   const [expandedModal, setExpandedModal] = useState<'heatmap' | 'solar' | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [pinnedActivitiesEditMode, setPinnedActivitiesEditMode] = useState(false);
+  const [pinnedActivities, setPinnedActivities] = useState<ExternalActivity[]>([]);
+  const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
+  const activityFeedRef = useRef<ActivityFeedItem[]>([]);
+  const [resetCount, setResetCount] = useState(0);
 
   const DEFAULT_ACTIVITIES: ExternalActivity[] = [
     { id: 1, name: 'Study', type: 'stopwatch', color: '#10b981', icon: 'BookOpen', is_productive: true },
@@ -117,6 +135,36 @@ export default function DashboardPage({
   ];
 
   const activities = useMemo(() => externalActivities.length > 0 ? externalActivities : DEFAULT_ACTIVITIES, [externalActivities]);
+
+  // Initialize pinned activities from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('dashboard-pinned-activities');
+        if (saved) {
+          setPinnedActivities(JSON.parse(saved));
+        } else {
+          setPinnedActivities(DEFAULT_ACTIVITIES.slice(0, 5));
+        }
+      } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Save pinned activities to localStorage when changed
+  useEffect(() => {
+    if (pinnedActivities.length > 0) {
+      localStorage.setItem('dashboard-pinned-activities', JSON.stringify(pinnedActivities));
+    }
+  }, [pinnedActivities]);
+
+  // Count resets today
+  useEffect(() => {
+    const count = activityFeed.filter(item => 
+      item.tier === 'distracting' && 
+      new Date(item.timestamp).toDateString() === new Date().toDateString()
+    ).length;
+    setResetCount(count);
+  }, [activityFeed]);
 
   // Determine tier from category
   const getTierFromCategory = (category?: string): 'productive' | 'neutral' | 'distracting' => {
@@ -131,6 +179,17 @@ export default function DashboardPage({
     if (!window.deskflowAPI?.onForegroundChange) return;
 
     window.deskflowAPI.onForegroundChange((data: ForegroundData) => {
+      const tier = getTierFromCategory(data.category);
+      const newItem: ActivityFeedItem = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date(),
+        type: data.is_browser_tracking ? 'browser' : 'app',
+        name: data.app || data.title || 'Unknown',
+        category: data.category || 'Unknown',
+        tier
+      };
+      activityFeedRef.current = [...activityFeedRef.current.slice(-49), newItem];
+      setActivityFeed([...activityFeedRef.current]);
       setCurrentApp(data);
     });
   }, []);
@@ -306,6 +365,69 @@ export default function DashboardPage({
 
   const isCurrentlyProductive = lastTier === 'productive' && !isPaused;
 
+  // Compute stats based on selected period
+  const stats = useMemo(() => {
+    const now = new Date();
+    let filteredLogs = allLogs;
+
+    if (selectedPeriod === 'today') {
+      filteredLogs = allLogs.filter(log =>
+        log.timestamp.getDate() === now.getDate() &&
+        log.timestamp.getMonth() === now.getMonth() &&
+        log.timestamp.getFullYear() === now.getFullYear()
+      );
+    } else if (selectedPeriod === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredLogs = allLogs.filter(log => log.timestamp >= weekAgo);
+    } else if (selectedPeriod === 'month') {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      filteredLogs = allLogs.filter(log => log.timestamp >= monthAgo);
+    }
+
+    // Total time
+    const totalTimeMs = filteredLogs.reduce((acc, log) => acc + (log.duration * 1000), 0);
+
+    // Productive time
+    const productiveTimeMs = filteredLogs
+      .filter(log => DEFAULT_TIER_ASSIGNMENTS.productive.includes(log.category))
+      .reduce((acc, log) => acc + (log.duration * 1000), 0);
+
+    // Percentage
+    const productivePercent = totalTimeMs > 0 ? Math.round((productiveTimeMs / totalTimeMs) * 100) : 0;
+
+    // Longest focus session
+    let longestFocusMs = 0;
+    let currentFocusMs = 0;
+    let inProductive = false;
+    const sortedLogs = [...filteredLogs].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    for (const log of sortedLogs) {
+      if (DEFAULT_TIER_ASSIGNMENTS.productive.includes(log.category)) {
+        currentFocusMs += log.duration * 1000;
+        inProductive = true;
+      } else {
+        if (currentFocusMs > longestFocusMs) longestFocusMs = currentFocusMs;
+        currentFocusMs = 0;
+        inProductive = false;
+      }
+    }
+    if (currentFocusMs > longestFocusMs) longestFocusMs = currentFocusMs;
+
+    // Format helpers
+    const formatHours = (ms: number) => {
+      const hours = ms / (1000 * 60 * 60);
+      return hours >= 1 ? `${hours.toFixed(1)}h` : `${Math.round(ms / (1000 * 60))}m`;
+    };
+
+    return {
+      totalTime: formatHours(totalTimeMs),
+      totalTimeMs,
+      productiveTime: formatHours(productiveTimeMs),
+      productiveTimeMs,
+      productivePercent,
+      longestFocus: formatHours(longestFocusMs)
+    };
+  }, [allLogs, selectedPeriod]);
+
   return (
     <div className="min-h-screen bg-black text-white" style={{ backgroundColor: '#0a0a0a' }}>
       {/* Background grid effect */}
@@ -410,31 +532,67 @@ export default function DashboardPage({
                   </motion.div>
                 )}
 
-{/* Helpful message */}
-                 <div className="text-xs text-zinc-600 pt-4 border-t border-zinc-800">
-                   {isCurrentlyProductive 
-                     ? 'Productive work detected. Timer running. Switch to distraction to reset.'
-                     : 'No productive activity detected. Open an IDE, editor, or learning tool to start.'}
-                 </div>
-                 
-                 {/* Reset trigger display */}
-                 {resetTrigger && (
-                   <div className="text-xs text-zinc-500 mt-2 flex items-center gap-2">
-                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
-                     <span>
-                       Timer reset by: <strong>{resetTrigger.app}</strong> ({resetTrigger.category})
-                     </span>
-                   </div>
-                 )}
+                {/* Helpful message */}
+                <div className="text-xs text-zinc-600 pt-4 border-t border-zinc-800">
+                  {isCurrentlyProductive 
+                    ? 'Productive work detected. Timer running.'
+                    : 'No productive activity detected. Open an IDE, editor, or learning tool to start.'}
+                </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Quick Activity Launcher */}
+          {/* Stats Cards Row */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12"
+          >
+            {/* Productive Time */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Productive</div>
+              <div className="text-2xl font-bold text-emerald-400">{stats.productiveTime}</div>
+            </div>
+
+            {/* Total Time */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(107, 114, 128, 0.2)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Total</div>
+              <div className="text-2xl font-bold text-white">{stats.totalTime}</div>
+            </div>
+
+            {/* % Productive */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(107, 114, 128, 0.2)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">% Productive</div>
+              <div className="text-2xl font-bold text-white">{stats.productivePercent}%</div>
+            </div>
+
+            {/* Longest Focus */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(107, 114, 128, 0.2)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Longest Focus</div>
+              <div className="text-2xl font-bold text-white">{stats.longestFocus}</div>
+            </div>
+
+            {/* Reset Count */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Resets Today</div>
+              <div className="text-2xl font-bold text-red-400">{resetCount}</div>
+            </div>
+
+            {/* External Time */}
+            <div className="rounded-xl p-4 border backdrop-blur-sm" style={{ backgroundColor: 'rgba(10, 10, 10, 0.8)', borderColor: 'rgba(107, 114, 128, 0.2)' }}>
+              <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">External</div>
+              <div className="text-2xl font-bold text-white">
+                {formatDuration(externalElapsedMs).substring(0, 5)}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Pinned Activities */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
             className="rounded-2xl p-8 border backdrop-blur-sm mb-12"
             style={{
               backgroundColor: 'rgba(10, 10, 10, 0.8)',
@@ -442,40 +600,98 @@ export default function DashboardPage({
             }}
           >
             <div className="space-y-6">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Quick Activities</h2>
-                <p className="text-xs text-zinc-600 mt-1">Manual activity tracking</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Pinned Activities</h2>
+                  <p className="text-xs text-zinc-600 mt-1">Quick manual tracking</p>
+                </div>
+                <button
+                  onClick={() => setPinnedActivitiesEditMode(!pinnedActivitiesEditMode)}
+                  className="p-2 rounded-lg border transition-all"
+                  style={{
+                    backgroundColor: pinnedActivitiesEditMode ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.1)',
+                    borderColor: pinnedActivitiesEditMode ? 'rgba(16, 185, 129, 0.5)' : 'rgba(107, 114, 128, 0.2)'
+                  }}
+                >
+                  {pinnedActivitiesEditMode ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Edit3 className="w-4 h-4 text-zinc-400" />
+                  )}
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {activities.map((activity) => {
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {pinnedActivities.map((activity) => {
                   const Icon = ACTIVITY_ICONS[activity.icon] || Timer;
                   const isSelected = selectedExternalActivity?.id === activity.id;
                   
                   return (
-                    <motion.button
-                      key={activity.id}
-                      onClick={() => handleSelectExternalActivity(activity)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="p-4 rounded-lg border transition-all text-center"
-                      style={{
-                        backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.1)',
-                        borderColor: isSelected ? 'rgba(16, 185, 129, 0.5)' : 'rgba(107, 114, 128, 0.2)'
-                      }}
-                    >
-                      <Icon 
-                        className="w-6 h-6 mx-auto mb-2" 
-                        style={{ color: activity.is_productive ? '#10b981' : '#6366f1' }}
-                      />
-                      <div className="text-xs font-semibold text-white">{activity.name}</div>
-                    </motion.button>
+                    <motion.div key={activity.id} className="relative">
+                      <motion.button
+                        onClick={() => {
+                          if (pinnedActivitiesEditMode) {
+                            setPinnedActivities(prev => prev.filter(a => a.id !== activity.id));
+                          } else {
+                            handleSelectExternalActivity(activity);
+                          }
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full p-4 rounded-lg border transition-all text-center"
+                        style={{
+                          backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.1)',
+                          borderColor: isSelected ? 'rgba(16, 185, 129, 0.5)' : 'rgba(107, 114, 128, 0.2)'
+                        }}
+                      >
+                        <Icon 
+                          className="w-6 h-6 mx-auto mb-2" 
+                          style={{ color: activity.is_productive ? '#10b981' : '#6366f1' }}
+                        />
+                        <div className="text-xs font-semibold text-white">{activity.name}</div>
+                      </motion.button>
+                      {pinnedActivitiesEditMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPinnedActivities(prev => prev.filter(a => a.id !== activity.id));
+                          }}
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center"
+                        >
+                          <Minus className="w-3 h-3 text-white" />
+                        </button>
+                      )}
+                    </motion.div>
                   );
                 })}
+                
+                {/* Add activity button in edit mode */}
+                {pinnedActivitiesEditMode && pinnedActivities.length < 6 && (
+                  <motion.div className="relative">
+                    <motion.button
+                      onClick={() => {
+                        const availableActivities = activities.filter(a => !pinnedActivities.find(p => p.id === a.id));
+                        if (availableActivities.length > 0) {
+                          setPinnedActivities(prev => [...prev, availableActivities[0]]);
+                        }
+                      }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="w-full p-4 rounded-lg border border-dashed transition-all text-center"
+                      style={{
+                        backgroundColor: 'rgba(107, 114, 128, 0.05)',
+                        borderColor: 'rgba(107, 114, 128, 0.3)'
+                      }}
+                    >
+                      <Plus className="w-6 h-6 mx-auto mb-2 text-zinc-500" />
+                      <div className="text-xs font-semibold text-zinc-500">Add</div>
+                    </motion.button>
+                  </motion.div>
+                )}
               </div>
 
               {/* External Activity Controls */}
-              {selectedExternalActivity && (
+              {selectedExternalActivity && !pinnedActivitiesEditMode && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -737,11 +953,63 @@ export default function DashboardPage({
                         appColors={appColors}
                         categoryOverrides={categoryOverrides}
                       />
-                    </Suspense>
-                 </motion.div>
-               </motion.div>
-             )}
-           </AnimatePresence>
+</Suspense>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+          {/* Activity Feed */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="rounded-2xl p-6 border backdrop-blur-sm"
+            style={{
+              backgroundColor: 'rgba(10, 10, 10, 0.8)',
+              borderColor: 'rgba(107, 114, 128, 0.2)'
+            }}
+          >
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Activity Feed</h2>
+                <p className="text-xs text-zinc-600 mt-1">Recent activity changes</p>
+              </div>
+              
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {activityFeed.length === 0 ? (
+                  <div className="text-xs text-zinc-500 text-center py-4">
+                    No activity recorded yet
+                  </div>
+                ) : (
+                  [...activityFeed].reverse().slice(0, 15).map((item) => {
+                    const tierColor = item.tier === 'productive' ? '#10b981' : item.tier === 'distracting' ? '#ef4444' : '#6b7280';
+                    const tierIcon = item.tier === 'productive' ? '✓' : item.tier === 'distracting' ? '✗' : '○';
+                    
+                    return (
+                      <div key={item.id} className="flex items-center gap-3 text-xs">
+                        <div className="w-16 text-zinc-500 font-mono">
+                          {item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div 
+                          className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
+                          style={{ backgroundColor: tierColor }}
+                        >
+                          <span className="text-white">{tierIcon}</span>
+                        </div>
+                        <div className="flex-1 truncate text-zinc-300">
+                          {item.name}
+                        </div>
+                        <div className="text-zinc-500">
+                          {item.category}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
