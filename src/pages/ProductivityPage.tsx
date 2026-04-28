@@ -381,7 +381,7 @@ export default function ProductivityPage({
         
         for (const log of hourLogs) {
           const sessionStart = new Date(log.timestamp || log.start_time).getTime();
-          const sessionEnd = sessionStart + ((log.duration || 0) * 1000);
+          const sessionEnd = sessionStart + ((log.duration_ms || (log.duration || 0) * 1000));
           
           let currentMs = sessionStart;
           while (currentMs < sessionEnd) {
@@ -446,7 +446,8 @@ export default function ProductivityPage({
       let productive = 0, neutral = 0, distracting = 0;
       
       for (const log of dayLogs) {
-        const duration_sec = (log.duration || 0) / 1000;
+        // Handle both duration (seconds) and duration_ms (milliseconds)
+        const duration_sec = log.duration_ms ? log.duration_ms / 1000 : (log.duration || 0);
         const category = log.category || WEBSITE_CATEGORY_MAP[log.category] || 'Other';
         
         if (tierAssignments.productive.includes(category)) {
@@ -611,25 +612,25 @@ export default function ProductivityPage({
     }]
   };
 
-  // Time breakdown bar chart
+  // Time breakdown bar chart - convert to hours
   const timeBreakdownData = {
     labels: dailyTrend.map(d => d.label),
     datasets: [
       {
         label: 'Productive',
-        data: dailyTrend.map(d => d.productive),
+        data: dailyTrend.map(d => d.productive / 3600), // convert seconds to hours
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
         borderRadius: 4
       },
       {
         label: 'Neutral',
-        data: dailyTrend.map(d => d.neutral),
+        data: dailyTrend.map(d => d.neutral / 3600),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderRadius: 4
       },
       {
         label: 'Distracting',
-        data: dailyTrend.map(d => d.distracting),
+        data: dailyTrend.map(d => d.distracting / 3600),
         backgroundColor: 'rgba(239, 68, 68, 0.8)',
         borderRadius: 4
       }
@@ -935,7 +936,7 @@ export default function ProductivityPage({
                     backgroundColor: 'rgba(24, 24, 27, 0.95)',
                     callbacks: {
                       label: (ctx) => {
-                        const seconds = ctx.raw as number;
+                        const seconds = (ctx.raw as number) * 3600;
                         return ` ${formatDuration(seconds)}`;
                       }
                     }
@@ -1204,7 +1205,8 @@ export default function ProductivityPage({
                   callbacks: {
                     label: (ctx) => {
                       const label = ctx.dataset.label || '';
-                      return ` ${label}: ${formatDuration(ctx.raw as number)}`;
+                      // Data is in hours, convert back to seconds for tooltip
+                      return ` ${label}: ${formatDuration((ctx.raw as number) * 3600)}`;
                     }
                   }
                 }
@@ -1220,7 +1222,7 @@ export default function ProductivityPage({
                   grid: { color: '#27272a' },
                   ticks: { 
                     color: '#71717a',
-                    callback: (v) => formatHours(v as number)
+                    callback: (v: number) => formatHours(v * 3600) // convert back to seconds for formatting
                   }
                 }
               }

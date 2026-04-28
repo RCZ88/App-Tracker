@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { subDays, format } from 'date-fns';
+import { BarChart3, Clock, Target, Moon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Line, Bar } from 'react-chartjs-2';
 
 interface ExternalStats {
   byActivity: Record<string, { total_seconds: number; session_count: number }>;
@@ -202,99 +205,6 @@ export default function InsightsPage() {
             ) : (
               <div className="h-56 flex items-center justify-center text-zinc-500">
                 No data yet
-              </div>
-            )}
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-zinc-800/50 rounded-xl p-4"
-          >
-            <h3 className="text-sm font-medium text-zinc-300 mb-4">Sleep Trends</h3>
-            {sleepTrendData.labels.length > 0 ? (
-              <div className="h-56">
-                <Line
-                  data={{
-                    labels: sleepTrendData.labels,
-                    datasets: [
-                      {
-                        label: 'Sleep Hours',
-                        data: sleepTrendData.sleepData,
-                        borderColor: '#3b82f6',
-                        backgroundColor: '#3b82f620',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 3,
-                      },
-                      {
-                        label: 'Target (8h)',
-                        data: sleepTrendData.sleepData.map(() => 8),
-                        borderColor: '#ef4444',
-                        borderDash: [5, 5],
-                        pointRadius: 0,
-                        fill: false,
-                      }
-                    ]
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: true, labels: { color: '#a1a1aa' } } },
-                    scales: {
-                      x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
-                      y: { 
-                        grid: { color: '#3f3f46' }, 
-                        ticks: { color: '#a1a1aa' },
-                        suggestedMax: 10,
-                        min: 0,
-                      }
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="h-56 flex items-center justify-center text-zinc-500">
-                No sleep data yet
-              </div>
-            )}
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-zinc-800/50 rounded-xl p-4 col-span-2"
-          >
-            <h3 className="text-sm font-medium text-zinc-300 mb-4">Activity Breakdown</h3>
-            {breakdownData.labels.length > 0 ? (
-              <div className="h-48">
-                <Bar
-                  data={{
-                    labels: breakdownData.labels,
-                    datasets: [{
-                      label: 'Hours',
-                      data: breakdownData.data,
-                      backgroundColor: CHART_COLORS.slice(0, breakdownData.labels.length),
-                      borderRadius: 4,
-                    }]
-                  }}
-                  options={{
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                      x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
-                      y: { grid: { display: false }, ticks: { color: '#d4d4d8' } }
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="h-48 flex items-center justify-center text-zinc-500">
-                No activity data yet
               </div>
             )}
           </motion.div>

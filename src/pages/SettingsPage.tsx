@@ -56,6 +56,8 @@ interface SettingsPageProps {
   setAutoStartEnabled?: (enabled: boolean) => void;
   timerBehavior?: { neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' };
   setTimerBehavior?: (behavior: { neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' }) => void;
+  trackerAppMode?: 'show-other' | 'pause' | 'track';
+  setTrackerAppMode?: (mode: 'show-other' | 'pause' | 'track') => void;
 }
 
 type AnimationSpeed = 'slow' | 'normal' | 'instant';
@@ -318,6 +320,8 @@ export default function SettingsPage({
   setAutoStartEnabled: setAutoStartEnabledProp = () => {},
   timerBehavior: timerBehaviorProp = { neutralAction: 'pause', distractingAction: 'reset' },
   setTimerBehavior: setTimerBehaviorProp = () => {},
+  trackerAppMode: trackerAppModeProp = 'track',
+  setTrackerAppMode: setTrackerAppModeProp = () => {},
 }: Partial<SettingsPageProps> & { onRegisterSave: (fn: () => void) => void; onReloadData?: () => void }) {
   const [activeTab, setActiveTab] = useState<'category' | 'colors' | 'general'>(() => {
     const saved = localStorage.getItem('settings-activeTab');
@@ -351,6 +355,14 @@ export default function SettingsPage({
   const [localCategoryOrder, setLocalCategoryOrder] = useState<string[]>(categoryOrder);
   const [autoStartEnabled, setAutoStartEnabled] = useState(autoStartEnabledProp);
   const [localTimerBehavior, setLocalTimerBehavior] = useState(timerBehaviorProp);
+  const [trackerAppMode, setTrackerAppMode] = useState(trackerAppModeProp);
+  
+  // Sync tracker app mode from props when they change
+  useEffect(() => {
+    if (trackerAppModeProp !== trackerAppMode) {
+      setTrackerAppMode(trackerAppModeProp);
+    }
+  }, [trackerAppModeProp]);
   
   // Drag-and-drop state for dnd-kit
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -462,13 +474,25 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
             setDomainDefaultCategories(config.domainDefaultCategories);
           }
         } catch { /* ignore */ }
-      }
-      
-      // Load keyword-enabled domains
+}
+       
+      // Load keyword-enabled domains and their keyword sets
       if (window.deskflowAPI?.getKeywordEnabledDomains) {
         try {
           const domains = await window.deskflowAPI.getKeywordEnabledDomains();
           setKeywordEnabledDomains(domains);
+          
+// Load keyword sets for each domain
+          const keywordSetsMap: Record<string, { category: string; keywords: string[] }[]> = {};
+          for (const domain of domains) {
+            if (window.deskflowAPI?.getDomainKeywordRules) {
+              const rules = await window.deskflowAPI.getDomainKeywordRules(domain);
+              if (rules && rules.length > 0) {
+                keywordSetsMap[domain] = rules;
+              }
+            }
+          }
+          setDomainKeywordSets(keywordSetsMap);
         } catch { /* ignore */ }
       }
       
@@ -606,21 +630,21 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
     localStorage.setItem('deskflow-domain-category-overrides', JSON.stringify(domainCategoryOverrides));
     localStorage.setItem('deskflow-animation-speed', animationSpeed);
     
+    // Save tracker app mode to preferences
+    if (window.deskflowAPI?.setPreference) {
+      await window.deskflowAPI.setPreference('trackerAppMode', trackerAppMode);
+    }
+    
     // Save OpenRouter API key to preferences (strip quotes)
     if (openRouterApiKey && window.deskflowAPI?.setPreference) {
       const cleanKey = openRouterApiKey.trim().replace(/^["']|["']$/g, '');
       await window.deskflowAPI.setPreference('openrouterApiKey', cleanKey);
     }
     
-    // Save keyword-based productivity rules
-    for (const [domain, keywords] of Object.entries(domainKeywords)) {
+    // Save keyword-based productivity rules (new structure)
+    for (const [domain, keywordSets] of Object.entries(domainKeywordSets)) {
       if (window.deskflowAPI?.setDomainKeywordRules) {
-        await window.deskflowAPI.setDomainKeywordRules(domain, keywords);
-      }
-    }
-    for (const [domain, category] of Object.entries(domainDefaultCategories)) {
-      if (window.deskflowAPI?.setDomainDefaultCategory) {
-        await window.deskflowAPI.setDomainDefaultCategory(domain, category);
+        await window.deskflowAPI.setDomainKeywordRules(domain, keywordSets);
       }
     }
     
@@ -654,6 +678,22 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
       } else {
         // FORWARD: Save overrides to category config so NEW logs get correct category
         console.log('[Settings] Forward mode: saving category overrides for new logs...');
+        
+        // Save domain overrides to backend config (categoryConfig.domainCategoryMap)
+        for (const [domain, category] of Object.entries(domainCategoryOverrides)) {
+          if (window.deskflowAPI?.setDomainCategory) {
+            await window.deskflowAPI.setDomainCategory(domain, category);
+            console.log('[Settings] Saved domain override:', domain, '->', category);
+          }
+        }
+        // Save app overrides to backend config
+        for (const [app, category] of Object.entries(appCategoryOverrides)) {
+          if (window.deskflowAPI?.setAppCategory) {
+            await window.deskflowAPI.setAppCategory(app, category);
+            console.log('[Settings] Saved app override:', app, '->', category);
+          }
+        }
+        
         setSyncStatus('success');
         setSyncMessage('Settings saved');
       }
@@ -783,14 +823,16 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
   const [apiKeyTestMessage, setApiKeyTestMessage] = useState('');
   
   // Keyword-based productivity categorization state
+  // NEW structure: Record<domain, { category: string; keywords: string[] }[]>
   const [keywordEnabledDomains, setKeywordEnabledDomains] = useState<string[]>([]);
   const [editingKeywordDomain, setEditingKeywordDomain] = useState<string | null>(null);
-  const [domainKeywords, setDomainKeywords] = useState<Record<string, string[]>>({});
-  const [domainDefaultCategories, setDomainDefaultCategories] = useState<Record<string, string>>({});
+  const [domainKeywordSets, setDomainKeywordSets] = useState<Record<string, { category: string; keywords: string[] }[]>>({});
   const [newKeywordDomain, setNewKeywordDomain] = useState('');
-  const [newKeywordInput, setNewKeywordInput] = useState('');
-  const [editingKeywords, setEditingKeywords] = useState<string[]>([]);
+  
+  // Keyword set editing state
+  const [editingKeywordSets, setEditingKeywordSets] = useState<{ category: string; keywords: string[] }[]>([]);
   const [tempKeywordInput, setTempKeywordInput] = useState('');
+  const [tempCategoryForNewSet, setTempCategoryForNewSet] = useState('Education');
 
   const ITEMS_PER_PAGE = 5;
 
@@ -1469,47 +1511,51 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
             {/* List of domains with keyword rules */}
             <div className="space-y-2 mb-4">
               {keywordEnabledDomains.length > 0 ? (
-                keywordEnabledDomains.map((domain) => (
-                  <div
-                    key={domain}
-                    className="flex items-center justify-between p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/30"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <Globe className="w-4 h-4 text-zinc-500" />
-                      <div>
-                        <div className="text-sm font-medium text-zinc-200">{domain}</div>
-                        <div className="text-xs text-zinc-500">
-                          {domainKeywords[domain]?.length || 0} keywords - Default: {domainDefaultCategories[domain] || 'Entertainment'}
+                keywordEnabledDomains.map((domain) => {
+                  const sets = domainKeywordSets[domain] || [];
+                  const totalKeywords = sets.reduce((acc, s) => acc + (s.keywords?.length || 0), 0);
+                  return (
+                    <div
+                      key={domain}
+                      className="flex items-center justify-between p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/30"
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <Globe className="w-4 h-4 text-zinc-500" />
+                        <div>
+                          <div className="text-sm font-medium text-zinc-200">{domain}</div>
+                          <div className="text-xs text-zinc-500">
+                            {sets.length} rule(s), {totalKeywords} keywords total
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingKeywordDomain(domain);
+                            setEditingKeywordSets(domainKeywordSets[domain] || []);
+                            setTempKeywordInput('');
+                          }}
+                          className="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-all"
+                        >
+                          Configure
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (window.deskflowAPI?.removeKeywordDomain) {
+                              await window.deskflowAPI.removeKeywordDomain(domain);
+                              setKeywordEnabledDomains(prev => prev.filter(d => d !== domain));
+                              setHasChanges(true);
+                              onHasChangesChange(true);
+                            }
+                          }}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 transition-all"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingKeywordDomain(domain);
-                          setEditingKeywords(domainKeywords[domain] || []);
-                          setTempKeywordInput('');
-                        }}
-                        className="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-all"
-                      >
-                        Configure
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (window.deskflowAPI?.removeKeywordDomain) {
-                            await window.deskflowAPI.removeKeywordDomain(domain);
-                            setKeywordEnabledDomains(prev => prev.filter(d => d !== domain));
-                            setHasChanges(true);
-                            onHasChangesChange(true);
-                          }
-                        }}
-                        className="p-1.5 text-zinc-500 hover:text-red-400 transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-6 text-zinc-500">
                   <Globe className="w-6 h-6 mx-auto mb-2 opacity-50" />
@@ -1519,7 +1565,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
               )}
             </div>
 
-            {/* Configuration panel */}
+            {/* Configuration panel - NEW: Multiple keyword sets */}
             {editingKeywordDomain && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -1533,7 +1579,7 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   <button
                     onClick={() => {
                       setEditingKeywordDomain(null);
-                      setEditingKeywords([]);
+                      setEditingKeywordSets([]);
                       setTempKeywordInput('');
                     }}
                     className="p-1 text-zinc-500 hover:text-white transition-all"
@@ -1563,98 +1609,133 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   </div>
                 )}
 
-                {/* Keyword Tags Input */}
-                <div className="mb-4">
-                  <label className="text-xs text-zinc-400 mb-1.5 block">Productivity Keywords</label>
-                  <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
-                    {(editingKeywordDomain === 'new' ? editingKeywords : (domainKeywords[editingKeywordDomain] || []))
-                      .map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-medium"
-                      >
-                        {keyword}
-                        <button
-                          onClick={() => {
-                            if (editingKeywordDomain === 'new') {
-                              setEditingKeywords(prev => prev.filter((_, i) => i !== idx));
-                            } else {
-                              const updated = (domainKeywords[editingKeywordDomain] || []).filter((_, i) => i !== idx);
-                              setDomainKeywords(prev => ({ ...prev, [editingKeywordDomain]: updated }));
-                              setEditingKeywords(updated);
-                            }
-                          }}
-                          className="hover:text-emerald-300 transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
+                {/* Keyword Sets - each set has category + keywords */}
+                <div className="space-y-3 mb-4">
+                  {(editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []))
+                    .map((set, setIdx) => (
+                      <div key={setIdx} className="p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <select
+                            value={set.category}
+                            onChange={(e) => {
+                              const updated = [...(editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []))];
+                              updated[setIdx] = { ...updated[setIdx], category: e.target.value };
+                              if (editingKeywordDomain === 'new') {
+                                setEditingKeywordSets(updated);
+                              } else {
+                                setDomainKeywordSets(prev => ({ ...prev, [editingKeywordDomain]: updated }));
+                                setEditingKeywordSets(updated);
+                              }
+                            }}
+                            className="px-2 py-1 bg-zinc-700 border border-zinc-600 rounded text-xs text-white"
+                          >
+                            {DEFAULT_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => {
+                              const updated = [...(editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []))];
+                              updated.splice(setIdx, 1);
+                              if (editingKeywordDomain === 'new') {
+                                setEditingKeywordSets(updated);
+                              } else {
+                                setDomainKeywordSets(prev => ({ ...prev, [editingKeywordDomain]: updated }));
+                                setEditingKeywordSets(updated);
+                              }
+                            }}
+                            className="p-1 text-zinc-500 hover:text-red-400"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {(set.keywords || []).map((keyword, kwIdx) => (
+                            <span key={kwIdx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full text-xs">
+                              {keyword}
+                              <button
+                                onClick={() => {
+                                  const updated = [...(editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []))];
+                                  updated[setIdx] = { 
+                                    ...updated[setIdx], 
+                                    keywords: (updated[setIdx].keywords || []).filter((_, i) => i !== kwIdx) 
+                                  };
+                                  if (editingKeywordDomain === 'new') {
+                                    setEditingKeywordSets(updated);
+                                  } else {
+                                    setDomainKeywordSets(prev => ({ ...prev, [editingKeywordDomain]: updated }));
+                                    setEditingKeywordSets(updated);
+                                  }
+                                }}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                          {(!set.keywords || set.keywords.length === 0) && (
+                            <span className="text-xs text-zinc-500 italic">No keywords - will always use this category</span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={setIdx === (editingKeywordDomain === 'new' ? editingKeywordSets.length - 1 : (domainKeywordSets[editingKeywordDomain] || []).length - 1) ? tempKeywordInput : ''}
+                            onChange={(e) => setTempKeywordInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && tempKeywordInput.trim()) {
+                                e.preventDefault();
+                                const newKeyword = tempKeywordInput.trim().toLowerCase();
+                                const updated = [...(editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []))];
+                                if (!updated[setIdx].keywords) updated[setIdx].keywords = [];
+                                if (!updated[setIdx].keywords.includes(newKeyword)) {
+                                  updated[setIdx] = { 
+                                    ...updated[setIdx], 
+                                    keywords: [...updated[setIdx].keywords, newKeyword] 
+                                  };
+                                  if (editingKeywordDomain === 'new') {
+                                    setEditingKeywordSets(updated);
+                                  } else {
+                                    setDomainKeywordSets(prev => ({ ...prev, [editingKeywordDomain]: updated }));
+                                    setEditingKeywordSets(updated);
+                                  }
+                                }
+                                setTempKeywordInput('');
+                              }
+                            }}
+                            placeholder={`Add keyword for ${set.category}...`}
+                            className="flex-1 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-white placeholder-zinc-500"
+                          />
+                        </div>
+                      </div>
                     ))}
-                    {(editingKeywordDomain === 'new' ? editingKeywords.length === 0 : !(domainKeywords[editingKeywordDomain]?.length > 0)) && (
-                      <span className="text-xs text-zinc-500 italic">No keywords added yet</span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={tempKeywordInput}
-                      onChange={(e) => setTempKeywordInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && tempKeywordInput.trim()) {
-                          e.preventDefault();
-                          const newKeyword = tempKeywordInput.trim().toLowerCase();
-                          if (!editingKeywords.includes(newKeyword)) {
-                            setEditingKeywords(prev => [...prev, newKeyword]);
-                            if (editingKeywordDomain !== 'new') {
-                              setDomainKeywords(prev => ({
-                                ...prev,
-                                [editingKeywordDomain]: [...(prev[editingKeywordDomain] || []), newKeyword]
-                              }));
-                            }
-                          }
-                          setTempKeywordInput('');
-                        }
-                      }}
-                      placeholder="Type a keyword and press Enter"
-                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
-                    />
-                    <button
-                      onClick={() => {
-                        if (tempKeywordInput.trim()) {
-                          const newKeyword = tempKeywordInput.trim().toLowerCase();
-                          if (!editingKeywords.includes(newKeyword)) {
-                            setEditingKeywords(prev => [...prev, newKeyword]);
-                            if (editingKeywordDomain !== 'new') {
-                              setDomainKeywords(prev => ({
-                                ...prev,
-                                [editingKeywordDomain]: [...(prev[editingKeywordDomain] || []), newKeyword]
-                              }));
-                            }
-                          }
-                          setTempKeywordInput('');
-                        }
-                      }}
-                      className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium transition-all"
-                    >
-                      Add
-                    </button>
-                  </div>
                 </div>
 
-                {/* Default Category */}
-                <div className="mb-4">
-                  <label className="text-xs text-zinc-400 mb-1.5 block">Default Category</label>
+                {/* Add new keyword set button */}
+                <button
+                  onClick={() => {
+                    const newSet = { category: tempCategoryForNewSet, keywords: [] };
+                    if (editingKeywordDomain === 'new') {
+                      setEditingKeywordSets(prev => [...prev, newSet]);
+                    } else {
+                      setDomainKeywordSets(prev => ({ 
+                        ...prev, 
+                        [editingKeywordDomain]: [...(prev[editingKeywordDomain] || []), newSet] 
+                      }));
+                      setEditingKeywordSets(prev => [...prev, newSet]);
+                    }
+                  }}
+                  className="w-full py-2 mb-4 border border-dashed border-zinc-600 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 rounded-lg text-sm transition-all"
+                >
+                  + Add Keyword Set
+                </button>
+
+                {/* Category selector for new set */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs text-zinc-400">New set category:</span>
                   <select
-                    value={editingKeywordDomain === 'new' ? 'Entertainment' : (domainDefaultCategories[editingKeywordDomain] || 'Entertainment')}
-                    onChange={(e) => {
-                      if (editingKeywordDomain !== 'new') {
-                        setDomainDefaultCategories(prev => ({
-                          ...prev,
-                          [editingKeywordDomain]: e.target.value
-                        }));
-                      }
-                    }}
-                    className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                    value={tempCategoryForNewSet}
+                    onChange={(e) => setTempCategoryForNewSet(e.target.value)}
+                    className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-white"
                   >
                     {DEFAULT_CATEGORIES.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
@@ -1662,12 +1743,16 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   </select>
                 </div>
 
+                {/* Note about fallback */}
+                <p className="text-xs text-zinc-500 mb-4">
+                  If no keywords match, falls back to Category Overrides setting
+                </p>
+
                 {/* Save Button */}
                 <button
                   onClick={async () => {
                     const domain = editingKeywordDomain === 'new' ? newKeywordDomain.toLowerCase() : editingKeywordDomain;
-                    const keywords = editingKeywords;
-                    const defaultCat = editingKeywordDomain === 'new' ? 'Entertainment' : (domainDefaultCategories[editingKeywordDomain] || 'Entertainment');
+                    const keywordSets = editingKeywordDomain === 'new' ? editingKeywordSets : (domainKeywordSets[editingKeywordDomain] || []);
 
                     if (!domain) {
                       alert('Please select a website');
@@ -1675,26 +1760,25 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                     }
 
                     if (window.deskflowAPI?.addKeywordDomain) {
-                      await window.deskflowAPI.addKeywordDomain(domain, keywords, defaultCat);
-                      setDomainKeywords(prev => ({ ...prev, [domain]: keywords }));
-                      setDomainDefaultCategories(prev => ({ ...prev, [domain]: defaultCat }));
+                      await window.deskflowAPI.addKeywordDomain(domain, keywordSets);
                       
                       if (editingKeywordDomain === 'new') {
+                        setDomainKeywordSets(prev => ({ ...prev, [domain]: keywordSets }));
                         setKeywordEnabledDomains(prev => [...prev, domain]);
+                      } else {
+                        setDomainKeywordSets(prev => ({ ...prev, [domain]: keywordSets }));
                       }
                       
                       setEditingKeywordDomain(null);
-                      setEditingKeywords([]);
+                      setEditingKeywordSets([]);
                       setTempKeywordInput('');
                       setNewKeywordDomain('');
-                      setHasChanges(true);
-                      onHasChangesChange(true);
                     }
                   }}
                   disabled={editingKeywordDomain === 'new' && !newKeywordDomain}
                   className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all"
                 >
-                  {editingKeywordDomain === 'new' ? 'Add Domain' : 'Save Changes'}
+                  {editingKeywordDomain === 'new' ? 'Add Domain' : 'Done'}
                 </button>
               </motion.div>
             )}
@@ -1706,16 +1790,49 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
         <div className="space-y-4">
           <div className="glass rounded-3xl p-5 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold mb-3">Preferences</h2>
+              <h2 className="text-lg font-semibold mb-3">App Tracker Behavior</h2>
               
               <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-zinc-400 mb-2 block">App Tracker Window Mode</label>
+                  <div className="flex gap-2">
+                    {(['show-other', 'pause', 'track'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          setTrackerAppMode(mode);
+                          setTrackerAppModeProp(mode);
+                          setHasChanges(true);
+                          onHasChangesChange(true);
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition flex-1 ${
+                          trackerAppMode === mode
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {mode === 'show-other' ? 'Show Other Apps' : mode === 'pause' ? 'Pause Timer' : 'Track as Normal'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-2 space-y-1 text-xs text-zinc-500">
+                    <p><span className="text-emerald-400">Show Other Apps:</span> When you open the tracker, it keeps showing the last app you were using. The tracker app itself is not tracked.</p>
+                    <p><span className="text-amber-400">Pause Timer:</span> The stopwatch pauses when you're using the tracker app (but previous time is preserved). Useful when reviewing stats.</p>
+                    <p><span className="text-blue-400">Track as Normal:</span> The tracker app is tracked like any other app. Timer counts based on its category.</p>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-sm font-medium text-zinc-400 mb-2 block">Idle Threshold</label>
                   <div className="flex gap-2">
                     {[3, 5, 10].map(m => (
                       <button
                         key={m}
-                        onClick={() => setIdleThreshold(m)}
+                        onClick={() => {
+                          setIdleThreshold(m);
+                          setHasChanges(true);
+                          onHasChangesChange(true);
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                           idleThreshold === m
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
@@ -1738,6 +1855,8 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                           const newBehavior = { ...localTimerBehavior, neutralAction: action };
                           setLocalTimerBehavior(newBehavior);
                           setTimerBehaviorProp(newBehavior);
+                          setHasChanges(true);
+                          onHasChangesChange(true);
                           if (window.deskflowAPI?.setPreference) {
                             window.deskflowAPI.setPreference('timerBehavior', newBehavior);
                           }
@@ -1765,6 +1884,8 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                           const newBehavior = { ...localTimerBehavior, distractingAction: action };
                           setLocalTimerBehavior(newBehavior);
                           setTimerBehaviorProp(newBehavior);
+                          setHasChanges(true);
+                          onHasChangesChange(true);
                           if (window.deskflowAPI?.setPreference) {
                             window.deskflowAPI.setPreference('timerBehavior', newBehavior);
                           }
@@ -1788,7 +1909,11 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                     <div className="text-xs text-zinc-500">Export data periodically</div>
                   </div>
                   <button
-                    onClick={() => setAutoExport(!autoExport)}
+                    onClick={() => {
+                      setAutoExport(!autoExport);
+                      setHasChanges(true);
+                      onHasChangesChange(true);
+                    }}
                     className={`w-12 h-6 rounded-full transition-all relative ${
                       autoExport ? 'bg-emerald-500' : 'bg-zinc-700'
                     }`}
@@ -1809,6 +1934,8 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                       const newValue = !autoStartEnabled;
                       setAutoStartEnabled(newValue);
                       setAutoStartEnabledProp?.(newValue);
+                      setHasChanges(true);
+                      onHasChangesChange(true);
                       if (window.deskflowAPI?.setAutoStart) {
                         await window.deskflowAPI.setAutoStart(newValue);
                       }
@@ -2178,14 +2305,14 @@ const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>(() => {
                   }}
                   className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
                 >
-                  Reset
+                  Discard
                 </button>
                 <button
                   onClick={saveChanges}
                   className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-emerald-500/25 flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
-                  Save Changes
+                  OK
                 </button>
               </div>
             </div>

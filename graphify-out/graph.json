@@ -9,7 +9,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L1",
       "id": "complete",
-      "community": 7
+      "community": 8
     },
     {
       "label": "beep()",
@@ -17,7 +17,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L15",
       "id": "complete_beep",
-      "community": 7
+      "community": 8
     },
     {
       "label": "speak()",
@@ -25,7 +25,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L42",
       "id": "complete_speak",
-      "community": 7
+      "community": 8
     },
     {
       "label": "main()",
@@ -33,7 +33,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L90",
       "id": "complete_main",
-      "community": 7
+      "community": 8
     },
     {
       "label": "Play a simple system beep.",
@@ -41,7 +41,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L16",
       "id": "complete_rationale_16",
-      "community": 7
+      "community": 8
     },
     {
       "label": "Speak text using offline TTS (pyttsx3 if available).     Falls back to system TT",
@@ -49,7 +49,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\complete.py",
       "source_location": "L43",
       "id": "complete_rationale_43",
-      "community": 7
+      "community": 8
     },
     {
       "label": "electron.vite.config.ts",
@@ -57,7 +57,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\electron.vite.config.ts",
       "source_location": "L1",
       "id": "electron_vite_config",
-      "community": 14
+      "community": 15
     },
     {
       "label": "eslint.config.js",
@@ -65,7 +65,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\eslint.config.js",
       "source_location": "L1",
       "id": "eslint_config",
-      "community": 15
+      "community": 16
     },
     {
       "label": "vite.config.ts",
@@ -73,7 +73,7 @@
       "source_file": "C:\\Users\\cleme\\Documents\\COMPUTAH_SAYENCE\\App Tracker\\vite.config.ts",
       "source_location": "L1",
       "id": "vite_config",
-      "community": 16
+      "community": 17
     },
     {
       "label": "graphify-pipeline.py",
@@ -81,7 +81,7 @@
       "source_file": "agent\\docs\\graphify\\graphify-pipeline.py",
       "source_location": "L1",
       "id": "graphify_pipeline",
-      "community": 12
+      "community": 13
     },
     {
       "label": "Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline",
@@ -89,7 +89,7 @@
       "source_file": "agent\\docs\\graphify\\graphify-pipeline.py",
       "source_location": "L1",
       "id": "graphify_pipeline_rationale_1",
-      "community": 12
+      "community": 13
     },
     {
       "label": "graphify_maintain.py",
@@ -97,7 +97,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L1",
       "id": "graphify_maintain",
-      "community": 8
+      "community": 9
     },
     {
       "label": "rebuild_code_fix()",
@@ -105,7 +105,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L6",
       "id": "graphify_maintain_rebuild_code_fix",
-      "community": 8
+      "community": 9
     },
     {
       "label": "validate_report()",
@@ -113,7 +113,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L119",
       "id": "graphify_maintain_validate_report",
-      "community": 8
+      "community": 9
     },
     {
       "label": "sync_to_vault()",
@@ -121,7 +121,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L208",
       "id": "graphify_maintain_sync_to_vault",
-      "community": 8
+      "community": 9
     },
     {
       "label": "Check GRAPH_REPORT.md exists and has content. Regenerate if broken.",
@@ -129,7 +129,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L120",
       "id": "graphify_maintain_rationale_120",
-      "community": 8
+      "community": 9
     },
     {
       "label": "Sync graphify-out/ to Obsidian vault.",
@@ -137,7 +137,7 @@
       "source_file": "agent\\skills\\maintain-context\\graphify_maintain.py",
       "source_location": "L209",
       "id": "graphify_maintain_rationale_209",
-      "community": 8
+      "community": 9
     },
     {
       "label": "background.js",
@@ -279,7 +279,7 @@
       "label": "generateDistinctColors()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L261",
+      "source_location": "L269",
       "id": "app_generatedistinctcolors",
       "community": 1
     },
@@ -287,7 +287,7 @@
       "label": "hslToHex()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L273",
+      "source_location": "L281",
       "id": "app_hsltohex",
       "community": 1
     },
@@ -295,7 +295,7 @@
       "label": "loadData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L362",
+      "source_location": "L370",
       "id": "app_loaddata",
       "community": 1
     },
@@ -303,7 +303,7 @@
       "label": "loadTrackingBrowser()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L534",
+      "source_location": "L570",
       "id": "app_loadtrackingbrowser",
       "community": 1
     },
@@ -311,7 +311,7 @@
       "label": "loadOverrides()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L553",
+      "source_location": "L589",
       "id": "app_loadoverrides",
       "community": 1
     },
@@ -319,7 +319,7 @@
       "label": "reloadOverrides()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L585",
+      "source_location": "L621",
       "id": "app_reloadoverrides",
       "community": 1
     },
@@ -327,7 +327,7 @@
       "label": "handleStorage()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L604",
+      "source_location": "L640",
       "id": "app_handlestorage",
       "community": 1
     },
@@ -335,7 +335,7 @@
       "label": "loadDbTables()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L820",
+      "source_location": "L884",
       "id": "app_loaddbtables",
       "community": 1
     },
@@ -343,7 +343,7 @@
       "label": "handleActivity()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1004",
+      "source_location": "L1068",
       "id": "app_handleactivity",
       "community": 1
     },
@@ -351,7 +351,7 @@
       "label": "handleFocus()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1025",
+      "source_location": "L1089",
       "id": "app_handlefocus",
       "community": 1
     },
@@ -359,7 +359,7 @@
       "label": "handleVisibilityChange()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1035",
+      "source_location": "L1099",
       "id": "app_handlevisibilitychange",
       "community": 1
     },
@@ -367,7 +367,7 @@
       "label": "switchApp()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1104",
+      "source_location": "L1168",
       "id": "app_switchapp",
       "community": 1
     },
@@ -375,7 +375,7 @@
       "label": "toggleTracking()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1132",
+      "source_location": "L1196",
       "id": "app_toggletracking",
       "community": 1
     },
@@ -383,7 +383,7 @@
       "label": "clearToday()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1169",
+      "source_location": "L1233",
       "id": "app_cleartoday",
       "community": 1
     },
@@ -391,7 +391,7 @@
       "label": "cleanCorruptedData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1195",
+      "source_location": "L1259",
       "id": "app_cleancorrupteddata",
       "community": 1
     },
@@ -399,7 +399,7 @@
       "label": "getTotalTime()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1224",
+      "source_location": "L1288",
       "id": "app_gettotaltime",
       "community": 1
     },
@@ -407,7 +407,7 @@
       "label": "getAppDistribution()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1365",
+      "source_location": "L1429",
       "id": "app_getappdistribution",
       "community": 1
     },
@@ -415,7 +415,7 @@
       "label": "generateAISummary()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1420",
+      "source_location": "L1527",
       "id": "app_generateaisummary",
       "community": 1
     },
@@ -423,7 +423,7 @@
       "label": "exportData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1462",
+      "source_location": "L1569",
       "id": "app_exportdata",
       "community": 1
     },
@@ -431,7 +431,7 @@
       "label": "clearData()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1528",
+      "source_location": "L1635",
       "id": "app_cleardata",
       "community": 1
     },
@@ -439,7 +439,7 @@
       "label": "formatTime()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1603",
+      "source_location": "L1710",
       "id": "app_formattime",
       "community": 1
     },
@@ -447,7 +447,7 @@
       "label": "formatDuration()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1612",
+      "source_location": "L1719",
       "id": "app_formatduration",
       "community": 1
     },
@@ -455,7 +455,7 @@
       "label": "getHeatColor()",
       "file_type": "code",
       "source_file": "src\\App.tsx",
-      "source_location": "L1642",
+      "source_location": "L1749",
       "id": "app_getheatcolor",
       "community": 1
     },
@@ -793,7 +793,7 @@
       "source_file": "src\\node-pty.d.ts",
       "source_location": "L1",
       "id": "node_pty_d",
-      "community": 17
+      "community": 18
     },
     {
       "label": "preload.ts",
@@ -801,7 +801,7 @@
       "source_file": "src\\preload.ts",
       "source_location": "L1",
       "id": "preload",
-      "community": 13
+      "community": 14
     },
     {
       "label": "handler()",
@@ -809,7 +809,7 @@
       "source_file": "src\\preload.ts",
       "source_location": "L158",
       "id": "preload_handler",
-      "community": 13
+      "community": 14
     },
     {
       "label": "OrbitSystem.tsx",
@@ -1161,31 +1161,63 @@
       "source_file": "src\\pages\\DashboardPage.tsx",
       "source_location": "L1",
       "id": "dashboardpage",
-      "community": 1
+      "community": 6
     },
     {
       "label": "formatDuration()",
       "file_type": "code",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L51",
+      "source_location": "L61",
       "id": "dashboardpage_formatduration",
-      "community": 1
+      "community": 6
+    },
+    {
+      "label": "getPersistedTimerState()",
+      "file_type": "code",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L149",
+      "id": "dashboardpage_getpersistedtimerstate",
+      "community": 6
+    },
+    {
+      "label": "getPersistedActivityFeed()",
+      "file_type": "code",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L177",
+      "id": "dashboardpage_getpersistedactivityfeed",
+      "community": 6
     },
     {
       "label": "getTierFromCategory()",
       "file_type": "code",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L180",
+      "source_location": "L306",
       "id": "dashboardpage_gettierfromcategory",
-      "community": 1
+      "community": 6
     },
     {
       "label": "getHeatmapColor()",
       "file_type": "code",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L349",
+      "source_location": "L572",
       "id": "dashboardpage_getheatmapcolor",
-      "community": 1
+      "community": 6
+    },
+    {
+      "label": "getHeatColor()",
+      "file_type": "code",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L700",
+      "id": "dashboardpage_getheatcolor",
+      "community": 6
+    },
+    {
+      "label": "formatHours()",
+      "file_type": "code",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L930",
+      "id": "dashboardpage_formathours",
+      "community": 6
     },
     {
       "label": "DatabasePage.tsx",
@@ -1193,7 +1225,7 @@
       "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L1",
       "id": "databasepage",
-      "community": 10
+      "community": 11
     },
     {
       "label": "formatDuration()",
@@ -1201,7 +1233,7 @@
       "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L16",
       "id": "databasepage_formatduration",
-      "community": 10
+      "community": 11
     },
     {
       "label": "formatCellValue()",
@@ -1209,7 +1241,7 @@
       "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L28",
       "id": "databasepage_formatcellvalue",
-      "community": 10
+      "community": 11
     },
     {
       "label": "DatabasePage()",
@@ -1217,7 +1249,7 @@
       "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L63",
       "id": "databasepage_databasepage",
-      "community": 10
+      "community": 11
     },
     {
       "label": "setTableData()",
@@ -1225,7 +1257,7 @@
       "source_file": "src\\pages\\DatabasePage.tsx",
       "source_location": "L310",
       "id": "databasepage_settabledata",
-      "community": 10
+      "community": 11
     },
     {
       "label": "ExternalPage.tsx",
@@ -1233,47 +1265,47 @@
       "source_file": "src\\pages\\ExternalPage.tsx",
       "source_location": "L1",
       "id": "externalpage",
-      "community": 9
+      "community": 10
     },
     {
       "label": "getIcon()",
       "file_type": "code",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L104",
+      "source_location": "L140",
       "id": "externalpage_geticon",
-      "community": 9
+      "community": 10
     },
     {
       "label": "formatDuration()",
       "file_type": "code",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L108",
+      "source_location": "L144",
       "id": "externalpage_formatduration",
-      "community": 9
+      "community": 10
     },
     {
       "label": "formatHours()",
       "file_type": "code",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L120",
+      "source_location": "L156",
       "id": "externalpage_formathours",
-      "community": 9
+      "community": 10
     },
     {
       "label": "calculateSleepDuration()",
       "file_type": "code",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L127",
+      "source_location": "L163",
       "id": "externalpage_calculatesleepduration",
-      "community": 9
+      "community": 10
     },
     {
       "label": "formatBedtime()",
       "file_type": "code",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L136",
+      "source_location": "L172",
       "id": "externalpage_formatbedtime",
-      "community": 9
+      "community": 10
     },
     {
       "label": "IDEHelpPage.tsx",
@@ -1327,7 +1359,7 @@
       "label": "formatHours()",
       "file_type": "code",
       "source_file": "src\\pages\\InsightsPage.tsx",
-      "source_location": "L22",
+      "source_location": "L25",
       "id": "insightspage_formathours",
       "community": 1
     },
@@ -1337,7 +1369,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L1",
       "id": "productivitypage",
-      "community": 11
+      "community": 12
     },
     {
       "label": "formatDuration()",
@@ -1345,7 +1377,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L90",
       "id": "productivitypage_formatduration",
-      "community": 11
+      "community": 12
     },
     {
       "label": "formatHours()",
@@ -1353,7 +1385,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L102",
       "id": "productivitypage_formathours",
-      "community": 11
+      "community": 12
     },
     {
       "label": "getCategoryColor()",
@@ -1361,7 +1393,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L108",
       "id": "productivitypage_getcategorycolor",
-      "community": 11
+      "community": 12
     },
     {
       "label": "toggleDomain()",
@@ -1369,7 +1401,7 @@
       "source_file": "src\\pages\\ProductivityPage.tsx",
       "source_location": "L160",
       "id": "productivitypage_toggledomain",
-      "community": 11
+      "community": 12
     },
     {
       "label": "SettingsPage.tsx",
@@ -1377,7 +1409,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L1",
       "id": "settingspage",
-      "community": 6
+      "community": 7
     },
     {
       "label": "handleClickOutside()",
@@ -1385,7 +1417,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L107",
       "id": "settingspage_handleclickoutside",
-      "community": 6
+      "community": 7
     },
     {
       "label": "handleEsc()",
@@ -1393,7 +1425,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L120",
       "id": "settingspage_handleesc",
-      "community": 6
+      "community": 7
     },
     {
       "label": "loadOverrides()",
@@ -1401,7 +1433,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L430",
       "id": "settingspage_loadoverrides",
-      "community": 6
+      "community": 7
     },
     {
       "label": "setLocalAppColors()",
@@ -1409,7 +1441,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L689",
       "id": "settingspage_setlocalappcolors",
-      "community": 6
+      "community": 7
     },
     {
       "label": "fetchDomainStats()",
@@ -1417,7 +1449,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L747",
       "id": "settingspage_fetchdomainstats",
-      "community": 6
+      "community": 7
     },
     {
       "label": "activeId()",
@@ -1425,7 +1457,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L977",
       "id": "settingspage_activeid",
-      "community": 6
+      "community": 7
     },
     {
       "label": "async()",
@@ -1433,7 +1465,7 @@
       "source_file": "src\\pages\\SettingsPage.tsx",
       "source_location": "L1093",
       "id": "settingspage_async",
-      "community": 6
+      "community": 7
     },
     {
       "label": "StatsPage.tsx",
@@ -2193,7 +2225,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L261",
+      "source_location": "L269",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_generatedistinctcolors",
@@ -2205,7 +2237,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L273",
+      "source_location": "L281",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_hsltohex",
@@ -2217,7 +2249,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L362",
+      "source_location": "L370",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loaddata",
@@ -2229,7 +2261,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L534",
+      "source_location": "L570",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loadtrackingbrowser",
@@ -2241,7 +2273,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L553",
+      "source_location": "L589",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loadoverrides",
@@ -2253,7 +2285,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L585",
+      "source_location": "L621",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_reloadoverrides",
@@ -2265,7 +2297,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L604",
+      "source_location": "L640",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlestorage",
@@ -2277,7 +2309,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L820",
+      "source_location": "L884",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_loaddbtables",
@@ -2289,7 +2321,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1004",
+      "source_location": "L1068",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handleactivity",
@@ -2301,7 +2333,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1025",
+      "source_location": "L1089",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlefocus",
@@ -2313,7 +2345,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1035",
+      "source_location": "L1099",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_handlevisibilitychange",
@@ -2325,7 +2357,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1104",
+      "source_location": "L1168",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_switchapp",
@@ -2337,7 +2369,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1132",
+      "source_location": "L1196",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_toggletracking",
@@ -2349,7 +2381,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1169",
+      "source_location": "L1233",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleartoday",
@@ -2361,7 +2393,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1195",
+      "source_location": "L1259",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleancorrupteddata",
@@ -2373,7 +2405,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1224",
+      "source_location": "L1288",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_gettotaltime",
@@ -2385,7 +2417,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1365",
+      "source_location": "L1429",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_getappdistribution",
@@ -2397,7 +2429,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1420",
+      "source_location": "L1527",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_generateaisummary",
@@ -2409,7 +2441,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1462",
+      "source_location": "L1569",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_exportdata",
@@ -2421,7 +2453,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1528",
+      "source_location": "L1635",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_cleardata",
@@ -2433,7 +2465,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1603",
+      "source_location": "L1710",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_formattime",
@@ -2445,7 +2477,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1612",
+      "source_location": "L1719",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_formatduration",
@@ -2457,7 +2489,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L1642",
+      "source_location": "L1749",
       "weight": 1.0,
       "_src": "app",
       "_tgt": "app_getheatcolor",
@@ -2469,7 +2501,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\App.tsx",
-      "source_location": "L604",
+      "source_location": "L640",
       "weight": 1.0,
       "_src": "app_handlestorage",
       "_tgt": "app_reloadoverrides",
@@ -3765,7 +3797,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L51",
+      "source_location": "L61",
       "weight": 1.0,
       "_src": "dashboardpage",
       "_tgt": "dashboardpage_formatduration",
@@ -3777,7 +3809,31 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L180",
+      "source_location": "L149",
+      "weight": 1.0,
+      "_src": "dashboardpage",
+      "_tgt": "dashboardpage_getpersistedtimerstate",
+      "source": "dashboardpage",
+      "target": "dashboardpage_getpersistedtimerstate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L177",
+      "weight": 1.0,
+      "_src": "dashboardpage",
+      "_tgt": "dashboardpage_getpersistedactivityfeed",
+      "source": "dashboardpage",
+      "target": "dashboardpage_getpersistedactivityfeed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L306",
       "weight": 1.0,
       "_src": "dashboardpage",
       "_tgt": "dashboardpage_gettierfromcategory",
@@ -3789,12 +3845,36 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\DashboardPage.tsx",
-      "source_location": "L349",
+      "source_location": "L572",
       "weight": 1.0,
       "_src": "dashboardpage",
       "_tgt": "dashboardpage_getheatmapcolor",
       "source": "dashboardpage",
       "target": "dashboardpage_getheatmapcolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L700",
+      "weight": 1.0,
+      "_src": "dashboardpage",
+      "_tgt": "dashboardpage_getheatcolor",
+      "source": "dashboardpage",
+      "target": "dashboardpage_getheatcolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\DashboardPage.tsx",
+      "source_location": "L930",
+      "weight": 1.0,
+      "_src": "dashboardpage",
+      "_tgt": "dashboardpage_formathours",
+      "source": "dashboardpage",
+      "target": "dashboardpage_formathours",
       "confidence_score": 1.0
     },
     {
@@ -3861,7 +3941,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L104",
+      "source_location": "L140",
       "weight": 1.0,
       "_src": "externalpage",
       "_tgt": "externalpage_geticon",
@@ -3873,7 +3953,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L108",
+      "source_location": "L144",
       "weight": 1.0,
       "_src": "externalpage",
       "_tgt": "externalpage_formatduration",
@@ -3885,7 +3965,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L120",
+      "source_location": "L156",
       "weight": 1.0,
       "_src": "externalpage",
       "_tgt": "externalpage_formathours",
@@ -3897,7 +3977,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L127",
+      "source_location": "L163",
       "weight": 1.0,
       "_src": "externalpage",
       "_tgt": "externalpage_calculatesleepduration",
@@ -3909,7 +3989,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\ExternalPage.tsx",
-      "source_location": "L136",
+      "source_location": "L172",
       "weight": 1.0,
       "_src": "externalpage",
       "_tgt": "externalpage_formatbedtime",
@@ -3969,7 +4049,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\pages\\InsightsPage.tsx",
-      "source_location": "L22",
+      "source_location": "L25",
       "weight": 1.0,
       "_src": "insightspage",
       "_tgt": "insightspage_formathours",

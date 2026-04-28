@@ -4,6 +4,43 @@
 
 ---
 
+## ⚡ PRIME STATE - MANDATORY PERFORMANCE STANDARD
+
+**YOU MUST ALWAYS BE IN YOUR PRIME STATE.** This is not optional.
+
+### What This Means:
+1. **ALWAYS be in peak performance mode** - Analyze thoroughly, execute precisely, verify completely
+2. **NEVER produce mediocre work** - If a task is worth doing, it's worth doing right the first time
+3. **Read all relevant files BEFORE coding** - Never guess, never assume, always verify
+4. **Understand the data flow FIRST** - Trace from source to display before touching code
+5. **Match existing patterns** - Follow the codebase's conventions, don't impose external preferences
+6. **Verify EVERY change** - Run build, test, confirm before moving on
+
+### Prime State Checklist (Before Any Output):
+- [ ] Read the relevant files thoroughly
+- [ ] Understand exactly what the user wants (clarify if needed)
+- [ ] Trace the complete data flow
+- [ ] Identify the root cause (not just symptoms)
+- [ ] Make surgical changes only
+- [ ] Verify build passes
+- [ ] Confirm the fix actually solves the problem
+
+### What Kills Prime State:
+- Rushing without understanding
+- Making assumptions instead of reading code
+- Hitting walls repeatedly due to poor analysis
+- Ignoring existing patterns
+- Leaving build errors
+
+### If You Fall Out of Prime State:
+1. Stop immediately
+2. Re-read the relevant files
+3. Trace the data flow again
+4. Ask clarifying questions if unsure
+5. Resume only when you're certain
+
+---
+
 ## 🚀 Mandatory Workflow
 
 ### Before Starting ANY Work:
@@ -32,26 +69,165 @@
 5. **Verify build** - Run `npm run build` and ensure nothing is broken
 6. **Clean up** - Remove debug code, comments, temporary files
 7. **Notify user** - Run `python complete.py --speak "[task description]" --project "[project name]"` to notify user task is complete (if complete.py exists)
-8. **Auto-Reflect** - See section below for when to trigger reflection
+8. **Auto-Reflect** - See section below when triggered
 
 ---
 
-## 🔄 Auto-Reflect After User Approval
+## 🧠 THINK BEFORE DOING - Mandatory Analysis Phase
+
+**CRITICAL:** Before solving ANY problem, you MUST do this analysis FIRST:
+
+### Step 1: Clarify the Problem
+1. **List EXACTLY what the user is saying is broken** - not your interpretation
+2. **Ask the user to confirm** if unclear - NEVER assume
+3. Write down the exact user behavior vs expected behavior
+
+### Step 2: Understand Current Flow
+For EACH issue, trace the complete code flow:
+1. Where does the data come from? (Database? localStorage? Props?)
+2. How does it get passed to the component?
+3. What happens when user interacts?
+4. Where is the output displayed?
+
+### Step 3: List Specific Issues
+For each problem, write:
+```
+Problem X: [exact description]
+- Current behavior: [what actually happens]
+- Expected behavior: [what should happen]  
+- Data flow: [trace the path]
+- Root cause: [where in the code it breaks]
+```
+
+### Step 4: Get User Confirmation
+Show your analysis to the user and ask: "Is this what you mean?" 
+Only proceed AFTER they confirm.
+
+### Why This Matters
+- The app has complex data flows (App.tsx → DashboardPage.tsx → localStorage/DB)
+- Missing data loading (like externalActivities) breaks everything
+- You CANNOT solve problems by reading code alone - you need USER CONFIRMATION
+
+---
+
+## 📋 PHASE PLANNING FOR LARGE TASK LISTS
+
+When given multiple tasks (5+), ALWAYS break them into phases to maintain focus.
+
+### Phase Planning Rules:
+
+1. **List all tasks** - Write them all out
+2. **Categorize by priority:**
+   - Critical fixes (bugs that break functionality)
+   - Important features (requested by user)
+   - Nice-to-have (polish, improvements)
+   - Documentation
+3. **Order by dependency:** What must be done before something else?
+4. **Plan phases:** Complete ONE phase before moving to the next
+
+### Phase Execution:
+- Complete ONE phase before moving to the next
+- Report progress after each phase
+- Get user confirmation before continuing
+
+### Example Phase Plan:
+```
+## Tasks to Complete:
+1. Bug A - timer resets randomly
+2. Bug B - toggle position shifts
+3. Feature C - dashboard integration
+4. Feature D - edit functionality
+5. Doc E - update docs
+
+## Phase 1 - Critical Bugs:
+- Bug A, Bug B
+
+## Phase 2 - Core Features:
+- Feature C
+
+## Phase 3 - Polish & Features:
+- Feature D, Doc E
+```
+
+---
+
+## 📚 UNDERSTANDING THE AGENT MARKDOWN FILES
+
+This project uses multiple markdown files for documentation. Here's what each one is for:
+
+| File | Purpose | When to Update |
+|------|---------|----------------|
+| `agents.md` | Instructions for AI agents working on this project | When project rules change |
+| `state.md` | Current version, recent changes, known issues | After EVERY code change |
+| `PROBLEMS.md` | Issue tracker with status and root causes | When bugs found/fixed |
+| `REQUESTS.md` | User requests and their history | When user asks for something |
+| `context.md` | Architecture, tech stack, data flow | When architecture changes |
+| `debugging.md` | Known error patterns and solutions | When debugging patterns discovered |
+| `patterns.md` | Reusable code patterns | When new patterns introduced |
+| `constraints.md` | Hard rules and limitations | When new constraints discovered |
+| `glossary.md` | Term definitions | When new terms introduced |
+| `qwen.md` | Qwen-specific rules | When Qwen instructions change |
+| `COMMITS.md` | Git commit history and conventions | After git commits |
+| `data.md` | DB schemas, IPC endpoint reference | When IPC endpoints or DB schema change |
+| `docs/quick-prompt.md` | Diagnostic prompt templates | When reusable diagnostic pattern found |
+| `docs/RESTORE_PROMPT.md` | Emergency restoration procedure | When project structure changes significantly |
+| `docs/SETTINGS_PAGE_FEATURES.md` | Complete Settings page feature reference | When modifying Settings page |
+
+### Key Rules:
+1. **ALWAYS update state.md** after any code change
+2. **Check PROBLEMS.md first** when user reports issues
+3. **Check REQUESTS.md** to see if similar request was already made
+
+---
+
+## Human Testing Checklist (MANDATORY)
+
+When changes require user testing, add an entry to PROBLEMS.md AND link it here. Each item must include:
+1. What was changed
+2. What to test
+3. Expected behavior
+4. How it relates to existing PROBLEMS.md entry
+
+| Change | Test Steps | Expected | PROBLEMS.md Ref |
+|--------|-----------|----------|-----------------|
+| (add entries here) | | | |
+
+### Example Entry:
+```
+| External page charts moved | 1. Go to /external 2. Click any activity 3. Verify charts appear below buttons | Charts visible, no duplicates | Issue #50 (External page layout) |
+```
+
+### Active Testing Checklist:
+```
+| External page duplicate buttons fix | 1. Go to /external 2. Verify only one set of activity buttons 3. Check charts below buttons | No duplicate buttons, charts visible | Issue #50 |
+```
+
+---
+
+## 🔄 Auto-Reflect After User Approval (MANDATORY)
 
 ### What is Auto-Reflect?
 The Reflect skill (`agent/skills/agent-reflect/`) analyzes your approach and extracts lessons learned. It prevents repeating the same mistakes across sessions.
 
-### When to Trigger Auto-Reflect (MANDATORY)
+### When to Trigger Auto-Reflect (MANDATORY - ALWAYS DO THIS)
 
-You MUST trigger reflection after ANY of these scenarios:
+**You MUST trigger reflection after ANY of these:**
 
 | Scenario | Trigger Phrase | Why |
 |----------|----------------|-----|
-| **User approves fix after failed attempts** | "reflect" | Analyze WHY previous attempts failed |
-| **Issue took longer than expected** | "reflect" | Identify time-wasting patterns |
-| **User says "finally" or expresses frustration** | "reflect" | Capture the pain point |
-| **You used a debugging pattern that worked** | "reflect" | Document for future |
-| **User corrects your approach mid-task** | "reflect" | Learn the right approach |
+| **User says "finally" or expresses relief** | "reflect" | Captures why it took so long |
+| **Took more than 3 attempts** | "reflect" | Something wrong with approach |
+| **Problem was in wrong place (wrong page/file)** | "reflect" | Critical lesson about architecture |
+| **User had to explain multiple times** | "reflect" | Ask clarifying questions earlier |
+| **Solution was simple but missed** | "reflect" | Identify what blocked the insight |
+| **Any fix that finally works after failing** | "reflect" | Document what changed |
+
+### CRITICAL: What to Document
+
+After EVERY reflection, you MUST:
+1. Write to `agent/skills/agent-reflect/logs/YYYY-MM-DD_description.md`
+2. Add pattern to `agent/debugging.md` if it's a debugging issue
+3. Update `agent/AGENTS.md` Never/Always sections if new rules learned
 
 ### How to Trigger Reflection
 
@@ -272,6 +448,7 @@ python complete.py --speak "[message]" --project "[project name]"
 ### ❌ Never:
 - Skip reading agent files
 - Assume current state
+- Assume which page a feature is on - ASK USER
 - Make large changes without planning
 - Break existing functionality
 - **Forget to update state.md after changes**
@@ -281,6 +458,7 @@ python complete.py --speak "[message]" --project "[project name]"
 - Use outdated patterns
 - **Run ALTER TABLE without error handling** (SQLite ALTER TABLE fails if column exists; wrap in `try { db.exec(...) } catch {})
 - **Use git commands without permission** - ALWAYS ask before running `git commit`, `git push`, `git add`, or any git commands. The user controls when code is committed.
+- **Skip mandatory reflection after long-running fixes**
 
 ### ✅ Always:
 - Start with agent files

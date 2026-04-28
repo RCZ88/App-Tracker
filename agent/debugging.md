@@ -42,6 +42,49 @@ Never run ALTER TABLE without error handling. Always assume the column might alr
 
 ---
 
+## 🐛 External Activity/Stopwatch Persistence
+
+### Problem
+Timer doesn't persist when leaving page or restarting app.
+
+### Root Causes
+1. Activity might be on different page than expected (check routes!)
+2. Start might not be saving to database (just local React state)
+3. Restore might be checking before data loads (race condition)
+4. localStorage doesn't survive app restart - only navigation within session
+
+### Debug Steps
+1. **Ask user:** Which page has the feature? Check routes in App.tsx
+2. **Check routes:** Look for `<Route path="/external"` etc.
+3. **Verify DB writes:** Does startActivity call `window.deskflowAPI.startExternalSession()`?
+4. **Check session ID:** Is it "temp-xxx" (local only) or real DB ID?
+5. **Fix race condition:** Load data FIRST, THEN check for active session
+
+### Example Fix
+```javascript
+// WRONG - race condition
+useEffect(() => {
+  getActiveExternalSession().then(session => {...}); // runs before activities load
+  getExternalActivities().then(data => {...});
+}, []);
+
+// CORRECT - sequential
+useEffect(() => {
+  getExternalActivities().then(data => {
+    setActivities(data);
+    // AFTER activities load, check session
+    getActiveExternalSession().then(session => {
+      if (session) {
+        const activity = data.find(a => a.id === session.activity_id);
+        // restore session...
+      }
+    });
+  });
+}, []);
+```
+
+---
+
 ## 🚨 Common Errors & Fixes
 
 ### ERR_FILE_NOT_FOUND

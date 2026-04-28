@@ -1,11 +1,11 @@
-# Graph Report - .  (2026-04-23)
+# Graph Report - .  (2026-04-24)
 
 ## Corpus Check
-- 26 files · ~372,309 words
+- 26 files · ~376,889 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 186 nodes · 223 edges · 18 communities detected
+- 190 nodes · 227 edges · 19 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -31,7 +31,7 @@ Cohesion: 0.07
 Nodes (17): addLog(), calculateCost(), calculateProductivityScore(), categorizeApp(), categorizeDomain(), getModelPricing(), getTierForCategory(), handleBrowserData() (+9 more)
 
 ### Community 1 - "OrbitSystem Visualization"
-Cohesion: 0.06
+Cohesion: 0.07
 Nodes (2): handleStorage(), reloadOverrides()
 
 ### Community 2 - "Electron Main Process"
@@ -55,32 +55,32 @@ Cohesion: 0.25
 Nodes (0): 
 
 ### Community 7 - "Settings Page"
+Cohesion: 0.25
+Nodes (0): 
+
+### Community 8 - "Data Logging and Aggregation"
 Cohesion: 0.47
 Nodes (5): beep(), main(), Play a simple system beep., Speak text using offline TTS (pyttsx3 if available).     Falls back to system TT, speak()
 
-### Community 8 - "Data Logging and Aggregation"
+### Community 9 - "Database Page"
 Cohesion: 0.33
 Nodes (4): Check GRAPH_REPORT.md exists and has content. Regenerate if broken., Sync graphify-out/ to Obsidian vault., sync_to_vault(), validate_report()
 
-### Community 9 - "Database Page"
+### Community 10 - "AI Pricing Integration"
 Cohesion: 0.33
 Nodes (0): 
 
-### Community 10 - "AI Pricing Integration"
+### Community 11 - "Graphify Pipeline"
 Cohesion: 0.5
 Nodes (2): formatCellValue(), formatDuration()
 
-### Community 11 - "Graphify Pipeline"
+### Community 12 - "Browser Tracking Server"
 Cohesion: 0.4
 Nodes (0): 
 
-### Community 12 - "Browser Tracking Server"
-Cohesion: 1.0
-Nodes (1): Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline
-
 ### Community 13 - "Productivity Scoring"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline
 
 ### Community 14 - "Vite Config"
 Cohesion: 1.0
@@ -98,20 +98,24 @@ Nodes (0):
 Cohesion: 1.0
 Nodes (0): 
 
+### Community 18 - "Community 18"
+Cohesion: 1.0
+Nodes (0): 
+
 ## Knowledge Gaps
 - **5 isolated node(s):** `Play a simple system beep.`, `Speak text using offline TTS (pyttsx3 if available).     Falls back to system TT`, `Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline`, `Check GRAPH_REPORT.md exists and has content. Regenerate if broken.`, `Sync graphify-out/ to Obsidian vault.`
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Browser Tracking Server`** (2 nodes): `graphify-pipeline.py`, `Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline`
+- **Thin community `Productivity Scoring`** (2 nodes): `graphify-pipeline.py`, `Graphify Pipeline for Windows Runs the full knowledge graph extraction pipeline`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Productivity Scoring`** (2 nodes): `preload.ts`, `handler()`
+- **Thin community `Vite Config`** (2 nodes): `preload.ts`, `handler()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Vite Config`** (1 nodes): `electron.vite.config.ts`
+- **Thin community `ESLint Config`** (1 nodes): `electron.vite.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ESLint Config`** (1 nodes): `eslint.config.js`
+- **Thin community `Build Configuration`** (1 nodes): `eslint.config.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Build Configuration`** (1 nodes): `vite.config.ts`
+- **Thin community `Preload Bridge`** (1 nodes): `vite.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Preload Bridge`** (1 nodes): `node-pty.d.ts`
+- **Thin community `Community 18`** (1 nodes): `node-pty.d.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
@@ -122,6 +126,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `App State Management` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `OrbitSystem Visualization` be split into smaller, more focused modules?**
-  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `Electron Main Process` be split into smaller, more focused modules?**
   _Cohesion score 0.09 - nodes in this community are weakly interconnected._
