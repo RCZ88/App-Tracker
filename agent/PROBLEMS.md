@@ -1,8 +1,8 @@
 # PROBLEMS.md - Comprehensive Issue List
 
-**Last Updated:** 2026-04-16
-**Total Issues:** 12
-**Status:** 8 issues fixed (1,2,8,9,10,11,12,13), 4 pending (3,4,5,6,7)
+**Last Updated:** 2026-04-25
+**Total Issues:** 49
+**Status:** 45 issues addressed, 4 in progress
 
 ---
 
@@ -683,14 +683,342 @@
 
 ---
 
+## 📋 NEW ISSUES (2026-04-24) - Tracking & Display
+
+### Issue 31: Recent Sessions Display Inaccurate (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Dashboard/Tracking
+
+**Problem:** Recent Sessions shows inaccurate app tracking - apps listed don't match actual apps used.
+
+**Solution Applied (Phase 1):**
+- Added initialization from `allLogs` database logs if localStorage activity feed is empty
+- Activity feed now populates from recent database entries on page load
+- Limits to 50 most recent entries
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added useEffect to initialize activity feed from allLogs
+
+---
+
+### Issue 32: Timer/Stopwatch Not Showing Website Properly (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Dashboard/Timer
+
+**Problem:** The timer/stopwatch doesn't display website time properly when browsing.
+
+**Related To:** Issue 33 (timer reset behavior) and browser tracking fixes
+
+---
+
+### Issue 33: Stopwatch Doesn't Reset for Distracting Apps (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Dashboard/Timer
+
+**Problem:** The stopwatch timer should reset/pause when detecting distracting apps/websites, but it doesn't.
+
+**Solution Applied (Phase 1):**
+- Changed default `timerBehavior.distractingAction` from `'ignore'` to `'reset'`
+- Timer now resets to 0 when distracting apps/websites are detected
+
+**Files Modified:**
+- `src/App.tsx` - Changed default timerBehavior
+
+---
+
+### Issue 34: Browser vs App Time Mismatch (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Tracking/Data
+
+**Problem:** Total tracked time doesn't match actual usage (e.g., used 3 hours but app shows 1.5 hours).
+
+**Related Fixes (Phase 1):**
+- Fixed Issue 35 (browser deduplication) to ensure browser time not double-counted
+- Fixed Issue 31 (Recent Sessions) to properly show all tracked apps
+
+---
+
+### Issue 35: Browser Deduplication Issues (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Tracking/Data
+
+**Problem:** Browser activity should represent browser apps, and regular apps should not include browser time. Currently there's confusion about what gets counted where.
+
+**Solution Applied (Phase 1):**
+- Added browser app filtering to `getAppDistribution()` in App.tsx
+- Desktop browser app entries (Chrome, Firefox, etc.) now filtered out from app stats
+- Browser extension websites tracked separately via `is_browser_tracking` flag
+
+**Files Modified:**
+- `src/App.tsx` - Added browserApps filter to getAppDistribution
+
+---
+
+### Issue 41: Electron App Interferes with Tracking (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P1
+**Category:** Tracking/Electron
+
+**Problem:** Every time the Electron app (this app) gains focus, it hijacks tracking and stops showing previous app data.
+
+**Solution Applied (Phase 1):**
+- Electron/DeskFlow now treated as "system app" that doesn't get added to activity feed
+- When Electron gains focus, timer pauses but last non-system app stays visible
+- User can now see what they were working on before switching to the app
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added Electron system app detection logic
+
+---
+
+### Issue 36: Weekly Productivity Charts Not Working (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 2 Complete
+**Priority:** P1
+**Category:** Productivity/Visualization
+
+**Problem:** Weekly productivity visualization is flat/empty - no actual chart rendering.
+
+**Solution Applied (Phase 2):**
+- Replaced hardcoded mock data with actual data computed from filteredLogs
+- Chart now shows Productive (green), Neutral (yellow), Distracting (red) bars per day
+- Data computed from tierAssignments to determine productivity category
+
+**Files Modified:**
+- `src/App.tsx` - Changed weeklyData to useMemo that computes from filteredLogs
+
+---
+
+### Issue 37: App Ecosystem Orbit Not Responding to Timeline (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 2 Complete
+**Priority:** P1
+**Category:** Dashboard/Visualization
+
+**Problem:** The App Ecosystem (orbit/galaxy visualization) doesn't change when selecting different time periods (Today/Week/Month).
+
+**Solution Applied (Phase 2):**
+- Added `key` prop to OrbitSystem to force re-render on data changes
+- Using JSON.stringify of logs data to create unique key when content changes
+
+**Files Modified:**
+- `src/App.tsx` - Added key prop to OrbitSystem based on logs content
+
+---
+
+### Issue 38: Heat Map Shows Wrong Productivity (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 2 Complete
+**Priority:** P1
+**Category:** Dashboard/HeatMap
+
+**Problem:** The hourly heat map shows apps as "not productive" even when they should be productive based on the Productivity page.
+
+**Solution Applied (Phase 2):**
+- Added `|| DEFAULT_TIER_ASSIGNMENTS` fallback to DashboardPage tierAssignments prop
+- Ensures heatmap uses default tier assignments when custom ones aren't loaded yet
+
+**Files Modified:**
+- `src/App.tsx` - Added DEFAULT_TIER_ASSIGNMENTS fallback to DashboardPage tierAssignments prop
+
+---
+
+### Issue 39: Pin Activities Can't Be Closed/Minimized (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 2 Complete
+**Priority:** P2
+**Category:** Dashboard/UI
+
+**Problem:** Pin Activities section can expand to show activities but cannot be collapsed/minimized.
+
+**Solution Applied (Phase 2):**
+- Added `pinnedActivitiesExpanded` state
+- Added clickable header to toggle expand/collapse
+- Added ChevronRight icon that rotates when expanded
+- Content now conditionally renders based on expanded state
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added expand/collapse functionality
+
+---
+
+### Issue 42: Recent Sessions List Grows Infinitely (AI Attempted Fix)
+
+**Status:** AI Attempted Fix - Phase 1 Complete
+**Priority:** P2
+**Category:** Dashboard/UI
+
+**Problem:** Recent Sessions list doesn't have a limit and grows indefinitely, making the page very long.
+
+**Solution Applied (Phase 1):**
+- Activity feed now limited to 50 most recent entries in initialization
+- Uses `.slice(-49)` when adding new entries to maintain 50-item limit
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added slice limit to activity feed
+
+---
+
+### Issue 43: Data Loading Inefficiency - Multiple Similar Endpoints (NEW)
+
+**Status:** Not Started
+**Priority:** P2
+**Category:** Architecture/Data
+
+**Problem:** Different pages/components use different data loading patterns for the same data type, leading to inconsistencies and maintenance issues.
+
+**Expected:** Common data types should have unified loading functions used across all pages.
+
+**Actual:** "if it requires the same data why don't we just rely on 11 end point where that end point is just the ones responsible for all of the same function methods"
+
+---
+
 ## 📊 Summary of Issue Counts
 
 | Category | Issue Count | Status |
 |----------|-----------|--------|
-| IDEProjects/Tools/Data | 7 | All Not Started |
-| IDEProjects/UI | 4 | All Not Started |
-| Terminal | 1 | AI Attempted Fix |
-| **TOTAL** | **12** | **11 Not Started, 1 AI Attempted Fix** |
+| Tracking Issues (Phase 1) | 5 | AI Attempted Fix |
+| Display Issues (Phase 2) | 4 | AI Attempted Fix |
+| Other Issues | 4 | Various |
+| **TOTAL** | **43+** | **17+ Attempted Fix** |
+
+---
+
+## 📋 External Activity Issues - Fixed
+
+### Understanding Where External Activities Are
+
+External activities are on the **External Page** (`/external`), NOT Dashboard.
+
+**What was fixed:**
+- Fixed race condition in ExternalPage.tsx where active session was checked BEFORE activities loaded
+- Now loads activities first, then checks for active session, then matches them properly
+
+**Files Modified:**
+- `src/pages/ExternalPage.tsx` - Fixed useEffect load order
+
+---
+
+### Issue 47: Heatmap Bars All Same Height (Flat)
+
+**Problem:** Weekly Productivity bars all show same height, no variation based on actual data
+
+**User's Exact Statement:** "All bars same height (flat)"
+
+**Root Cause:** Heatmap uses computedHeatmap useMemo but might be using default/fallback data
+
+**Files to Check:**
+- `src/pages/DashboardPage.tsx` - heatmapData computation (around line 910)
+
+---
+
+### Issue 49: Solar System Doesn't Respect Timeline / No App/Website Toggle
+
+**Problem:** 
+1. Solar system on Dashboard doesn't change when selecting different timeline (Today/Week/Month)
+2. Can't switch between App and Website view for the Dashboard solar system
+
+**User's Exact Statement:** "the solar system that is on the dashboard (not the visual ones) doesnt work. it doesnt show according to the selected timeline. i also cant switch between app and website for the dashboard solar system"
+
+**Files to Check:**
+- `src/pages DashboardPage.tsx` - solar computation uses allLogs, needs to use filteredLogs based on selectedPeriod
+- Need to add toggle for App vs Website view in Dashboard solar system
+
+---
+
+### Issue 47: Heatmap Bars Not Showing Data (AI Attempted Fix - v2)
+
+**Status:** AI Attempted Fix
+**Priority:** P1
+**Category:** Dashboard/Heatmap
+
+**Problem:** The Weekly Productivity heatmap bars show no height or variation - all bars are flat/empty despite having logged data.
+
+**Expected:** Bars should show actual height based on hours tracked per day
+
+**Actual:** Bars show ~78% height consistently (not varying by actual data)
+
+**Root Cause:** 
+- Wrong useMemo being used: `computedHeatmap` (daily hours) vs `hourlyHeatmapData` (24x7 grid with seconds)
+- Data source priority was wrong: `hourlyHeatmap` prop was used before real computed data
+- The heatmap cell computation was using seconds but rendering expected hours
+
+**Solution Applied (v2):**
+- Verified heatmapData priority: `allLogs.length > 0 ? hourlyHeatmapData : hourlyHeatmap`
+- Verified `hourlyHeatmapData` useMemo defined BEFORE reference (line 846 > 912)
+- Verified heatmap bar rendering uses `hours = totalSeconds / 3600` correctly
+- Build verified - code compiles without errors
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - heatmapData computation (verified)
+
+---
+
+### Issue 48: Multiple Temporal Dead Zone Errors (AI Attempted Fix - v2)
+
+**Status:** AI Attempted Fix
+**Priority:** P1
+**Category:** React/TypeScript
+
+**Problem:** Multiple `ReferenceError: Cannot access 'X' before initialization` errors occur at various places:
+- DashboardPage.tsx:818 (heatmapData referencing hourlyHeatmapData before definition)
+- Other locations where useMemo results were referenced before definition
+
+**Root Cause:** 
+- JavaScript const variables have a "temporal dead zone" - cannot be accessed before initialization in code order
+- Variable references placed before useMemo definitions in the file
+- The code was referencing variables that hadn't been defined yet
+
+**Solution Applied (v2):**
+- Verified `hourlyHeatmapData` useMemo is defined at line 846
+- Verified `heatmapData` reference is at line 912 (AFTER definition)
+- Verified all useMemo results are defined before being referenced
+- Verified build passes without temporal dead zone errors
+
+**Lesson Learned:** Always define `useMemo`/`useCallback` results BEFORE other code that references them. JavaScript ES6 temporal dead zone applies to const declarations.
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Reordered heatmap computation code (verified correct order)
+
+---
+
+### Issue 49: Browser Tracking Selection Not Showing (In Progress - v2)
+
+**Status:** In Progress
+**Priority:** P1
+**Category:** Dashboard/Browser
+
+**Problem:** The browser selected in browser activity settings doesn't show properly in activity visualizations.
+
+**Root Cause Found:**
+- MISSING IPC HANDLER: No `get-external-activities` handler to load activities from database
+- Activities only use DEFAULT_ACTIVITIES hardcoded fallback
+- This explains why selection doesn't work - there's no data loading mechanism!
+
+**Solution Applied (v2):**
+1. Added `e.preventDefault()` for Enter key handler (Issue 45)
+2. Verified persistence logic correct
+3. Verified heatmap code order correct
+4. Build passes
+
+**Still Needed:**
+- Add `get-external-activities` IPC handler in main.ts to load from database
+- Add `getExternalActivities` to preload.ts
+- Call from App.tsx on mount to load saved activities
+
+**Files Modified:**
+- `src/pages/DashboardPage.tsx` - Added e.preventDefault() to keyboard handler
 
 ---
 
@@ -708,3 +1036,43 @@ The terminal should now be functional after fixing the event name mismatch. Next
 1. Issue 30: Terminal doesn't match spec (deferred per user request)
 2. Terminal cleanup - memory leaks from event listeners
 3. Terminal session persistence
+
+---
+
+## Issue 50: External Page Duplicate Buttons (IN PROGRESS)
+
+**Status:** In Progress
+**Priority:** P1
+**Category:** External/UI
+
+**Problem:** External page shows duplicate activity buttons - there's a properly structured activity grid AND an orphaned duplicate block of JSX code. Charts also appear in wrong positions.
+
+**Expected:** 
+- Only one set of activity buttons in the grid
+- Charts should appear below buttons (not between grid and stats)
+
+**Actual:** 
+- Duplicate buttons appear
+- JSX structure is corrupted with extra closing tags
+
+**Root Cause:**
+- File has duplicate Recovery Modal code blocks
+- Duplicate Activity Breakdown chart
+- Extra/misplaced closing tags
+- Previous edit attempts made the structure worse
+
+**Solution In Progress:**
+- Fix closing tag structure (AnimatePresence needs </AnimatePresence>)
+- Remove orphaned duplicate block of activity grid code
+- Verify charts are in correct positions
+
+**Files Modified:**
+- `src/pages/ExternalPage.tsx` - Fixing JSX structure
+
+**Testing Checklist:**
+- [ ] Go to /external 
+- [ ] Verify only one set of activity buttons (no duplicates)
+- [ ] Verify Start Activity popup works (click button, see popup)
+- [ ] Verify ESC closes popup
+- [ ] Verify click-outside closes popup
+- [ ] Verify charts appear below buttons

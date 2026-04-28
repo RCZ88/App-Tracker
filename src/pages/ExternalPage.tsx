@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, Play, Pause, Square, Moon, Sun, BookOpen, Dumbbell, Activity,
   Bus, Book, Utensils, Coffee, Plus, X, AlertTriangle,
-  TrendingUp, TrendingDown, Minus
+  TrendingUp, TrendingDown, Minus, Lightbulb, Zap, Heart, Brain,
+  Code, Laptop, Wrench, Cog, Music, Gamepad2, Footprints, Droplets,
+  Wind, Flame, Backpack, Dribbble, Palette, Edit3
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -60,6 +62,9 @@ interface SleepTrend {
   daily: Array<{ date: string; sleep_seconds: number; deficit_seconds: number }>;
   average_bedtime: string;
   average_wake_time: string;
+  average_sleep_duration: number;
+  average_latency: number;
+  average_wake_latency: number;
 }
 
 interface ActivityStats {
@@ -80,6 +85,23 @@ const ICON_MAP: Record<string, any> = {
   Book,
   Utensils,
   Coffee,
+  Lightbulb,
+  Zap,
+  Heart,
+  Brain,
+  Code,
+  Laptop,
+  Wrench,
+  Cog,
+  Music,
+  Gamepad2,
+  Footprints,
+  Droplets,
+  Wind,
+  Flame,
+  Backpack,
+  Dribbble,
+  Palette,
 };
 
 const AVAILABLE_ICONS = [
@@ -93,6 +115,23 @@ const AVAILABLE_ICONS = [
   { name: 'Book', icon: Book },
   { name: 'Utensils', icon: Utensils },
   { name: 'Coffee', icon: Coffee },
+  { name: 'Lightbulb', icon: Lightbulb },
+  { name: 'Zap', icon: Zap },
+  { name: 'Heart', icon: Heart },
+  { name: 'Brain', icon: Brain },
+  { name: 'Code', icon: Code },
+  { name: 'Laptop', icon: Laptop },
+  { name: 'Wrench', icon: Wrench },
+  { name: 'Cog', icon: Cog },
+  { name: 'Music', icon: Music },
+  { name: 'Gamepad2', icon: Gamepad2 },
+  { name: 'Footprints', icon: Footprints },
+  { name: 'Droplets', icon: Droplets },
+  { name: 'Wind', icon: Wind },
+  { name: 'Flame', icon: Flame },
+  { name: 'Backpack', icon: Backpack },
+  { name: 'Dribbble', icon: Dribbble },
+  { name: 'Palette', icon: Palette },
 ];
 
 const ACTIVITY_COLORS = [
@@ -154,49 +193,119 @@ export default function ExternalPage() {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [recoverySession, setRecoverySession] = useState<{ sessionId: string; activityId: string; activity: ExternalActivity; startTime: Date } | null>(null);
   const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
+  const [addActivityError, setAddActivityError] = useState<string | null>(null);
+  const [addActivitySuccess, setAddActivitySuccess] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<ExternalActivity | null>(null);
+  const [editActivityError, setEditActivityError] = useState<string | null>(null);
+  const [showPastSleepModal, setShowPastSleepModal] = useState(false);
+  const [pastSleepTimes, setPastSleepTimes] = useState({ bedtime: '22:00', waketime: '07:00' });
+  const [pastSleepLatency, setPastSleepLatency] = useState(0);
+  const [pastWakeLatency, setPastWakeLatency] = useState(0);
+  const [pastSleepError, setPastSleepError] = useState<string | null>(null);
+  const [pastSleepSuccess, setPastSleepSuccess] = useState(false);
+  const [showMorningPrompt, setShowMorningPrompt] = useState(false);
+  const [morningPromptData, setMorningPromptData] = useState<{ lastCloseTime: number; lastCloseType: string } | null>(null);
+  const [sleepLatencyMinutes, setSleepLatencyMinutes] = useState(15);
+  const [wakeUpMinutes, setWakeUpMinutes] = useState(5);
 
-  // Load activities on mount
+  // Load activities and check for active session on mount
   useEffect(() => {
-    if (window.deskflowAPI?.getExternalActivities) {
-      window.deskflowAPI.getExternalActivities().then((data) => {
-        setActivities(data);
-      });
-    }
-    if (window.deskflowAPI?.getActiveExternalSession) {
-      window.deskflowAPI.getActiveExternalSession().then((session) => {
-        if (session) {
-          const startTime = new Date(session.started_at);
-          const now = new Date();
-          const durationHours = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-          const startHour = startTime.getHours();
-          
-          const isNightSleep = startHour >= 22 || startHour <= 4;
-          const isLongSession = durationHours >= 3;
-          
-          if (isLongSession || isNightSleep) {
-            const activity = activities.find(a => a.id === session.activity_id) || {
-              id: session.activity_id,
-              name: session.name,
-              type: session.type,
-              color: session.color,
-              icon: session.icon,
-            };
-            setRecoverySession({
-              sessionId: session.id.toString(),
-              activityId: session.activity_id.toString(),
-              activity: activity as ExternalActivity,
-              startTime,
-            });
-            setShowRecoveryModal(true);
-          } else {
-            if (window.deskflowAPI?.stopExternalSession) {
-              window.deskflowAPI.stopExternalSession(session.id.toString());
-            }
-          }
+    console.log('[ExternalPage] Mounting, loading...');
+    
+    // Check for morning prompt
+    if (window.deskflowAPI?.getMorningPrompt) {
+      window.deskflowAPI.getMorningPrompt().then((data) => {
+        if (data && data.show) {
+          console.log('[ExternalPage] Morning prompt available:', data);
+          setMorningPromptData(data);
+          setShowMorningPrompt(true);
         }
       });
     }
+    
+    // First, load activities
+    if (window.deskflowAPI?.getExternalActivities) {
+      window.deskflowAPI.getExternalActivities().then((data) => {
+        console.log('[ExternalPage] Loaded activities:', data.length);
+        setActivities(data);
+        
+        // After activities load, check for active session
+        if (window.deskflowAPI?.getActiveExternalSession) {
+          window.deskflowAPI.getActiveExternalSession().then((session) => {
+            console.log('[ExternalPage] Checked active session:', session);
+            if (session) {
+              const activity = data.find((a: any) => a.id === session.activity_id);
+              if (activity) {
+                handleRestoreSession(session, activity);
+              } else {
+                console.log('[ExternalPage] Activity not found for session:', session.activity_id);
+              }
+            }
+          }).catch(err => console.error('[ExternalPage] Failed to get active session:', err));
+        }
+      }).catch(err => console.error('[ExternalPage] Failed to load activities:', err));
+    }
   }, []);
+
+  // Enter key to start selected activity, ESC to unselect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && selectedActivity && !activeSession) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[ExternalPage] Enter: Starting activity:', selectedActivity.name);
+        startActivity(selectedActivity);
+        setSelectedActivity(null);
+      } else if (e.key === 'Escape' && selectedActivity && !activeSession) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[ExternalPage] ESC: Unselecting activity');
+        setSelectedActivity(null);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [selectedActivity, activeSession]);
+
+  // Click outside to unselect
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (selectedActivity && !activeSession) {
+      const target = e.target as HTMLElement;
+      if (target.id === 'activity-selection-overlay') {
+        console.log('[ExternalPage] Click on overlay: Unselecting activity');
+        setSelectedActivity(null);
+      }
+    }
+  };
+
+  const handleRestoreSession = (session: any, activity: any) => {
+    const startTime = new Date(session.started_at);
+    const now = new Date();
+    const durationHours = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const startHour = startTime.getHours();
+    
+    const isNightSleep = startHour >= 22 || startHour <= 4;
+    const isLongSession = durationHours >= 3;
+    
+    if (isLongSession || isNightSleep) {
+      setRecoverySession({
+        sessionId: session.id.toString(),
+        activityId: session.activity_id.toString(),
+        activity: activity,
+        startTime,
+      });
+      setShowRecoveryModal(true);
+    } else {
+      // For short sessions, just resume directly
+      setActiveSession({
+        sessionId: session.id.toString(),
+        activityId: session.activity_id.toString(),
+        activity: activity,
+        startTime: startTime,
+      });
+    }
+  };
 
   // Load stats
   useEffect(() => {
@@ -245,12 +354,26 @@ export default function ExternalPage() {
         }
       }
     } else if (activity.type === 'stopwatch') {
-      setActiveSession({
-        sessionId: 'temp-' + Date.now(),
-        activityId: activity.id.toString(),
-        activity,
-        startTime: new Date(),
-      });
+      // Save to database first, then set active session
+      if (window.deskflowAPI?.startExternalSession) {
+        const result = await window.deskflowAPI.startExternalSession(activity.id.toString());
+        if (result.success) {
+          setActiveSession({
+            sessionId: result.sessionId,
+            activityId: activity.id.toString(),
+            activity,
+            startTime: new Date(),
+          });
+        }
+      } else {
+        // Fallback for web mode
+        setActiveSession({
+          sessionId: 'temp-' + Date.now(),
+          activityId: activity.id.toString(),
+          activity,
+          startTime: new Date(),
+        });
+      }
     } else if (activity.type === 'checkin') {
       if (window.deskflowAPI?.startExternalSession && window.deskflowAPI?.stopExternalSession) {
         const startResult = await window.deskflowAPI.startExternalSession(activity.id.toString());
@@ -283,11 +406,15 @@ export default function ExternalPage() {
     if (activeSession.activity.type === 'sleep') {
       setShowSleepModal(true);
     } else {
-      // Save stopwatch session
-      if (activeSession.activity.type === 'stopwatch' && window.deskflowAPI?.startExternalSession && window.deskflowAPI?.stopExternalSession) {
-        const result = await window.deskflowAPI.startExternalSession(activeSession.activityId);
-        if (result.success) {
-          await window.deskflowAPI.stopExternalSession(result.sessionId);
+      // Save stopwatch session to database
+      if (activeSession.activity.type === 'stopwatch') {
+        if (activeSession.sessionId.startsWith('temp-')) {
+          // Local-only session (web mode), just reset
+          console.log('[ExternalPage] Stopping local session');
+        } else if (window.deskflowAPI?.stopExternalSession) {
+          // Real session in DB
+          console.log('[ExternalPage] Stopping DB session:', activeSession.sessionId);
+          await window.deskflowAPI.stopExternalSession(activeSession.sessionId);
         }
       }
       setActiveSession(null);
@@ -332,25 +459,48 @@ export default function ExternalPage() {
 
   // Save custom activity
   const saveCustomActivity = useCallback(async () => {
-    if (!newActivity.name.trim()) return;
-
-    if (window.deskflowAPI?.addExternalActivity) {
-      await window.deskflowAPI.addExternalActivity({
-        name: newActivity.name,
-        type: newActivity.type,
-        color: newActivity.color,
-        icon: newActivity.icon,
-        default_duration: newActivity.default_duration,
-      });
-      
-      // Reload activities
-      if (window.deskflowAPI?.getExternalActivities) {
-        window.deskflowAPI.getExternalActivities().then(setActivities);
-      }
+    if (!newActivity.name.trim()) {
+      setAddActivityError('Activity name cannot be empty');
+      return;
     }
 
-    setShowAddModal(false);
-    setNewActivity({ name: '', type: 'stopwatch', color: '#6366f1', icon: 'Clock', default_duration: 30 });
+    try {
+      setAddActivityError(null);
+      setAddActivitySuccess(false);
+
+      if (window.deskflowAPI?.addExternalActivity) {
+        const result = await window.deskflowAPI.addExternalActivity({
+          name: newActivity.name,
+          type: newActivity.type,
+          color: newActivity.color,
+          icon: newActivity.icon,
+          default_duration: newActivity.default_duration,
+        });
+        
+        if (!result) {
+          throw new Error('Failed to create activity');
+        }
+
+        // Reload activities
+        if (window.deskflowAPI?.getExternalActivities) {
+          const updated = await window.deskflowAPI.getExternalActivities();
+          setActivities(updated);
+        }
+
+        setAddActivitySuccess(true);
+        setShowAddModal(false);
+        setNewActivity({ name: '', type: 'stopwatch', color: '#6366f1', icon: 'Clock', default_duration: 30 });
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setAddActivitySuccess(false), 3000);
+      } else {
+        throw new Error('API not available');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      setAddActivityError(errorMsg);
+      console.error('[ExternalPage] Error adding activity:', err);
+    }
   }, [newActivity]);
 
   // Activity breakdown chart data
@@ -373,6 +523,33 @@ export default function ExternalPage() {
     };
   }, [consistency]);
 
+  // Sleep trend chart data
+  const sleepTrendData1 = useMemo(() => {
+    const daily = sleepTrends?.daily || [];
+    return {
+      labels: daily.slice(-14).map((d: any) => d.date),
+      datasets: [
+        { label: 'Sleep Hours', data: daily.slice(-14).map((d: any) => (d.sleep_seconds || 0) / 3600), borderColor: '#3b82f6', backgroundColor: '#3b82f620', fill: true, tension: 0.3, pointRadius: 3 },
+        { label: 'Target (8h)', data: daily.slice(-14).map(() => 8), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, fill: false }
+      ]
+    };
+  }, [sleepTrends]);
+  const sleepTrendOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#a1a1aa' } } }, scales: { x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } }, y: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' }, suggestedMax: 10, min: 0 } } };
+
+  // Breakdown chart data  
+  const breakdownChartData = useMemo(() => ({
+    labels: breakdownData.labels,
+    datasets: [{ label: 'Hours', data: breakdownData.data, backgroundColor: breakdownData.colors, borderRadius: 4 }]
+  }), [breakdownData]);
+  const breakdownChartOptions = { indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } }, y: { grid: { display: false }, ticks: { color: '#d4d4d8' } } } };
+
+  // Weekly comparison chart data
+  const weeklyChartData = useMemo(() => ({
+    labels: consistencyChartData.labels,
+    datasets: [{ label: 'Hours', data: consistencyChartData.data, borderColor: '#22c55e', backgroundColor: '#22c55e20', fill: true, tension: 0.3 }]
+  }), [consistencyChartData]);
+  const weeklyChartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } }, y: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } } } };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -382,6 +559,12 @@ export default function ExternalPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowPastSleepModal(true)}
+            className="px-3 py-1.5 rounded-lg text-sm text-amber-400 hover:text-amber-300 transition"
+          >
+            + Sleep
+          </button>
+          <button
             onClick={() => setShowCharts(!showCharts)}
             className={`px-3 py-1.5 rounded-lg text-sm transition ${
               showCharts ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-400 hover:text-white'
@@ -389,16 +572,6 @@ export default function ExternalPage() {
           >
             Charts
           </button>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value as any)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-300"
-          >
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="all">All Time</option>
-          </select>
         </div>
       </div>
 
@@ -423,6 +596,23 @@ export default function ExternalPage() {
                       <div className="text-6xl mb-4">😴</div>
                       <div className="text-2xl font-bold text-zinc-100 mb-2">Sleeping</div>
                       <div className="text-xl text-zinc-300">Since {formatBedtime(activeSession.startTime)}</div>
+                      
+                      {/* Sleep Stats */}
+                      <div className="mt-4 grid grid-cols-2 gap-4">
+                        <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-zinc-400">Bedtime</div>
+                          <div className="text-lg font-bold text-amber-400">{formatBedtime(activeSession.startTime)}</div>
+                        </div>
+                        <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-zinc-400">Elapsed</div>
+                          <div className="text-lg font-bold text-zinc-100">{formatDuration(elapsedSeconds)}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Sleep Goal */}
+                      <div className="mt-3 text-sm text-zinc-400">
+                        Target: 8h • {Math.round(elapsedSeconds / 3600 * 10) / 10}h logged
+                      </div>
                     </>
                   ) : (
                     <>
@@ -463,7 +653,7 @@ export default function ExternalPage() {
                       <div className="text-xs text-zinc-400">This Week</div>
                       <div className="text-lg font-bold text-zinc-100">{formatHours(activityStats.week_seconds)}</div>
                     </div>
-                    <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+<div className="bg-zinc-800/50 rounded-lg p-3 text-center">
                       <div className="text-xs text-zinc-400">This Month</div>
                       <div className="text-lg font-bold text-zinc-100">{formatHours(activityStats.month_seconds)}</div>
                     </div>
@@ -474,195 +664,113 @@ export default function ExternalPage() {
           )}
         </AnimatePresence>
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="text-sm text-zinc-400 mb-1">Today</div>
-            <div className="text-2xl font-bold text-zinc-100">
-              {formatHours(stats.total_seconds)}
-            </div>
+        {/* Activity Grid */}
+        {!activeSession && (
+          <div className="relative grid grid-cols-4 gap-4 mb-8">
+            {activities.map((activity) => {
+              const Icon = getIcon(activity.icon);
+              const activityStats = stats.byActivity[activity.name];
+              const totalSeconds = activityStats?.total_seconds || 0;
+              return (
+                <div key={activity.id} className="relative group" data-activity-card>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setSelectedActivity(activity)} className={`rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:ring-2 w-full ${selectedActivity?.id === activity.id ? 'ring-2' : ''}`} style={{ backgroundColor: selectedActivity?.id === activity.id ? activity.color + '40' : activity.color + '20', borderColor: selectedActivity?.id === activity.id ? activity.color : activity.color + '40' }}>
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: activity.color }}><Icon className="w-7 h-7 text-white" /></div>
+                    <div className="text-center"><div className="font-medium text-zinc-100">{activity.name}</div>{totalSeconds > 0 && <div className="text-sm text-zinc-400 mt-1">{formatHours(totalSeconds)}</div>}</div>
+                  </motion.button>
+                  <button onClick={(e) => { e.stopPropagation(); setEditingActivity(activity); }} className="absolute top-2 right-2 w-6 h-6 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-zinc-700"><Edit3 className="w-3 h-3 text-zinc-300" /></button>
+                </div>
+              );
+            })}
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="rounded-xl p-6 flex flex-col items-center justify-center gap-3 bg-zinc-800/50 border border-dashed border-zinc-700 hover:border-zinc-500 transition-colors">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-zinc-700"><Plus className="w-7 h-7 text-zinc-400" /></div>
+              <div className="text-center"><div className="font-medium text-zinc-400">Add Custom</div></div>
+            </motion.button>
           </div>
-          <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="text-sm text-zinc-400 mb-1">Consistency</div>
-            <div className={`text-2xl font-bold ${
-              consistency.score >= 70 ? 'text-emerald-400' : 
-              consistency.score >= 40 ? 'text-amber-400' : 'text-red-400'
-            }`}>
-              {consistency.score}%
-              {consistency.score >= 70 ? <TrendingUp className="w-5 h-5 inline ml-1" /> : 
-               consistency.score >= 40 ? <Minus className="w-5 h-5 inline ml-1" /> : 
-               <TrendingDown className="w-5 h-5 inline ml-1" />}
-            </div>
-          </div>
-          <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="text-sm text-zinc-400 mb-1">Sleep Deficit</div>
-            <div className={`text-2xl font-bold ${stats.sleep_deficit_seconds < 0 ? 'text-red-400' : stats.sleep_deficit_seconds > 0 ? 'text-emerald-400' : 'text-zinc-100'}`}>
-              {stats.sleep_deficit_seconds < 0 ? '-' : '+'}{formatHours(Math.abs(stats.sleep_deficit_seconds))}
-            </div>
-          </div>
-          <div className="bg-zinc-800/50 rounded-xl p-4">
-            <div className="text-sm text-zinc-400 mb-1">Avg Sleep</div>
-            <div className="text-2xl font-bold text-zinc-100">
-              {stats.average_sleep_hours.toFixed(1)}h
-            </div>
-          </div>
-        </div>
+        )}
 
-        {/* Charts Section */}
-        {showCharts && (
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            {/* Activity Breakdown Bar Chart */}
-            <div className="bg-zinc-800/50 rounded-xl p-4">
+        {/* Selection Overlay */}
+        {selectedActivity && !activeSession && (
+          <>
+            <div id="activity-selection-overlay" className="fixed inset-0 z-40" onClick={handleOverlayClick} />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: -10 }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-zinc-800 rounded-2xl p-6 shadow-2xl border border-zinc-700 min-w-64" style={{ borderColor: selectedActivity.color + '60' }}>
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: selectedActivity.color }}>{(() => { const Icon = getIcon(selectedActivity.icon); return <Icon className="w-8 h-8 text-white" />; })()}</div>
+                <div className="text-lg font-semibold text-zinc-100">{selectedActivity.name}</div>
+                <div className="text-sm text-zinc-400 mt-1">Ready to start</div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setSelectedActivity(null)} className="flex-1 px-4 py-2.5 bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors text-zinc-300">Cancel</button>
+                <button onClick={() => { startActivity(selectedActivity); setSelectedActivity(null); }} className="flex-1 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-colors text-white font-medium flex items-center justify-center gap-2"><Play className="w-4 h-4" />Start</button>
+              </div>
+              <div className="text-xs text-zinc-500 mt-3 text-center">Press ESC to close</div>
+            </motion.div>
+          </>
+        )}
+
+{/* Charts Section - Below Activity Grid */}
+        {!activeSession && (
+          <div>
+            {sleepTrends.daily.length > 0 && (
+              <div className="bg-zinc-800/50 rounded-xl p-4 mb-6">
+                <h3 className="text-sm font-medium text-zinc-300 mb-4">Sleep Trends</h3>
+                
+                {/* Sleep Stats Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                  <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                    <div className="text-xs text-zinc-400">Avg Bedtime</div>
+                    <div className="text-lg font-bold text-zinc-100">{sleepTrends?.average_bedtime || '--:--'}</div>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                    <div className="text-xs text-zinc-400">Avg Wake</div>
+                    <div className="text-lg font-bold text-zinc-100">{sleepTrends?.average_wake_time || '--:--'}</div>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                    <div className="text-xs text-zinc-400">Avg Duration</div>
+                    <div className="text-lg font-bold text-zinc-100">{formatHours(sleepTrends?.average_sleep_duration || 0)}</div>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                    <div className="text-xs text-zinc-400">Avg → Sleep</div>
+                    <div className="text-lg font-bold text-zinc-100">{Math.round((sleepTrends?.average_latency || 0) / 60)}m</div>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
+                    <div className="text-xs text-zinc-400">Wake → App</div>
+                    <div className="text-lg font-bold text-zinc-100">{Math.round((sleepTrends?.average_wake_latency || 0) / 60)}m</div>
+                  </div>
+                </div>
+                
+                <div className="h-48">
+                  <Line data={sleepTrendData1} options={sleepTrendOptions} />
+                </div>
+              </div>
+            )}
+            <div className="bg-zinc-800/50 rounded-xl p-4 mb-6">
               <h3 className="text-sm font-medium text-zinc-300 mb-4">Activity Breakdown</h3>
               {breakdownData.labels.length > 0 ? (
                 <div className="h-48">
-                  <Bar
-                    data={{
-                      labels: breakdownData.labels,
-                      datasets: [{
-                        label: 'Hours',
-                        data: breakdownData.data,
-                        backgroundColor: breakdownData.colors,
-                        borderRadius: 4,
-                      }]
-                    }}
-                    options={{
-                      indexAxis: 'y',
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false } },
-                      scales: {
-                        x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
-                        y: { grid: { display: false }, ticks: { color: '#d4d4d8' } }
-                      }
-                    }}
-                  />
+                  <Bar data={breakdownChartData} options={breakdownChartOptions} />
                 </div>
               ) : (
-                <div className="h-48 flex items-center justify-center text-zinc-500">
-                  No data yet
-                </div>
-              )}
-            </div>
-
-            {/* Consistency Line Chart */}
-            <div className="bg-zinc-800/50 rounded-xl p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-4">Weekly Comparison</h3>
-              {consistencyChartData.labels.length > 0 ? (
-                <div className="h-48">
-                  <Line
-                    data={{
-                      labels: consistencyChartData.labels,
-                      datasets: [{
-                        label: 'Hours',
-                        data: consistencyChartData.data,
-                        borderColor: '#22c55e',
-                        backgroundColor: '#22c55e20',
-                        fill: true,
-                        tension: 0.3,
-                      }]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false } },
-                      scales: {
-                        x: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } },
-                        y: { grid: { color: '#3f3f46' }, ticks: { color: '#a1a1aa' } }
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="h-48 flex items-center justify-center text-zinc-500">
-                  No data yet
-                </div>
+                <div className="h-48 flex items-center justify-center text-zinc-500">No data yet</div>
               )}
             </div>
           </div>
         )}
 
-        {/* Activity Grid */}
-        {!activeSession && (
-          <div className="grid grid-cols-4 gap-4">
-            {activities.map((activity) => {
-              const Icon = getIcon(activity.icon);
-              const activityStats = stats.byActivity[activity.name];
-              const totalSeconds = activityStats?.total_seconds || 0;
-
-              return (
-                 <motion.button
-                   key={activity.id}
-                   whileHover={{ scale: 1.02 }}
-                   whileTap={{ scale: 0.98 }}
-                   onClick={() => setSelectedActivity(activity)}
-                   className={`rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:ring-2 ${selectedActivity?.id === activity.id ? 'ring-2' : ''}`}
-                   style={{ 
-                     backgroundColor: selectedActivity?.id === activity.id ? activity.color + '40' : activity.color + '20', 
-                     borderColor: selectedActivity?.id === activity.id ? activity.color : activity.color + '40'
-                   }}
-                   onMouseEnter={(e) => {
-                     if (selectedActivity?.id !== activity.id) {
-                       e.currentTarget.style.borderColor = activity.color;
-                     }
-                   }}
-                   onMouseLeave={(e) => {
-                     if (selectedActivity?.id !== activity.id) {
-                       e.currentTarget.style.borderColor = activity.color + '40';
-                     }
-                   }}
-                 >
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: activity.color }}
-                  >
-                    <Icon className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="text-center">
-                    <div className="font-medium text-zinc-100">{activity.name}</div>
-                    {totalSeconds > 0 && (
-                      <div className="text-sm text-zinc-400 mt-1">
-                        {formatHours(totalSeconds)}
-                      </div>
-                    )}
-                  </div>
-                </motion.button>
-              );
-            })}
-
-            {/* Add Custom Button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowAddModal(true)}
-              className="rounded-xl p-6 flex flex-col items-center justify-center gap-3 bg-zinc-800/50 border border-dashed border-zinc-700 hover:border-zinc-500 transition-colors"
-            >
-              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-zinc-700">
-                <Plus className="w-7 h-7 text-zinc-400" />
-              </div>
-              <div className="text-center">
-                <div className="font-medium text-zinc-400">Add Custom</div>
-              </div>
-             </motion.button>
-           </div>
-         )}
-
-         {/* START Button - Show only when activity is selected and no active session */}
-         {selectedActivity && !activeSession && (
-           <motion.button
-             initial={{ opacity: 0, y: 10 }}
-             animate={{ opacity: 1, y: 0 }}
-             exit={{ opacity: 0, y: 10 }}
-             onClick={() => {
-               startActivity(selectedActivity);
-               setSelectedActivity(null);
-             }}
-             className="w-full mt-4 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-           >
-             <Play className="w-5 h-5" />
-             Start {selectedActivity.name}
-           </motion.button>
-         )}
+        {/* Weekly Comparison Chart */}
+        {showCharts && (
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="bg-zinc-800/50 rounded-xl p-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-4">Weekly Comparison</h3>
+              {consistencyChartData.labels.length > 0 ? (
+                <div className="h-48">
+                  <Line data={weeklyChartData} options={weeklyChartOptions} />
+                </div>
+) : (
+                <div className="h-48 flex items-center justify-center text-zinc-500">No data yet</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Recovery Modal */}
@@ -825,6 +933,20 @@ export default function ExternalPage() {
                 </button>
               </div>
 
+              {/* Error Message */}
+              {addActivityError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">{addActivityError}</p>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {addActivitySuccess && (
+                <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <p className="text-sm text-emerald-400">Activity created successfully!</p>
+                </div>
+              )}
+
               {/* Activity Name */}
               <div className="mb-4">
                 <label className="block text-sm text-zinc-400 mb-2">Name</label>
@@ -919,6 +1041,408 @@ export default function ExternalPage() {
                   className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add Activity
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Activity Modal */}
+      <AnimatePresence>
+        {editingActivity && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+            onClick={() => setEditingActivity(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-zinc-900 rounded-2xl p-8 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-zinc-100">Edit Activity</h2>
+                <button
+                  onClick={() => setEditingActivity(null)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              {editActivityError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">{editActivityError}</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Name</label>
+                <input
+                  type="text"
+                  value={editingActivity.name}
+                  onChange={(e) => setEditingActivity({ ...editingActivity, name: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Type</label>
+                <select
+                  value={editingActivity.type}
+                  onChange={(e) => setEditingActivity({ ...editingActivity, type: e.target.value as any })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value="stopwatch">Stopwatch (timed)</option>
+                  <option value="sleep">Sleep</option>
+                  <option value="checkin">Check-in (quick)</option>
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Icon</label>
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_ICONS.map(({ name, icon: Icon }) => (
+                    <button
+                      key={name}
+                      onClick={() => setEditingActivity({ ...editingActivity, icon: name })}
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
+                        editingActivity.icon === name 
+                          ? 'bg-emerald-500/20 ring-2 ring-emerald-500' 
+                          : 'bg-zinc-800 hover:bg-zinc-700'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 text-zinc-300" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-zinc-400 mb-2">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {ACTIVITY_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setEditingActivity({ ...editingActivity, color })}
+                      className={`w-8 h-8 rounded-full transition ${
+                        editingActivity.color === color ? 'ring-2 ring-white' : ''
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (window.deskflowAPI?.deleteExternalActivity) {
+                      try {
+                        await window.deskflowAPI.deleteExternalActivity(editingActivity.id);
+                        const updated = await window.deskflowAPI.getExternalActivities();
+                        setActivities(updated);
+                        setEditingActivity(null);
+                      } catch (err) {
+                        setEditActivityError('Failed to delete activity');
+                      }
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 bg-red-600/50 hover:bg-red-600 text-white rounded-xl transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={async () => {
+                    if (window.deskflowAPI?.updateExternalActivity) {
+                      try {
+                        await window.deskflowAPI.updateExternalActivity(editingActivity.id, {
+                          name: editingActivity.name,
+                          type: editingActivity.type,
+                          color: editingActivity.color,
+                          icon: editingActivity.icon
+                        });
+                        const updated = await window.deskflowAPI.getExternalActivities();
+                        setActivities(updated);
+                        setEditingActivity(null);
+                      } catch (err) {
+                        setEditActivityError('Failed to update activity');
+                      }
+                    }
+                  }}
+                  disabled={!editingActivity.name.trim()}
+                  className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Morning Sleep Prompt Modal */}
+      <AnimatePresence>
+        {showMorningPrompt && morningPromptData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-zinc-900 rounded-2xl p-8 max-w-md w-full mx-4"
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🌤️</div>
+                <h2 className="text-xl font-semibold text-zinc-100">Good Morning!</h2>
+                <p className="text-zinc-400 mt-2">It looks like you slept last night. Want to track your sleep?</p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">
+                  How long after closing the app did you fall asleep? (optional)
+                </label>
+                <select
+                  value={sleepLatencyMinutes}
+                  onChange={(e) => setSleepLatencyMinutes(parseInt(e.target.value))}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value={0}>Immediately (0 min)</option>
+                  <option value={5}>5 minutes</option>
+                  <option value={10}>10 minutes</option>
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 hour</option>
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-zinc-400 mb-2">
+                  How long after waking up did you open this app?
+                </label>
+                <select
+                  value={wakeUpMinutes}
+                  onChange={(e) => setWakeUpMinutes(parseInt(e.target.value))}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value={0}>Immediately (0 min)</option>
+                  <option value={5}>5 minutes</option>
+                  <option value={10}>10 minutes</option>
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={60}>1 hour</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (window.deskflowAPI?.dismissMorningPrompt) {
+                      await window.deskflowAPI.dismissMorningPrompt();
+                    }
+                    setShowMorningPrompt(false);
+                  }}
+                  className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!morningPromptData) return;
+                    
+                    const lastClose = new Date(morningPromptData.lastCloseTime);
+                    const hoursSinceClose = (Date.now() - morningPromptData.lastCloseTime) / (1000 * 60 * 60);
+                    const suggestedBedtime = new Date(lastClose.getTime() - sleepLatencyMinutes * 60 * 1000);
+                    const suggestedWakeTime = new Date(Date.now() - wakeUpMinutes * 60 * 1000);
+                    
+                    const bedtimeStr = `${suggestedBedtime.getHours().toString().padStart(2, '0')}:${suggestedBedtime.getMinutes().toString().padStart(2, '0')}`;
+                    const waketimeStr = `${suggestedWakeTime.getHours().toString().padStart(2, '0')}:${suggestedWakeTime.getMinutes().toString().padStart(2, '0')}`;
+                    
+                    setPastSleepTimes({ bedtime: bedtimeStr, waketime: waketimeStr });
+                    setPastSleepLatency(sleepLatencyMinutes);
+                    setPastWakeLatency(wakeUpMinutes);
+                    setShowMorningPrompt(false);
+                    setShowPastSleepModal(true);
+                    
+                    if (window.deskflowAPI?.dismissMorningPrompt) {
+                      await window.deskflowAPI.dismissMorningPrompt();
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-500 rounded-xl transition-colors"
+                >
+                  Add Sleep
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Past Sleep Modal */}
+      <AnimatePresence>
+        {showPastSleepModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+            onClick={() => setShowPastSleepModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-zinc-900 rounded-2xl p-8 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-zinc-100">Add Past Sleep</h2>
+                <button
+                  onClick={() => setShowPastSleepModal(false)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              {pastSleepError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">{pastSleepError}</p>
+                </div>
+              )}
+
+              {pastSleepSuccess && (
+                <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <p className="text-sm text-emerald-400">Sleep added successfully!</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Bedtime (last night)</label>
+                <input
+                  type="time"
+                  value={pastSleepTimes.bedtime}
+                  onChange={(e) => setPastSleepTimes({ ...pastSleepTimes, bedtime: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Wake time (this morning)</label>
+                <input
+                  type="time"
+                  value={pastSleepTimes.waketime}
+                  onChange={(e) => setPastSleepTimes({ ...pastSleepTimes, waketime: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">
+                  How long after device off did you fall asleep?
+                </label>
+                <select
+                  value={pastSleepLatency}
+                  onChange={(e) => setPastSleepLatency(parseInt(e.target.value))}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value={0}>Immediately (0 min)</option>
+                  <option value={5}>5 minutes</option>
+                  <option value={10}>10 minutes</option>
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 hour</option>
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-zinc-400 mb-2">
+                  How long after waking up did you open this app?
+                </label>
+                <select
+                  value={pastWakeLatency}
+                  onChange={(e) => setPastWakeLatency(parseInt(e.target.value))}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100"
+                >
+                  <option value={0}>Immediately (0 min)</option>
+                  <option value={5}>5 minutes</option>
+                  <option value={10}>10 minutes</option>
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={60}>1 hour</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPastSleepModal(false)}
+                  className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      setPastSleepError(null);
+                      setPastSleepSuccess(false);
+
+                      const now = new Date();
+                      const bedtimeDate = new Date(now);
+                      bedtimeDate.setHours(
+                        parseInt(pastSleepTimes.bedtime.split(':')[0]),
+                        parseInt(pastSleepTimes.bedtime.split(':')[1]),
+                        0, 0
+                      );
+
+                      const waketimeDate = new Date(now);
+                      waketimeDate.setHours(
+                        parseInt(pastSleepTimes.waketime.split(':')[0]),
+                        parseInt(pastSleepTimes.waketime.split(':')[1]),
+                        0, 0
+                      );
+
+                      // For sleep: if wake time is earlier in the day than bedtime, it's the next day
+                      if (waketimeDate <= bedtimeDate) {
+                        waketimeDate.setDate(waketimeDate.getDate() + 1);
+                      }
+
+                      if (window.deskflowAPI?.addManualSleep) {
+                        const result = await window.deskflowAPI.addManualSleep({
+                          started_at: bedtimeDate.toISOString(),
+                          ended_at: waketimeDate.toISOString(),
+                          device_off_to_sleep_seconds: pastSleepLatency * 60,
+                          wake_up_to_app_seconds: pastWakeLatency * 60
+                        });
+
+                        if (result.success) {
+                          setPastSleepSuccess(true);
+                          setPastSleepTimes({ bedtime: '22:00', waketime: '07:00' });
+                          refreshStats();
+                          setTimeout(() => setShowPastSleepModal(false), 1500);
+                        } else {
+                          setPastSleepError(result.error || 'Failed to add sleep');
+                        }
+                      } else {
+                        setPastSleepError('API not available');
+                      }
+                    } catch (err) {
+                      setPastSleepError('Failed to add sleep');
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-500 rounded-xl transition-colors"
+                >
+                  Add Sleep
                 </button>
               </div>
             </motion.div>

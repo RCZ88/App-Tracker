@@ -17,6 +17,75 @@ const { globalShortcut } = require('electron');
 const userDataPath = electron_1.app.getPath('userData');
 const dbPath = path_1.default.join(userDataPath, 'deskflow-data.db');
 const jsonPath = path_1.default.join(userDataPath, 'deskflow-data.json');
+const sleepStatePath = path_1.default.join(userDataPath, 'deskflow-sleep-state.json');
+// --- Sleep tracking state (for morning prompt) ---
+let lastCloseTime: number | null = null;
+let lastCloseType: 'normal' | 'force' | null = null;
+
+function loadSleepState() {
+    try {
+        if (fs_1.default.existsSync(sleepStatePath)) {
+            const data = JSON.parse(fs_1.default.readFileSync(sleepStatePath, 'utf-8'));
+            lastCloseTime = data.lastCloseTime || null;
+            lastCloseType = data.lastCloseType || null;
+        }
+    } catch (err) { console.error('[DeskFlow] Failed to load sleep state:', err); }
+}
+
+function saveSleepState() {
+    try {
+        fs_1.default.writeFileSync(sleepStatePath, JSON.stringify({
+            lastCloseTime: lastCloseTime,
+            lastCloseType: lastCloseType
+        }, null, 2));
+    } catch (err) { console.error('[DeskFlow] Failed to save sleep state:', err); }
+}
+
+function checkMorningPrompt() {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    // Morning window: 5:00 AM - 10:00 AM (300-600 minutes)
+    const isMorning = currentMinutes >= 300 && currentMinutes <= 600;
+    
+    // If no close time recorded, skip
+    if (!lastCloseTime) {
+        console.log('[DeskFlow] No last close time, skipping morning prompt');
+        return;
+    }
+    
+    const timeSinceClose = now.getTime() - lastCloseTime;
+    const hoursSinceClose = timeSinceClose / (1000 * 60 * 60);
+    
+    // Check conditions:
+    // 1. App was closed for at least 4 hours
+    // 2. Current time is in morning window (5am-10am)
+    // 3. Last close was in sleep window (10pm-3am)
+    const lastCloseHour = new Date(lastCloseTime).getHours();
+    const wasSleepTime = lastCloseHour >= 22 || lastCloseHour <= 3;
+    
+    if (isMorning && hoursSinceClose >= 4 && wasSleepTime) {
+        console.log('[DeskFlow] 🌤️ Morning prompt conditions met:', {
+            hoursSinceClose: hoursSinceClose.toFixed(1),
+            lastCloseHour,
+            currentHour
+        });
+        // Set flag to show morning prompt - will be checked by renderer
+        // Store in a file that the renderer can read
+        try {
+            fs_1.default.writeFileSync(
+                path_1.default.join(userDataPath, 'show-morning-prompt.json'),
+                JSON.stringify({ show: true, lastCloseTime, lastCloseType }, null, 2)
+            );
+        } catch (err) { console.error('[DeskFlow] Failed to write morning prompt flag:', err); }
+    }
+    
+    // Reset close time after checking
+    lastCloseTime = null;
+    lastCloseType = null;
+    saveSleepState();
+}
 // --- Category Configuration ---
 const categoryConfigPath = path_1.default.join(userDataPath, 'deskflow-categories.json');
 const DEFAULT_CATEGORIES = [
@@ -1039,25 +1108,33 @@ let categoryConfig = {
     domainDefaultCategories: {}
 };
 
-// Default keyword rules for YouTube
-const DEFAULT_KEYWORD_RULES: Record<string, string[]> = {
+// Default keyword rules for YouTube - NEW structure: array of { category, keywords }
+const DEFAULT_KEYWORD_RULES: Record<string, { category: string; keywords: string[] }[]> = {
     'youtube.com': [
-        'tutorial', 'course', 'lecture', 'learn', 'class', 'university',
-        'physics', 'mathematics', 'chemistry', 'biology', 'science',
-        'programming', 'coding', 'javascript', 'python', 'typescript', 'react',
-        'algorithm', 'data structure', 'web development',
-        'crash course', 'lesson', 'study', 'exam', 'revision',
-        'masterclass', 'workshop', 'training', 'how to build', 'from scratch'
+        { 
+            category: 'Education', 
+            keywords: ['tutorial', 'course', 'lecture', 'learn', 'class', 'university',
+            'physics', 'mathematics', 'chemistry', 'biology', 'science',
+            'programming', 'coding', 'javascript', 'python', 'typescript', 'react',
+            'algorithm', 'data structure', 'web development',
+            'crash course', 'lesson', 'study', 'exam', 'revision',
+            'masterclass', 'workshop', 'training', 'how to build', 'from scratch']
+        },
+        { 
+            category: 'Entertainment', 
+            keywords: ['gaming', 'game', 'stream', 'minecraft', 'fortnite', 'valheim',
+            'call of duty', 'dota', 'league', 'esports', 'walkthrough', 'playthrough',
+            'funny', 'compilation', 'montage', 'music video']
+        },
+        { 
+            category: 'News', 
+            keywords: ['news', 'breaking', 'cnn', 'bbc', ' msn', 'fox', 'politics',
+            'election', 'trump', 'biden', 'war', 'climate']
+        }
     ]
 };
 
-// Default category when keywords don't match (per domain)
-const DEFAULT_DOMAIN_DEFAULTS: Record<string, string> = {
-    'youtube.com': 'Entertainment',
-    'reddit.com': 'Social Media',
-    'twitter.com': 'Social Media',
-    'x.com': 'Social Media'
-};
+// Default category when keywords don't match (per domain) - now falls back to Category Overrides
 function loadCategoryConfig() {
     try {
         if (fs_1.default.existsSync(categoryConfigPath)) {
@@ -1086,7 +1163,7 @@ function loadCategoryConfig() {
         else {
             // Initialize with defaults on first run
             categoryConfig.domainKeywordRules = { ...DEFAULT_KEYWORD_RULES };
-            categoryConfig.domainDefaultCategories = { ...DEFAULT_DOMAIN_DEFAULTS };
+            categoryConfig.domainDefaultCategories = {};
             saveCategoryConfig();
             console.log('[DeskFlow] ✅ Created default category config');
         }
@@ -1103,7 +1180,7 @@ function loadCategoryConfig() {
             detectedDomains: {},
             detectedApps: {},
             domainKeywordRules: { ...DEFAULT_KEYWORD_RULES },
-            domainDefaultCategories: { ...DEFAULT_DOMAIN_DEFAULTS }
+            domainDefaultCategories: {}
         };
     }
 }
@@ -1466,9 +1543,15 @@ function initializeStorage() {
             ended_at TEXT,
             duration_seconds INTEGER DEFAULT 0,
             notes TEXT,
+            device_off_to_sleep_seconds INTEGER DEFAULT 0,
+            wake_up_to_app_seconds INTEGER DEFAULT 0,
             FOREIGN KEY (activity_id) REFERENCES external_activities(id)
           )
         `);
+        
+        // Add extra columns to existing tables if they don't exist
+        try { db.exec('ALTER TABLE external_sessions ADD COLUMN device_off_to_sleep_seconds INTEGER DEFAULT 0'); } catch {}
+        try { db.exec('ALTER TABLE external_sessions ADD COLUMN wake_up_to_app_seconds INTEGER DEFAULT 0'); } catch {}
 
         // External tracker settings
         db.exec(`
@@ -1488,8 +1571,8 @@ function initializeStorage() {
             { name: 'Commute', type: 'stopwatch', color: '#6366f1', icon: 'Bus', sort_order: 4 },
             { name: 'Reading', type: 'stopwatch', color: '#ec4899', icon: 'Book', sort_order: 5 },
             { name: 'Sleep', type: 'sleep', color: '#3b82f6', icon: 'Moon', sort_order: 6 },
-            { name: 'Eating', type: 'checkin', color: '#ef4444', icon: 'Utensils', default_duration: 30, sort_order: 7 },
-            { name: 'Short Break', type: 'checkin', color: '#14b8a6', icon: 'Coffee', default_duration: 15, sort_order: 8 },
+            { name: 'Eating', type: 'stopwatch', color: '#ef4444', icon: 'Utensils', default_duration: 30, sort_order: 7 },
+            { name: 'Short Break', type: 'stopwatch', color: '#14b8a6', icon: 'Coffee', default_duration: 15, sort_order: 8 },
           ];
           const insertStmt = db.prepare(`
             INSERT INTO external_activities (name, type, color, icon, default_duration, is_default, sort_order)
@@ -1797,96 +1880,75 @@ function categorizeDomain(domain, title, url) {
     const urlLower = (url || '').toLowerCase();
     const combinedContext = `${titleLower} ${urlLower}`;
     
+    console.log('[DeskFlow] categorizeDomain called:', { domain: lower, title: title?.substring(0, 50), url: url?.substring(0, 50) });
+    console.log('[DeskFlow] domainKeywordRules:', JSON.stringify(Object.keys(categoryConfig.domainKeywordRules || {})));
+    console.log('[DeskFlow] domainDefaultCategories:', JSON.stringify(categoryConfig.domainDefaultCategories));
+    console.log('[DeskFlow] detectedDomains:', JSON.stringify(categoryConfig.detectedDomains));
+    
     // Check excluded domains first
     if (browserExcludedDomains.some(excluded => lower.includes(excluded))) {
+        console.log('[DeskFlow] categorizeDomain result: Excluded');
         return 'Excluded';
     }
     
     // 1. Check user override (manual category assignment)
     if (categoryConfig.domainCategoryMap[lower]) {
+        console.log('[DeskFlow] categorizeDomain result (override):', categoryConfig.domainCategoryMap[lower]);
         return categoryConfig.domainCategoryMap[lower];
     }
     
     // 2. Check detected domains cache
     if (categoryConfig.detectedDomains[lower]) {
+        console.log('[DeskFlow] categorizeDomain result (detected):', categoryConfig.detectedDomains[lower]);
         return categoryConfig.detectedDomains[lower];
     }
     
-    // 3. Use keyword-based productivity rules (configurable per domain)
-    for (const [domainPattern, keywords] of Object.entries(categoryConfig.domainKeywordRules || {})) {
+    // 3. Use keyword-based categorization rules (configurable per domain)
+    // New structure: { category: string; keywords: string[] }[]
+    for (const [domainPattern, keywordSets] of Object.entries(categoryConfig.domainKeywordRules || {})) {
         if (lower.includes(domainPattern)) {
-            const keywordsArray = keywords as string[];
-            const isProductive = keywordsArray.some(keyword => 
-                combinedContext.includes(keyword.toLowerCase())
-            );
-            if (isProductive) {
-                return 'Education';
+            console.log('[DeskFlow] Found keyword rule for:', domainPattern, 'keywordSets:', JSON.stringify(keywordSets));
+            const sets = keywordSets as { category: string; keywords: string[] }[];
+            for (const set of sets) {
+                const keywordsArray = set.keywords || [];
+                const matched = keywordsArray.some(keyword => 
+                    combinedContext.includes(keyword.toLowerCase())
+                );
+                if (matched) {
+                    console.log('[DeskFlow] categorizeDomain result (keyword match):', set.category);
+                    return set.category;
+                }
             }
-            // Use domain's default category when keywords don't match
-            const defaultCategory = categoryConfig.domainDefaultCategories?.[domainPattern] || 
-                                   DEFAULT_DOMAIN_DEFAULTS[domainPattern] || 'Entertainment';
+            // No keywords matched - fall back to Category Overrides (domainCategoryMap)
+            // This will be checked at step 1 on next call since domainCategoryMap is checked first
+            const fallbackFromOverrides = categoryConfig.domainCategoryMap?.[domainPattern];
+            if (fallbackFromOverrides) {
+                console.log('[DeskFlow] categorizeDomain result (fallback to overrides):', fallbackFromOverrides);
+                return fallbackFromOverrides;
+            }
+            // No keywords matched - also check DEFAULT_DOMAIN_CATEGORIES
+            if (DEFAULT_DOMAIN_CATEGORIES[domainPattern]) {
+                console.log('[DeskFlow] categorizeDomain result (default categories):', DEFAULT_DOMAIN_CATEGORIES[domainPattern]);
+                return DEFAULT_DOMAIN_CATEGORIES[domainPattern];
+            }
+            console.log('[DeskFlow] categorizeDomain result (no match):', 'Entertainment');
+            return 'Entertainment';
+        }
+    }
+    
+    // 4. Final fallback: check DEFAULT_DOMAIN_CATEGORIES for any domain
+    for (const [defaultDomain, defaultCategory] of Object.entries(DEFAULT_DOMAIN_CATEGORIES)) {
+        if (lower.includes(defaultDomain) || defaultDomain.includes(lower)) {
+            console.log('[DeskFlow] categorizeDomain result (final fallback):', defaultCategory);
             return defaultCategory;
         }
     }
     
-    // 4. Fallback: legacy hardcoded rules for domains without keyword config
-    // YouTube: CONSERVATIVE - default to Entertainment, only Education if VERY clear
-    if (lower.includes('youtube')) {
-        const strongEducationalKeywords = [
-            'tutorial', 'course', 'lecture', 'learn', 'class', 'university',
-            'physics', 'mathematics', 'chemistry', 'biology', 'science',
-            'programming', 'coding', 'javascript', 'python', 'typescript', 'react',
-            'algorithm', 'data structure', 'web development',
-            'crash course', 'lesson', 'study', 'exam', 'revision',
-            'masterclass', 'workshop', 'training', 'how to build', 'from scratch'
-        ];
-        const isStronglyEducational = strongEducationalKeywords.some(keyword => combinedContext.includes(keyword.toLowerCase()));
-        if (isStronglyEducational) {
-            return 'Education';
-        }
-        return 'Entertainment';
-    }
-    // Reddit: check subreddit from URL
-    if (lower.includes('reddit')) {
-        const productiveSubreddits = ['programming', 'learnprogramming', 'cscareerquestions',
-            'python', 'javascript', 'reactjs', 'sysadmin', 'devops'];
-        const neutralSubreddits = ['getdisciplined', 'productivity', 'zenhabits'];
-        const distractingSubreddits = ['funny', 'aww', 'photography', 'music', 'movies',
-            'gaming', 'pcmasterrace', 'buildapc', 'politics'];
-        const match = lower.match(/reddit\.com\/r\/(\w+)/);
-        if (match) {
-            const subreddit = match[1].toLowerCase();
-            if (productiveSubreddits.includes(subreddit))
-                return 'Productivity';
-            if (neutralSubreddits.includes(subreddit))
-                return 'Productivity';
-            if (distractingSubreddits.includes(subreddit))
-                return 'Distracting';
-        }
-        return 'Social Media';
-    }
-    // Twitter/X: check if it's a feed/search vs individual tweet
-    if (lower.includes('twitter') || lower.includes('x.com')) {
-        if (urlLower.includes('/search') || urlLower.includes('/i/')) {
-            return 'Productivity';
-        }
-        return 'Social Media';
-    }
-    // News: differentiate business vs general
-    if (lower.includes('bloomberg') || lower.includes('reuters') || lower.includes('wsj') || lower.includes('ft')) {
-        return 'Productivity';
-    }
-    // 5. Default domain-based categories
-    for (const [domainKey, category] of Object.entries(DEFAULT_DOMAIN_CATEGORIES)) {
-        if (lower.includes(domainKey)) {
-            categoryConfig.detectedDomains[lower] = category;
-            saveCategoryConfig();
-            return category;
-        }
-    }
-    // 6. Fall back to Uncategorized
+    // 5. Last resort
+    console.log('[DeskFlow] categorizeDomain result (truly uncategorized):', 'Uncategorized');
     return 'Uncategorized';
 }
+
 // Real window polling using active-win
 async function pollForeground() {
     if (!isTracking)
@@ -2459,10 +2521,12 @@ electron_1.ipcMain.handle('set-domain-tier', (event, domain, tier) => {
 });
 
 // NEW: Set keyword rules for a domain (for keyword-based productivity categorization)
-electron_1.ipcMain.handle('set-domain-keyword-rules', (event, domain, keywords) => {
-    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywords;
+// Now takes array of { category: string; keywords: string[] }
+electron_1.ipcMain.handle('set-domain-keyword-rules', (event, domain, keywordSets) => {
+    categoryConfig.domainKeywordRules = categoryConfig.domainKeywordRules || {};
+    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywordSets;
     saveCategoryConfig();
-    console.log(`[DeskFlow] Updated keyword rules for ${domain}:`, keywords);
+    console.log(`[DeskFlow] Updated keyword rules for ${domain}:`, JSON.stringify(keywordSets));
     return true;
 });
 
@@ -2481,10 +2545,9 @@ electron_1.ipcMain.handle('set-domain-default-category', (event, domain, categor
     return true;
 });
 
-// NEW: Get default category for a domain
+// NEW: Get default category for a domain (legacy - now falls back to Category Overrides)
 electron_1.ipcMain.handle('get-domain-default-category', (event, domain) => {
-    return categoryConfig.domainDefaultCategories?.[domain.toLowerCase()] || 
-           DEFAULT_DOMAIN_DEFAULTS[domain.toLowerCase()] || 'Entertainment';
+    return categoryConfig.domainDefaultCategories?.[domain.toLowerCase()] || 'Entertainment';
 });
 
 // NEW: Get all domains with keyword rules enabled
@@ -2492,14 +2555,13 @@ electron_1.ipcMain.handle('get-keyword-enabled-domains', () => {
     return Object.keys(categoryConfig.domainKeywordRules || {});
 });
 
-// NEW: Add a new domain to have keyword-based categorization
-electron_1.ipcMain.handle('add-keyword-domain', (event, domain, keywords, defaultCategory) => {
+// NEW: Add a new domain with keyword sets (array of { category, keywords })
+// This replaces the old add-keyword-domain that took keywords + defaultCategory
+electron_1.ipcMain.handle('add-keyword-domain', (event, domain, keywordSets) => {
     categoryConfig.domainKeywordRules = categoryConfig.domainKeywordRules || {};
-    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywords;
-    categoryConfig.domainDefaultCategories = categoryConfig.domainDefaultCategories || {};
-    categoryConfig.domainDefaultCategories[domain.toLowerCase()] = defaultCategory || 'Entertainment';
+    categoryConfig.domainKeywordRules[domain.toLowerCase()] = keywordSets;
     saveCategoryConfig();
-    console.log(`[DeskFlow] Added keyword domain: ${domain}`);
+    console.log(`[DeskFlow] Added keyword domain: ${domain} with`, JSON.stringify(keywordSets));
     return true;
 });
 
@@ -5460,18 +5522,28 @@ function startBrowserTrackingServer() {
             req.on('end', () => {
                 try {
                     const data = JSON.parse(body);
-                    handleBrowserData(data);
-                    // Stream live event to renderer if window exists
-                    if (mainWindow && !mainWindow.isDestroyed()) {
-                        mainWindow.webContents.send('browser-tracking-event', {
-                            type: 'browser-data',
-                            domain: data.domain,
-                            url: data.url,
-                            title: data.title,
-                            duration: data.active_duration_ms,
-                            is_browser_focused: data.is_browser_focused,
-                            timestamp: Date.now()
-                        });
+                    console.log('[DeskFlow] Browser data received:', data.domain, 'is_browser_focused:', data.is_browser_focused);
+                    
+                    // FIX: Only process if browser is focused
+                    if (data.is_browser_focused === false) {
+                        console.log('[DeskFlow] ⏸️ Browser event skipped - browser not focused');
+                    } else {
+                        handleBrowserData(data);
+                        // Always stream to renderer - let renderer filter
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            const category = categorizeDomain(data.domain, data.title, data.url);
+                            console.log('[DeskFlow] Sending browser event:', data.domain);
+                            mainWindow.webContents.send('browser-tracking-event', {
+                                type: 'browser-data',
+                                domain: data.domain,
+                                url: data.url,
+                                title: data.title,
+                                category: category,
+                                duration: data.active_duration_ms,
+                                is_browser_focused: data.is_browser_focused,
+                                timestamp: Date.now()
+                            });
+                        }
                     }
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ status: 'ok' }));
@@ -5524,12 +5596,16 @@ function startBrowserTrackingServer() {
                 try {
                     const log = JSON.parse(logBody);
                     if (mainWindow && !mainWindow.isDestroyed()) {
+                        const category = categorizeDomain(log.domain, log.title, log.url);
+                        console.log('[DeskFlow] Sending live-log with category:', category);
                         mainWindow.webContents.send('browser-tracking-event', {
                             type: 'live-log',
                             message: log.message,
                             level: log.level,
                             domain: log.domain,
                             url: log.url,
+                            title: log.title,
+                            category: category,
                             timestamp: log.timestamp || Date.now()
                         });
                     }
@@ -5868,6 +5944,11 @@ function getBrowserCategoryStats(period?: 'today' | 'week' | 'month' | 'all') {
 electron_1.app.whenReady().then(() => {
     initializeStorage();
     loadCategoryConfig();
+    loadSleepState(); // Load sleep tracking state
+    
+    // Check if we should show morning prompt
+    checkMorningPrompt();
+    
     // Check if started with --minimized flag (background mode)
     startMinimized = process.argv.includes('--minimized') || process.argv.includes('-m');
     
@@ -5919,7 +6000,7 @@ electron_1.ipcMain.handle('add-external-activity', (event, activity) => {
     try {
         const result = db.prepare(`
             INSERT INTO external_activities (name, type, color, icon, default_duration, is_default, sort_order)
-            VALUES (?, ?, ?, ?, ?, 0, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM external_activities)
+            VALUES (?, ?, ?, ?, ?, 0, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM external_activities))
         `).run(activity.name, activity.type, activity.color || '#6366f1', activity.icon || 'Clock', activity.default_duration || 30);
         return { success: true, id: result.lastInsertRowid.toString() };
     } catch (err) {
@@ -5999,6 +6080,44 @@ electron_1.ipcMain.handle('stop-external-session', (event, sessionId, endTime) =
     }
 });
 
+electron_1.ipcMain.handle('add-manual-sleep', (event, sleepData: { started_at: string; ended_at: string; device_off_to_sleep_seconds?: number; wake_up_to_app_seconds?: number }) => {
+    if (useJson) return { success: false };
+    try {
+        const startTime = new Date(sleepData.started_at);
+        const endTime = new Date(sleepData.ended_at);
+        const durationSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+        
+        if (durationSeconds <= 0) {
+            return { success: false, error: 'End time must be after start time' };
+        }
+        
+        const sleepActivity = db.prepare(`
+            SELECT id FROM external_activities WHERE type = 'sleep' LIMIT 1
+        `).get() as any;
+        
+        if (!sleepActivity) {
+            return { success: false, error: 'No sleep activity found' };
+        }
+        
+        const result = db.prepare(`
+            INSERT INTO external_sessions (activity_id, started_at, ended_at, duration_seconds, device_off_to_sleep_seconds, wake_up_to_app_seconds)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+            sleepActivity.id, 
+            startTime.toISOString(), 
+            endTime.toISOString(), 
+            durationSeconds,
+            sleepData.device_off_to_sleep_seconds || 0,
+            sleepData.wake_up_to_app_seconds || 0
+        );
+        
+        return { success: true, sessionId: result.lastInsertRowid.toString() };
+    } catch (err) {
+        console.error('[DeskFlow] Failed to add manual sleep:', err);
+        return { success: false };
+    }
+});
+
 electron_1.ipcMain.handle('get-active-external-session', (event) => {
     if (useJson) return null;
     try {
@@ -6014,6 +6133,33 @@ electron_1.ipcMain.handle('get-active-external-session', (event) => {
     } catch (err) {
         console.error('[DeskFlow] Failed to get active external session:', err);
         return null;
+    }
+});
+
+electron_1.ipcMain.handle('get-morning-prompt', (event) => {
+    try {
+        const promptPath = path_1.default.join(userDataPath, 'show-morning-prompt.json');
+        if (fs_1.default.existsSync(promptPath)) {
+            const data = JSON.parse(fs_1.default.readFileSync(promptPath, 'utf-8'));
+            return data;
+        }
+        return null;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to get morning prompt:', err);
+        return null;
+    }
+});
+
+electron_1.ipcMain.handle('dismiss-morning-prompt', (event) => {
+    try {
+        const promptPath = path_1.default.join(userDataPath, 'show-morning-prompt.json');
+        if (fs_1.default.existsSync(promptPath)) {
+            fs_1.default.unlinkSync(promptPath);
+        }
+        return true;
+    } catch (err) {
+        console.error('[DeskFlow] Failed to dismiss morning prompt:', err);
+        return false;
     }
 });
 
@@ -6216,7 +6362,7 @@ electron_1.ipcMain.handle('get-best-days', () => {
 });
 
 electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
-    if (useJson) return { daily: [], average_bedtime: '', average_wake_time: '' };
+    if (useJson) return { daily: [], average_bedtime: '', average_wake_time: '', average_sleep_duration: 0, average_latency: 0, average_wake_latency: 0 };
     try {
         const days = period === 'week' ? 7 : 30;
         const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -6233,19 +6379,32 @@ electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
         const targetSleep = 8 * 3600;
         
         // Group by date
-        const byDate: Record<string, { sleep_seconds: number; bedtime_count: number; bedtime_sum: number }> = {};
+        const byDate: Record<string, { sleep_seconds: number; bedtime_count: number; bedtime_sum: number; waketime_sum: number }> = {};
         for (const s of sessions) {
             const date = s.started_at.split('T')[0];
             if (!byDate[date]) {
-                byDate[date] = { sleep_seconds: 0, bedtime_count: 0, bedtime_sum: 0 };
+                byDate[date] = { sleep_seconds: 0, bedtime_count: 0, bedtime_sum: 0, waketime_sum: 0 };
             }
             byDate[date].sleep_seconds += s.duration_seconds || 0;
             byDate[date].bedtime_count += 1;
             const bedtime = new Date(s.started_at);
+            const waketime = new Date(s.ended_at);
+            
             byDate[date].bedtime_sum += bedtime.getHours() * 60 + bedtime.getMinutes();
+            byDate[date].waketime_sum += waketime.getHours() * 60 + waketime.getMinutes();
         }
         
         for (const [date, data] of Object.entries(byDate)) {
+            const avgBedtimeMinutes = data.bedtime_count > 0 ? Math.round(data.bedtime_sum / data.bedtime_count) : 0;
+            let avgWaketimeMinutes = data.bedtime_count > 0 ? Math.round(data.waketime_sum / data.bedtime_count) : 0;
+            
+            // Adjust for midnight crossing
+            if (avgWaketimeMinutes < 720 && avgBedtimeMinutes > 720) {
+                // Went to bed at night, woke up next morning - that's fine
+            } else if (avgWaketimeMinutes < avgBedtimeMinutes) {
+                avgWaketimeMinutes += 24 * 60; // Add 24 hours
+            }
+            
             daily.push({
                 date,
                 sleep_seconds: data.sleep_seconds,
@@ -6261,10 +6420,38 @@ electron_1.ipcMain.handle('get-sleep-trends', (event, period = 'week') => {
         const avgBedtimeMinutes = allBedtimes.length > 0 ? Math.round(allBedtimes.reduce((a: number, b: number) => a + b, 0) / allBedtimes.length) : 0;
         const avgBedtime = `${Math.floor(avgBedtimeMinutes / 60).toString().padStart(2, '0')}:${(avgBedtimeMinutes % 60).toString().padStart(2, '0')}`;
         
-        return { daily, average_bedtime: avgBedtime, average_wake_time: '' };
+        // Calculate average wake time
+        const allWaketimes = sessions.map((s: any) => {
+            const d = new Date(s.ended_at);
+            return d.getHours() * 60 + d.getMinutes();
+        });
+        let avgWaketimeMinutes = allWaketimes.length > 0 ? Math.round(allWaketimes.reduce((a: number, b: number) => a + b, 0) / allWaketimes.length) : 0;
+        const avgWaketime = `${Math.floor(avgWaketimeMinutes / 60).toString().padStart(2, '0')}:${(avgWaketimeMinutes % 60).toString().padStart(2, '0')}`;
+        
+        // Calculate average sleep duration
+        const totalSleepSeconds = sessions.reduce((sum: number, s: any) => sum + (s.duration_seconds || 0), 0);
+        const avgSleepDuration = sessions.length > 0 ? Math.round(totalSleepSeconds / sessions.length) : 0;
+        
+        // Calculate average latencies
+        const avgLatency = sessions.length > 0 
+            ? Math.round(sessions.reduce((sum: number, s: any) => sum + (s.device_off_to_sleep_seconds || 0), 0) / sessions.length)
+            : 0;
+        
+        const avgWakeLatency = sessions.length > 0 
+            ? Math.round(sessions.reduce((sum: number, s: any) => sum + (s.wake_up_to_app_seconds || 0), 0) / sessions.length)
+            : 0;
+        
+        return { 
+            daily, 
+            average_bedtime: avgBedtime, 
+            average_wake_time: avgWaketime,
+            average_sleep_duration: avgSleepDuration,
+            average_latency: avgLatency,
+            average_wake_latency: avgWakeLatency
+        };
     } catch (err) {
         console.error('[DeskFlow] Failed to get sleep trends:', err);
-        return { daily: [], average_bedtime: '', average_wake_time: '' };
+        return { daily: [], average_bedtime: '', average_wake_time: '', average_sleep_duration: 0, average_latency: 0, average_wake_latency: 0 };
     }
 });
 
@@ -6337,7 +6524,13 @@ electron_1.app.on('before-quit', () => {
     electron_1.app.isQuitting = true;
     if (trackingInterval)
         clearInterval(trackingInterval);
-     // Log current session before quit
+    
+    // Save close time for sleep tracking
+    lastCloseTime = Date.now();
+    lastCloseType = 'normal';
+    saveSleepState();
+    
+    // Log current session before quit
      // Filter out Electron/DeskFlow app (don't track the app itself)
      if (currentApp && Date.now() - sessionStart > 5000 && currentApp !== 'DeskFlow' && currentApp !== 'Electron') {
          const duration = Date.now() - sessionStart;

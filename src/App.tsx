@@ -46,9 +46,15 @@ const OrbitSystemWrapper = memo(function OrbitSystemWrapper({
   appColors?: Record<string, string>;
   categoryOverrides?: Record<string, string>;
 }) {
+  // Force re-render when logs change - use logs length + first app name as key
+  const logsCount = logs?.length || 0;
+  const firstApp = logs?.[0]?.app || 'none';
+  const periodKey = `${logsCount}-${firstApp}`;
+
   return (
     <Suspense fallback={<div className="h-[600px] flex items-center justify-center"><div className="text-zinc-400">Loading 3D visualization...</div></div>}>
       <OrbitSystem 
+        key={periodKey}
         logs={logs} 
         websiteLogs={browserLogs}
         appColors={appColors}
@@ -56,12 +62,6 @@ const OrbitSystemWrapper = memo(function OrbitSystemWrapper({
       />
     </Suspense>
   );
-}, (prevProps, nextProps) => {
-  // Custom memoization: return true to skip re-render if props haven't changed
-  return prevProps.logs === nextProps.logs && 
-         prevProps.browserLogs === nextProps.browserLogs &&
-         prevProps.appColors === nextProps.appColors &&
-         prevProps.categoryOverrides === nextProps.categoryOverrides;
 });
 import {
   Chart as ChartJS,
@@ -232,7 +232,7 @@ const APP_CATEGORIES = {
 // Productivity tier assignments for combined apps + websites calculation
 const DEFAULT_TIER_ASSIGNMENTS = {
   productive: ['IDE', 'AI Tools', 'Developer Tools', 'Education', 'Productivity', 'Tools'],
-  neutral: ['Communication', 'Design', 'Search Engine', 'News', 'Uncategorized', 'Other'],
+  neutral: ['Communication', 'Design', 'Search Engine', 'News', 'Uncategorized', 'Other', 'Browser'],
   distracting: ['Entertainment', 'Social Media', 'Shopping']
 };
 
@@ -426,11 +426,64 @@ function App() {
     }
   }, []);
 
+  // Load external activities from database on mount
+  useEffect(() => {
+    if (window.deskflowAPI?.getExternalActivities) {
+      window.deskflowAPI.getExternalActivities().then((activities: any[]) => {
+        console.log('[DeskFlow] Loaded external activities:', activities.length);
+        // Map to expected format for DashboardPage
+        const mapped = activities.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type || 'stopwatch',
+          color: a.color || '#10b981',
+          icon: a.icon || 'Activity',
+          is_productive: a.is_productive !== false
+        }));
+        setExternalActivities(mapped);
+      }).catch(err => console.warn('[DeskFlow] Failed to load external activities:', err));
+    }
+    
+    // Check for active external session in database - restore if exists
+    if (window.deskflowAPI?.getActiveExternalSession) {
+      window.deskflowAPI.getActiveExternalSession().then((session: any) => {
+        if (session && session.id) {
+          console.log('[DeskFlow] Found active external session in DB:', session);
+          // Restore the timer state from database
+          const startTime = new Date(session.started_at).getTime();
+          const now = Date.now();
+          const elapsedSeconds = Math.floor((now - startTime) / 1000);
+          
+          // Update timerState with active session
+          const restoredState = {
+            productiveMs: 0,
+            startTime: startTime,
+            paused: false,
+            lastTier: null,
+            externalRunning: true,
+            externalStart: startTime,
+            externalElapsed: elapsedSeconds * 1000,
+            selectedExternalActivity: { 
+              id: session.activity_id, 
+              name: session.name 
+            }
+          };
+          setTimerState(restoredState);
+          localStorage.setItem('deskflow-timer-state', JSON.stringify(restoredState));
+        }
+      }).catch(err => console.warn('[DeskFlow] Failed to get active session:', err));
+    }
+  }, []);
+
   // Listen for real foreground changes from Electron
   useEffect(() => {
     if (window.deskflowAPI && typeof window.deskflowAPI.onForegroundChange === 'function') {
       window.deskflowAPI.onForegroundChange((data) => {
         console.log('[DeskFlow] Foreground changed:', data.app, data.category);
+        
+        // Track the current foreground app
+        currentForegroundAppRef.current = data.app || '';
+        
         setCurrentApp(data.app);
         setSessionStart(new Date(data.timestamp));
         setElapsedTime(0);
@@ -479,18 +532,33 @@ function App() {
     // Listen for browser tracking live events
     if (window.deskflowAPI && typeof window.deskflowAPI.onBrowserTrackingEvent === 'function') {
       window.deskflowAPI.onBrowserTrackingEvent((data) => {
-        // Skip browser events if browser is not focused (user is in another app)
-        if (data.is_browser_focused === false) {
-          return; // Don't add stale browser logs when user is elsewhere
+        // SIMPLE CHECK: Only track website if the current foreground app is the tracking browser
+        const trackingBrowser = trackingBrowserRef.current;
+        const currentApp = currentForegroundAppRef.current;
+        
+        // If current app is NOT the tracking browser, skip
+        if (!trackingBrowser || !currentApp || !currentApp.toLowerCase().includes(trackingBrowser.toLowerCase())) {
+          return; // Not on browser - don't log website
         }
+        
         if (data.type === 'browser-data' || data.type === 'live-log') {
+          // Deduplication: Only add if it's a DIFFERENT website from the last log entry
+          const lastLog = liveActivityLogsRef.current[liveActivityLogsRef.current.length - 1];
+          const newDomain = data.domain || data.title || 'Unknown';
+          
+          // Skip if the same domain is already the last entry (prevent duplicates)
+          if (lastLog && lastLog.type === 'browser' && lastLog.name === newDomain) {
+            return;
+          }
+          
           const newLog = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: data.timestamp || Date.now(),
             type: 'browser' as const,
-            name: data.domain,
+            name: newDomain,
             title: data.title,
-            url: data.url
+            url: data.url,
+            elapsed_seconds: 0,
           };
           liveActivityLogsRef.current = [...liveActivityLogsRef.current.slice(-49), newLog];
           setLiveActivityLogs([...liveActivityLogsRef.current]);
@@ -525,10 +593,19 @@ function App() {
     return colorMap;
   }, [logs]);
 
+  // Ref to track tracking browser without causing re-renders in useEffect dependencies
+  const trackingBrowserRef = useRef<string>('');
+  const currentForegroundAppRef = useRef<string>('');
+
   // Load category overrides from localStorage AND categoryConfig on mount
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [domainKeywordRules, setDomainKeywordRules] = useState<Record<string, string[]>>({});
   const [trackingBrowser, setTrackingBrowser] = useState<string>('');
+
+  // Update ref when trackingBrowser state changes
+  useEffect(() => {
+    trackingBrowserRef.current = trackingBrowser;
+  }, [trackingBrowser]);
 
   useEffect(() => {
     const loadTrackingBrowser = async () => {
@@ -540,6 +617,9 @@ function App() {
           }
           if (prefs?.timerBehavior) {
             setTimerBehavior(prefs.timerBehavior);
+          }
+          if (prefs?.trackerAppMode) {
+            setTrackerAppMode(prefs.trackerAppMode);
           }
         }
       } catch { /* ignore */ }
@@ -639,8 +719,6 @@ function App() {
     const appLogs = filtered.filter(log => {
       // Exclude actual website tracking data
       if (log.is_browser_tracking) return false;
-      // Only exclude the tracking browser app (tracked via extension), not all browsers
-      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return false;
       return true;
     });
 
@@ -800,7 +878,37 @@ function App() {
   const [autoDetect, setAutoDetect] = useState(true);
   const [autoExport, setAutoExport] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
-  const [timerBehavior, setTimerBehavior] = useState<{ neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' }>({ neutralAction: 'pause', distractingAction: 'reset' });
+  const [externalActivities, setExternalActivities] = useState<any[]>([]);
+  const [timerBehavior, setTimerBehavior] = useState<{ neutralAction: 'pause' | 'reset' | 'ignore'; distractingAction: 'pause' | 'reset' | 'ignore' }>({ neutralAction: 'ignore', distractingAction: 'reset' });
+  const [trackerAppMode, setTrackerAppMode] = useState<'show-other' | 'pause' | 'track'>('track');
+  const [timerState, setTimerState] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deskflow-timer-state');
+      if (saved) return JSON.parse(saved);
+    }
+    return { productiveMs: 0, startTime: 0, paused: false, lastTier: null, externalRunning: false, externalStart: null, externalElapsed: 0, selectedExternalActivity: null };
+  });
+  
+  // Activity feed - persisted at App level to survive tab switches
+  const [activityFeed, setActivityFeed] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deskflow-activity-feed');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        }));
+      }
+    }
+    return [];
+  });
+  
+  const handleActivityFeedChange = useCallback((newItems: any[]) => {
+    setActivityFeed(newItems);
+    localStorage.setItem('deskflow-activity-feed', JSON.stringify(newItems));
+  }, []);
+  
   const [foregroundApps, setForegroundApps] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -1255,16 +1363,16 @@ function App() {
   const [timeMode, setTimeMode] = useState<'focus' | 'total'>('focus');
 
   // Compute time by category - SEPARATE for apps and websites
-  // Apps-only time (for Total mode)
+  // All apps time (for Total mode) - include ALL apps including browsers
   const appsTimeByCategory = useMemo(() => {
     const categoryTime: Record<string, number> = {};
     filteredLogs.forEach(log => {
-      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return;
+      if (log.is_browser_tracking) return; // Only skip actual website tracking
       const cat = log.category || 'Uncategorized';
       categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
     });
     return categoryTime;
-  }, [filteredLogs, trackingBrowser]);
+  }, [filteredLogs]);
 
   // Productive websites time (for Focus mode)
   const productiveWebsitesTime = useMemo(() => {
@@ -1283,9 +1391,9 @@ function App() {
   const timeByCategory = useMemo(() => {
     const categoryTime: Record<string, number> = {};
     
-    // Desktop apps (excluding tracking browser - tracked as websites instead)
+    // Desktop apps - include ALL apps
     filteredLogs.forEach(log => {
-      if (trackingBrowser && log.app.toLowerCase().includes(trackingBrowser)) return;
+      if (log.is_browser_tracking) return; // Only skip actual website tracking
       const cat = log.category || 'Uncategorized';
       categoryTime[cat] = (categoryTime[cat] || 0) + log.duration;
     });
@@ -1299,7 +1407,7 @@ function App() {
     });
     
     return categoryTime;
-  }, [filteredLogs, browserLogs, trackingBrowser]);
+  }, [filteredLogs, browserLogs]);
 
   // Compute productivity score - same algorithm as ProductivityPage
   const TIER_WEIGHTS = { productive: 1.0, neutral: 0.5, distracting: 0 };
@@ -1347,12 +1455,12 @@ function App() {
   }, [appsTimeByCategory, productiveWebsitesTime, tierAssignments]);
   
   // Compute breakdown for display (apps vs websites)
-  // Only the tracking browser is excluded from apps since it's tracked via websites
+  // Excludes browser tracking (is_browser_tracking) from apps
   const timeBreakdown = useMemo(() => {
-    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking && !(trackingBrowser && l.app.toLowerCase().includes(trackingBrowser))).reduce((sum, l) => sum + l.duration, 0);
+    const appsTime = filteredLogs.filter(l => !l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
     const websitesTime = filteredLogs.filter(l => l.is_browser_tracking).reduce((sum, l) => sum + l.duration, 0);
     return { apps: appsTime, websites: websitesTime };
-  }, [filteredLogs, trackingBrowser]);
+  }, [filteredLogs]);
 
   // Display time based on mode
   const displayTime = timeMode === 'focus' ? Math.floor(focusAndTotalTime.focus) : Math.floor(focusAndTotalTime.total);
@@ -1364,9 +1472,17 @@ function App() {
   // Excludes browser tracking (is_browser_tracking) to match Stats page behavior
   const getAppDistribution = () => {
     const grouped: Record<string, number> = {};
+    // Use trackingBrowser state instead of prefs (which is not available in this scope)
+    const selectedBrowser = trackingBrowser?.toLowerCase() || '';
+    
     filteredLogs.forEach(log => {
-      // Exclude browser tracking data (website visits) - only count desktop apps
+      // Skip browser tracking data (website visits) - only count desktop apps
       if (log.is_browser_tracking) return;
+      
+      // Skip ONLY the selected tracking browser (e.g., Comet), not all browsers
+      // This keeps Chrome/Firefox etc showing in app list
+      const appLower = (log.app || '').toLowerCase();
+      if (selectedBrowser && appLower.includes(selectedBrowser)) return;
       
       // Filter by mode: Focus only includes productive categories
       if (timeMode === 'focus') {
@@ -1395,26 +1511,62 @@ function App() {
     }]
   };
 
-  const weeklyData = {
-    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    datasets: [
-      {
-        label: 'Coding (IDE)',
-        data: [4.2, 3.8, 5.1, 4.5, 3.9, 1.2, 0.8],
-        backgroundColor: '#4f46e5',
-      },
-      {
-        label: 'AI Tools',
-        data: [1.8, 2.1, 1.4, 2.3, 1.9, 0.5, 0.3],
-        backgroundColor: '#8b5cf6',
-      },
-      {
-        label: 'Browser',
-        data: [0.9, 1.1, 0.8, 1.2, 0.7, 1.4, 1.1],
-        backgroundColor: '#3b82f6',
-      },
-    ]
-  };
+  const weeklyData = useMemo(() => {
+    // Calculate actual weekly productivity from logs
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 = Sunday
+    
+    // Get start of the week (Monday)
+    const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - daysSinceMonday);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // Initialize data for Mon-Sun
+    const weekData: Record<string, { productive: number; neutral: number; distracting: number }> = {};
+    dayNames.forEach(day => { weekData[day] = { productive: 0, neutral: 0, distracting: 0 }; });
+    
+    // Process logs from this week
+    filteredLogs.forEach(log => {
+      const logDate = log.timestamp instanceof Date ? log.timestamp : new Date(log.timestamp);
+      // Only include logs from this week
+      if (logDate >= weekStart && logDate <= today) {
+        const dayName = dayNames[logDate.getDay()];
+        const hours = log.duration / 3600; // convert seconds to hours
+        const category = log.category || 'Uncategorized';
+        
+        if (tierAssignments?.productive.includes(category)) {
+          weekData[dayName].productive += hours;
+        } else if (tierAssignments?.distracting.includes(category)) {
+          weekData[dayName].distracting += hours;
+        } else {
+          weekData[dayName].neutral += hours;
+        }
+      }
+    });
+    
+    return {
+      labels: dayNames,
+      datasets: [
+        {
+          label: 'Productive',
+          data: dayNames.map(day => parseFloat(weekData[day].productive.toFixed(1))),
+          backgroundColor: '#10b981', // green
+        },
+        {
+          label: 'Neutral',
+          data: dayNames.map(day => parseFloat(weekData[day].neutral.toFixed(1))),
+          backgroundColor: '#f59e0b', // yellow/amber
+        },
+        {
+          label: 'Distracting',
+          data: dayNames.map(day => parseFloat(weekData[day].distracting.toFixed(1))),
+          backgroundColor: '#ef4444', // red
+        },
+      ]
+    };
+  }, [filteredLogs, tierAssignments]);
 
   // Generate AI Summary
   const generateAISummary = () => {
@@ -1853,10 +2005,10 @@ Trend: +14% vs. yesterday. Keep it up!`;
 
           <div className="flex items-center gap-4">
             {/* Time mode toggle: Focus vs Total */}
-            <div className="flex bg-zinc-900 rounded-full p-1 text-xs">
+            <div className="flex bg-zinc-900 rounded-full p-1 flex-shrink-0">
               <button
                 onClick={() => setTimeMode('focus')}
-                className={`px-3 py-1.5 rounded-full transition flex items-center gap-1.5 ${timeMode === 'focus' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-400 hover:text-white'}`}
+                className={`px-3 py-1.5 rounded-full transition flex items-center gap-1.5 w-[72px] justify-center flex-shrink-0 text-xs ${timeMode === 'focus' ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-400 hover:text-white'}`}
                 title="Focus Time: Sum of all logged sessions"
               >
                 <Zap className="w-3 h-3" />
@@ -1864,8 +2016,8 @@ Trend: +14% vs. yesterday. Keep it up!`;
               </button>
               <button
                 onClick={() => setTimeMode('total')}
-                className={`px-3 py-1.5 rounded-full transition flex items-center gap-1.5 ${timeMode === 'total' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-400 hover:text-white'}`}
-                title="Total Time: Apps + Websites (browser app excluded to avoid double-counting)"
+                className={`px-3 py-1.5 rounded-full transition flex items-center gap-1.5 w-[72px] justify-center flex-shrink-0 text-xs ${timeMode === 'total' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-400 hover:text-white'}`}
+                title="Total Time: Apps + Websites"
               >
                 <Clock className="w-3 h-3" />
                 Total
@@ -1879,9 +2031,6 @@ Trend: +14% vs. yesterday. Keep it up!`;
             >
               <Clock className="w-4 h-4 text-zinc-500" />
               {formatDuration(displayTime)}
-              <span className="text-xs text-zinc-500 font-normal">
-                ({timeMode === 'focus' ? 'productive apps + web' : 'apps only'})
-              </span>
             </div>
 
             <div className="flex bg-zinc-900 rounded-full p-1 text-xs">
@@ -1929,9 +2078,9 @@ Trend: +14% vs. yesterday. Keep it up!`;
           <AnimatePresence mode="sync">
             <Routes location={location} key={location.pathname}>
               {/* Dashboard */}
-               <Route path="/" element={
-                  <DashboardPage logs={logs} allLogs={allLogs} browserLogs={browserLogs} appColors={appColors} categoryOverrides={categoryOverrides} timerBehavior={timerBehavior} selectedPeriod={selectedPeriod} trackingBrowser={trackingBrowser} tierAssignments={tierAssignments} />
-                } />
+<Route path="/" element={
+                   <DashboardPage logs={logs} allLogs={allLogs} browserLogs={browserLogs} appColors={appColors} categoryOverrides={categoryOverrides} timerBehavior={timerBehavior} selectedPeriod={selectedPeriod} trackingBrowser={trackingBrowser} trackerAppMode={trackerAppMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} timerState={timerState} onTimerStateChange={setTimerState} activityFeed={activityFeed} onActivityFeedChange={handleActivityFeedChange} externalActivities={externalActivities} />
+                 } />
               {/* Stats Page */}
               <Route path="/stats" element={<StatsPage logs={logs} appStats={computedAppStats} selectedPeriod={selectedPeriod} timeMode={timeMode} tierAssignments={tierAssignments || DEFAULT_TIER_ASSIGNMENTS} />} />
               {/* Productivity Page */}
@@ -1955,7 +2104,7 @@ Trend: +14% vs. yesterday. Keep it up!`;
               {/* Pricing Page */}
               <Route path="/pricing" element={<div className="glass rounded-3xl p-8 flex items-center justify-center h-96"><div className="text-center text-zinc-400"><div className="text-4xl mb-4">!</div><div className="text-lg font-medium">Not Yet Added Feature</div><div className="text-sm text-zinc-500 mt-1">Pricing plans are coming soon</div></div></div>} />
               {/* Settings Page */}
-              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} onHasChangesChange={setSettingsHasChanges} timerBehavior={timerBehavior} setTimerBehavior={setTimerBehavior} />} />
+              <Route path="/settings" element={<SettingsPage logs={logs} appStats={allTimeAppStats} websiteStats={allTimeWebsiteStats} onRegisterSave={handleRegisterSave} onReloadData={loadData} onCategoryOverridesChange={setCategoryOverrides} onHasChangesChange={setSettingsHasChanges} timerBehavior={timerBehavior} setTimerBehavior={setTimerBehavior} trackerAppMode={trackerAppMode} setTrackerAppMode={setTrackerAppMode} />} />
             </Routes>
           </AnimatePresence>
 

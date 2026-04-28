@@ -50,18 +50,43 @@ These files contain information NOT captured in graphify and must still be maint
 | `agent/docs/quick-prompt.md` | Diagnostic prompt templates | When a reusable diagnostic pattern is found |
 | `agent/docs/RESTORE_PROMPT.md` | Emergency restoration procedure | When project structure changes significantly |
 | `agent/docs/SETTINGS_PAGE_FEATURES.md` | Complete Settings page feature reference | When modifying Settings page |
+| `agent/COMMITS.md` | Git commit history and conventions | After git commits |
+| `agent/REQUESTS.md` | User request history | When user asks for something |
+| `agent/constraints.md` | Hard rules and limitations | When new constraints discovered |
+| `agent/context.md` | Architecture, tech stack, data flow | When architecture changes |
+| `agent/patterns.md` | Reusable code patterns | When new patterns introduced |
+| `agent/glossary.md` | Term definitions | When new terms introduced |
+| `agent/qwen.md` | Qwen-specific rules | When Qwen instructions change |
 
-## Redundant Files (content already in graphify - do NOT maintain separately)
+### Redundant Files (content already in graphify - do NOT maintain separately)
 
 - `agent/agents.md` — replaced by graphify + this AGENTS.md
-- `agent/context.md` — replaced by graphify communities
-- `agent/constraints.md` — replaced by graphify edges
-- `agent/glossary.md` — replaced by graphify nodes
-- `agent/patterns.md` — replaced by graphify relationships
 - `agent/README.md` — outdated
 - `agent/prompt.md` — superseded
 - `agent/prompts.md` — superseded by debugging.md and quick-prompt.md
-- `agent/transfer-prompt.md` — one-time use
+
+---
+
+## Human Testing Checklist (MANDATORY)
+
+When changes require user testing, add an entry to `agent/PROBLEMS.md` AND link it here. Each item must include:
+1. What was changed
+2. What to test
+3. Expected behavior
+4. How it relates to existing PROBLEMS.md entry
+
+| Change | Test Steps | Expected | PROBLEMS.md Ref |
+|--------|-----------|----------|-----------------|
+| App switching reverts to website | 1. Open browser with YouTube 2. Switch to another app (VS Code) 3. Wait 5+ seconds | Timer shows the new app, not website | Issue #51 (App switching) |
+| Timer/activity colors by tier | 1. Open app with productive app 2. Open distracting app 3. Start external activity | Border/timer changes: Green (productive), Red (distracting), Purple (external), Gray (idle) | Issue #52 (Timer colors) |
+| Elapsed time wrong (4:59:10) | 1. View Recent Sessions 2. Look at duration | Duration shows correct time difference, not inverted | Issue #53 (Elapsed time bug) |
+| Fullscreen height | 1. Click fullscreen on Solar 2. Check height | Full height, no cut off | Issue #54 (Fullscreen height) |
+| Duplicate activity buttons | 1. Go to External page 2. Check buttons | No duplicate buttons | Issue #50 (External page layout) |
+
+### Example Entry:
+```
+| External page charts moved | 1. Go to /external 2. Click any activity 3. Verify charts appear below buttons | Charts visible, no duplicates | Issue #50 (External page layout) |
+```
 
 ---
 
@@ -90,3 +115,73 @@ These files contain information NOT captured in graphify and must still be maint
 
 ### Package versions — NEVER run `npm install tailwindcss@latest`
 This project uses `tailwindcss: "4.2.1"` and `@tailwindcss/vite: "4.2.1"` (pinned exact). Running `npm install tailwindcss@latest` may downgrade to v3 and break everything. Do NOT add `autoprefixer` or `postcss` — they are v3 dependencies.
+
+---
+
+## Behavioral Guidelines
+
+Behavioral guidelines to reduce common LLM coding mistakes. Tradeoff: bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+- Ask: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+**The test:** Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+## Current Active Issues (Check PROBLEMS.md First)
+
+| Issue # | Title | Priority | Status |
+|---------|-------|----------|--------|
+| 50 | External page duplicate buttons | P1 | In Progress |
+| ... | (see PROBLEMS.md for full list) | | |
+
+---
+
+@agent/agents.md
+
+**Last Updated:** 2026-04-26

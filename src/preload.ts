@@ -104,11 +104,9 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   
   // NEW: Keyword-based productivity categorization
   getDomainKeywordRules: (domain: string) => ipcRenderer.invoke('get-domain-keyword-rules', domain),
-  setDomainKeywordRules: (domain: string, keywords: string[]) => ipcRenderer.invoke('set-domain-keyword-rules', domain, keywords),
-  getDomainDefaultCategory: (domain: string) => ipcRenderer.invoke('get-domain-default-category', domain),
-  setDomainDefaultCategory: (domain: string, category: string) => ipcRenderer.invoke('set-domain-default-category', domain, category),
+  setDomainKeywordRules: (domain: string, keywordSets: { category: string; keywords: string[] }[]) => ipcRenderer.invoke('set-domain-keyword-rules', domain, keywordSets),
   getKeywordEnabledDomains: () => ipcRenderer.invoke('get-keyword-enabled-domains'),
-  addKeywordDomain: (domain: string, keywords: string[], defaultCategory?: string) => ipcRenderer.invoke('add-keyword-domain', domain, keywords, defaultCategory),
+  addKeywordDomain: (domain: string, keywordSets: { category: string; keywords: string[] }[]) => ipcRenderer.invoke('add-keyword-domain', domain, keywordSets),
   removeKeywordDomain: (domain: string) => ipcRenderer.invoke('remove-keyword-domain', domain),
 
   // AI Features
@@ -232,6 +230,9 @@ contextBridge.exposeInMainWorld('deskflowAPI', {
   stopExternalSession: (sessionId: string, endTime?: string) => ipcRenderer.invoke('stop-external-session', sessionId, endTime),
   getExternalSessions: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-sessions', period),
   getActiveExternalSession: () => ipcRenderer.invoke('get-active-external-session'),
+  getMorningPrompt: () => ipcRenderer.invoke('get-morning-prompt'),
+  dismissMorningPrompt: () => ipcRenderer.invoke('dismiss-morning-prompt'),
+  addManualSleep: (sleepData: { started_at: string; ended_at: string; device_off_to_sleep_seconds?: number; wake_up_to_app_seconds?: number }) => ipcRenderer.invoke('add-manual-sleep', sleepData),
 
   // External Statistics
   getExternalStats: (period: 'today' | 'week' | 'month' | 'all') => ipcRenderer.invoke('get-external-stats', period),
